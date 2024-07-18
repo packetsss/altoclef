@@ -112,7 +112,7 @@ public class CraftingRecipeTracker extends Tracker{
             // the arguments shouldn't be used, we can just pass null
             ItemStack result = new ItemStack(craftingRecipe.getOutput().getItem(), craftingRecipe.getOutput().getCount());
 
-            Item[][] altoclefRecipeItems = getShapedCraftingRecipe(craftingRecipe.getIngredients());
+            Item[][] altoclefRecipeItems = getShapedCraftingRecipe(craftingRecipe.getPreviewInputs());
 
             adris.altoclef.util.CraftingRecipe altoclefRecipe = adris.altoclef.util.CraftingRecipe.newShapedRecipe(altoclefRecipeItems, result.getCount());
 

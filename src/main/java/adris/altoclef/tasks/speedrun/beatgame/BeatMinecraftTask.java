@@ -1015,7 +1015,7 @@ public class BeatMinecraftTask extends Task {
 
             // TODO use shipwreck finder instead
 
-            Box box = new Box(blockPos.getX() - 5, blockPos.getY() - 5, blockPos.getZ() - 5,
+            BlockBox box = new BlockBox(blockPos.getX() - 5, blockPos.getY() - 5, blockPos.getZ() - 5,
                     blockPos.getX() + 5, blockPos.getY() + 5, blockPos.getZ() + 5);
 
             Stream<BlockState> states = BlockPos.stream(box).map(pos -> mod.getWorld().getBlockState(pos));

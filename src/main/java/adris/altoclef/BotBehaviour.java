@@ -11,7 +11,8 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.Pair;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.RaycastContext;
+import net.minecraft.world.RayTraceContext;
+
 
 import java.util.*;
 import java.util.function.BiFunction;
@@ -135,7 +136,7 @@ public class BotBehaviour {
         current().applyState();
     }
 
-    public void setRayTracingFluidHandling(RaycastContext.FluidHandling fluidHandling) {
+    public void setRayTracingFluidHandling(RayTraceContext.FluidHandling fluidHandling) {
         current().rayFluidHandling = fluidHandling;
         //Debug.logMessage("OOF: " + fluidHandling);
         current().applyState();
@@ -289,7 +290,7 @@ public class BotBehaviour {
         public boolean pauseOnLostFocus = true;
 
         // Hard coded stuff
-        public RaycastContext.FluidHandling rayFluidHandling;
+        public RayTraceContext.FluidHandling rayFluidHandling;
 
         // Other necessary stuff
         public boolean escapeLava = true;

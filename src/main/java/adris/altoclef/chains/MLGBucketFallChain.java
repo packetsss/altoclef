@@ -14,7 +14,8 @@ import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.item.Items;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
-import net.minecraft.world.RaycastContext;
+import net.minecraft.world.RayTraceContext;
+
 
 import java.util.Optional;
 
@@ -60,7 +61,7 @@ public class MLGBucketFallChain extends SingleTaskChain implements ITaskOverride
                         BlockPos toInteract = placed;
                         // Allow looking at fluids
                         mod.getBehaviour().push();
-                        mod.getBehaviour().setRayTracingFluidHandling(RaycastContext.FluidHandling.SOURCE_ONLY);
+                        mod.getBehaviour().setRayTracingFluidHandling(RayTraceContext.FluidHandling.SOURCE_ONLY);
                         Optional<Rotation> reach = LookHelper.getReach(toInteract, Direction.UP);
                         if (reach.isPresent()) {
                             mod.getClientBaritone().getLookBehavior().updateTarget(reach.get(), true);

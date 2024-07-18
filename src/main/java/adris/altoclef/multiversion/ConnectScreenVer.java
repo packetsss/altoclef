@@ -3,8 +3,8 @@ package adris.altoclef.multiversion;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ConnectScreen;
-import net.minecraft.client.network.ServerAddress;
 import net.minecraft.client.network.ServerInfo;
+import net.minecraft.network.ServerAddress;
 
 public class ConnectScreenVer {
 

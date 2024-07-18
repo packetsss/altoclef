@@ -6,7 +6,7 @@ import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.ItemTarget;
 import net.minecraft.item.Items;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.RaycastContext;
+import net.minecraft.world.RayTraceContext;
 
 /**
  * Removes a liquid source block at a position.
@@ -27,7 +27,7 @@ public class ClearLiquidTask extends Task {
     @Override
     protected Task onTick(AltoClef mod) {
         if (mod.getItemStorage().hasItem(Items.BUCKET)) {
-            mod.getBehaviour().setRayTracingFluidHandling(RaycastContext.FluidHandling.SOURCE_ONLY);
+            mod.getBehaviour().setRayTracingFluidHandling(RayTraceContext.FluidHandling.SOURCE_ONLY);
             return new InteractWithBlockTask(new ItemTarget(Items.BUCKET, 1), _liquidPos, false);
         }
 

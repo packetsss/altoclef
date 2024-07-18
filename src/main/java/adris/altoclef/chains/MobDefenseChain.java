@@ -52,7 +52,7 @@ public class MobDefenseChain extends SingleTaskChain {
     private static final double ARROW_KEEP_DISTANCE_VERTICAL = 10;
     private static final double SAFE_KEEP_DISTANCE = 8;
     private static final List<Class<? extends Entity>> ignoredMobs = List.of(WitherEntity.class, EndermanEntity.class, BlazeEntity.class,
-            WitherSkeletonEntity.class, HoglinEntity.class, ZoglinEntity.class, PiglinBruteEntity.class, VindicatorEntity.class, MagmaCubeEntity.class);
+            WitherSkeletonEntity.class, HoglinEntity.class, ZoglinEntity.class, VindicatorEntity.class, MagmaCubeEntity.class);
 
     private static boolean shielding = false;
     private final DragonBreathTracker dragonBreathTracker = new DragonBreathTracker();
@@ -548,7 +548,7 @@ public class MobDefenseChain extends SingleTaskChain {
         // If we merely force field them, we will run into them and get the wither effect which will kill us.
 
         Class<?>[] dangerousMobs = new Class[]{WitherEntity.class, WitherSkeletonEntity.class,
-                HoglinEntity.class, ZoglinEntity.class, PiglinBruteEntity.class, VindicatorEntity.class};
+                HoglinEntity.class, ZoglinEntity.class, VindicatorEntity.class};
 
         double range = SAFE_KEEP_DISTANCE - 2;
 

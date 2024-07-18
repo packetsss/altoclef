@@ -10,7 +10,8 @@ import baritone.api.utils.Rotation;
 import baritone.api.utils.RotationUtils;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.passive.MerchantEntity;
+import net.minecraft.entity.passive.AbstractTraderEntity;
+import net.minecraft.entity.passive.VillagerEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.projectile.ProjectileUtil;
 import net.minecraft.item.ItemStack;
@@ -20,7 +21,7 @@ import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.*;
-import net.minecraft.world.RaycastContext;
+import net.minecraft.world.RayTraceContext;
 import net.minecraft.world.World;
 
 import java.util.Objects;
@@ -119,7 +120,7 @@ public interface LookHelper {
         Box box = to.getBoundingBox();
 
         // Perform the raycast and return the result
-        return ProjectileUtil.raycast(from, start, start.add(direction), box, entity -> entity.equals(to), 0);
+        return ProjectileUtil.rayTrace(from, start, start.add(direction), box, entity -> entity.equals(to), 0);
     }
 
     /**
@@ -278,10 +279,10 @@ public interface LookHelper {
         World world = entity.getEntityWorld();
 
         // Create a raycast context with the start and end points, shape type, fluid handling, and entity performing the raycast
-        RaycastContext context = new RaycastContext(start, end, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, entity);
+        RayTraceContext context = new RayTraceContext(start, end, RayTraceContext.ShapeType.COLLIDER, RayTraceContext.FluidHandling.NONE, entity);
 
         // Perform the raycast in the world and return the result
-        return world.raycast(context);
+        return world.rayTrace(context);
     }
 
     /**
@@ -479,7 +480,7 @@ public interface LookHelper {
             // Get the entity from the crosshair target
             Entity entity = ((EntityHitResult) result).getEntity();
             // Check if the entity is a merchant
-            return entity instanceof MerchantEntity;
+            return entity instanceof AbstractTraderEntity;
         }
 
         return false;

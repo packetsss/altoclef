@@ -97,7 +97,7 @@ public class OneCycleTask extends Task {
             }
 
 
-            Vec3d dragonHeadPos = dragon.head.getBoundingBox().getCenter(); // dragon.head.getPos();
+            Vec3d dragonHeadPos = dragon.partHead.getBoundingBox().getCenter(); // dragon.head.getPos();
             Vec3d bedHeadPos = WorldHelper.toVec3d(bedHead);
 
             double dist = dragonHeadPos.distanceTo(bedHeadPos);

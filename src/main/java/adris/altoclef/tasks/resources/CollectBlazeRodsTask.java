@@ -20,7 +20,7 @@ import net.minecraft.item.Items;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.RaycastContext;
+import net.minecraft.world.RayTraceContext;
 
 import java.util.Optional;
 import java.util.function.Predicate;
@@ -84,7 +84,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 // Ignore if the blaze is too far away.
                 if (sqDistanceToPlayer > SPAWNER_BLAZE_RADIUS * SPAWNER_BLAZE_RADIUS) {
                     // If the blaze can see us it needs to go lol
-                    BlockHitResult hit = mod.getWorld().raycast(new RaycastContext(mod.getPlayer().getCameraPosVec(1.0F), kill.getCameraPosVec(1.0F), RaycastContext.ShapeType.OUTLINE, RaycastContext.FluidHandling.NONE, mod.getPlayer()));
+                    BlockHitResult hit = mod.getWorld().rayTrace(new RayTraceContext(mod.getPlayer().getCameraPosVec(1.0F), kill.getCameraPosVec(1.0F), RayTraceContext.ShapeType.OUTLINE, RayTraceContext.FluidHandling.NONE, mod.getPlayer()));
                     if (hit != null && BlockPosVer.getSquaredDistance(hit.getBlockPos(),mod.getPlayer().getPos()) < sqDistanceToPlayer) {
                         toKill = Optional.empty();
                     }

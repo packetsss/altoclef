@@ -45,8 +45,13 @@ public class SafeNetherPortalTask extends Task {
 
         if (((EntityAccessor) mod.getPlayer()).getPortalCooldown() < 10) {
             if (positions != null && directions != null) {
-                BlockPos pos1 = ((adris.altoclef.mixins.EntityAccessor) mod.getPlayer()).invokeGetLandingPos().offset(axis, 1);
-                BlockPos pos2 = ((adris.altoclef.mixins.EntityAccessor) mod.getPlayer()).invokeGetLandingPos().offset(axis, -1);
+                BlockPos pos1 = ((adris.altoclef.mixins.EntityAccessor) mod.getPlayer()).invokeGetLandingPos().offset(Direction.SOUTH);
+                BlockPos pos2 = ((adris.altoclef.mixins.EntityAccessor) mod.getPlayer()).invokeGetLandingPos().offset(Direction.NORTH);
+
+                if (axis == Direction.Axis.X) {
+                    pos1 = ((adris.altoclef.mixins.EntityAccessor) mod.getPlayer()).invokeGetLandingPos().offset(Direction.EAST);
+                    pos2 = ((adris.altoclef.mixins.EntityAccessor) mod.getPlayer()).invokeGetLandingPos().offset(Direction.WEST);
+                }
 
                 if (mod.getWorld().getBlockState(pos1).isAir() || mod.getWorld().getBlockState(pos1).getBlock().equals(Blocks.SOUL_SAND)) {
                     boolean passed = false;
@@ -174,7 +179,7 @@ public class SafeNetherPortalTask extends Task {
             if (mod.getWorld().getBlockState(pos).getBlock().equals(Blocks.SOUL_SAND)) {
                 LookHelper.lookAt(mod, pos);
 
-                HitResult result = mod.getPlayer().raycast(3, MinecraftClient.getInstance().getTickDelta(), true);
+                HitResult result = mod.getPlayer().rayTrace(3, MinecraftClient.getInstance().getTickDelta(), true);
                 if (result instanceof BlockHitResult blockHitResult && mod.getWorld().getBlockState(blockHitResult.getBlockPos()).getBlock().equals(Blocks.NETHER_PORTAL)) {
                     setDebugState("Getting closer to target...");
                     mod.getInputControls().hold(Input.MOVE_FORWARD);

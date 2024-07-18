@@ -13,7 +13,7 @@ import adris.altoclef.util.*;
 import adris.altoclef.util.helpers.ItemHelper;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
-import net.minecraft.block.MapColor;
+import net.minecraft.block.MaterialColor;
 import net.minecraft.entity.mob.*;
 import net.minecraft.entity.passive.*;
 import net.minecraft.item.Item;
@@ -790,7 +790,7 @@ public class TaskCatalogue {
 
     private static void colorfulTasks(String baseName, Function<ItemHelper.ColorfulItems, Item> getMatch, BiFunction<ItemHelper.ColorfulItems, Integer, ResourceTask> getTask) {
         for (DyeColor dCol : DyeColor.values()) {
-            MapColor mCol = dCol.getMapColor();
+            MaterialColor mCol = dCol.getMaterialColor();
             ItemHelper.ColorfulItems color = ItemHelper.getColorfulItems(mCol);
             String prefix = color.colorName;
             put(prefix + "_" + baseName, new Item[]{getMatch.apply(color)}, count -> getTask.apply(color, count));

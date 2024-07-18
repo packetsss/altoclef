@@ -17,7 +17,7 @@ public class ItemHelper {
     //#if MC <= 11605
     public static boolean isSuitableFor(Item item, BlockState state){
         if (item instanceof PickaxeItem pickaxe) {
-            return pickaxe.isSuitableFor(state);
+            return pickaxe.isEffectiveOn(state);
         }
 
         if (item instanceof MiningToolItem) {
@@ -29,7 +29,7 @@ public class ItemHelper {
             return isInEffectiveBlocks;
         }
 
-        return item.isSuitableFor(state);
+        return item.isEffectiveOn(state);
     }
 
     //#endif

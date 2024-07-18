@@ -12,8 +12,8 @@ import adris.altoclef.util.time.TimerReal;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.*;
 import net.minecraft.client.gui.screen.multiplayer.*;
-import net.minecraft.client.network.ServerAddress;
 import net.minecraft.client.network.ServerInfo;
+import net.minecraft.network.ServerAddress;
 import net.minecraft.text.Text;
 
 public class DeathMenuChain extends TaskChain {

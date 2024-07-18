@@ -17,7 +17,7 @@ import net.minecraft.item.*;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.*;
-import net.minecraft.world.RaycastContext;
+import net.minecraft.world.RayTraceContext;
 
 import java.util.Optional;
 import java.util.function.Predicate;
@@ -193,10 +193,10 @@ public class EscapeFromLavaTask extends CustomBaritoneGoalTask {
 
         Vec3d vec3d3 = cameraPos.add(rotationVector.x * maxDistance, rotationVector.y * maxDistance, rotationVector.z * maxDistance);
         return mod.getPlayer().getEntityWorld()
-                .raycast(
-                        new RaycastContext(
-                                cameraPos, vec3d3, RaycastContext.ShapeType.OUTLINE,
-                                false ? RaycastContext.FluidHandling.ANY : RaycastContext.FluidHandling.NONE, mod.getPlayer()
+                .rayTrace(
+                        new RayTraceContext(
+                                cameraPos, vec3d3, RayTraceContext.ShapeType.OUTLINE,
+                                false ? RayTraceContext.FluidHandling.ANY : RayTraceContext.FluidHandling.NONE, mod.getPlayer()
                         )
                 );
     }

@@ -23,7 +23,6 @@
   ],
   "client": [
     "ChatInputMixin",
-    "ChatReadMixin",
     "ClientBlockBreakMixin",
     "ClientOpenScreenMixin",
     "ClientTickMixin",

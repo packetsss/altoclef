@@ -2,8 +2,9 @@ package adris.altoclef.control;
 
 import baritone.api.utils.input.Input;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.GameOptions;
-import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.options.GameOptions;
+import net.minecraft.client.options.KeyBinding;
+
 
 import java.util.ArrayDeque;
 import java.util.HashSet;

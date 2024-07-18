@@ -17,7 +17,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.item.Items;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.RaycastContext;
+import net.minecraft.world.RayTraceContext;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -67,7 +67,7 @@ public class CollectObsidianTask extends ResourceTask {
     protected void onResourceStart(AltoClef mod) {
         mod.getBehaviour().push();
 
-        mod.getBehaviour().setRayTracingFluidHandling(RaycastContext.FluidHandling.SOURCE_ONLY);
+        mod.getBehaviour().setRayTracingFluidHandling(RayTraceContext.FluidHandling.SOURCE_ONLY);
 
         // Avoid placing on the lava block we're trying to mine.
         mod.getBehaviour().avoidBlockPlacing(pos -> {

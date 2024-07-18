@@ -28,7 +28,8 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.RaycastContext;
+import net.minecraft.world.RayTraceContext;
+import net.minecraft.world.RayTraceContext;
 
 import java.util.Arrays;
 import java.util.List;
@@ -302,8 +303,8 @@ public class MLGBucketTask extends Task {
         BlockHitResult result = null;
         double bestSqDist = Double.POSITIVE_INFINITY;
         for (Vec3d rayOrigin : coords) {
-            RaycastContext rctx = castDown(rayOrigin);
-            BlockHitResult hit = mod.getWorld().raycast(rctx);
+            RayTraceContext rctx = castDown(rayOrigin);
+            BlockHitResult hit = mod.getWorld().rayTrace(rctx);
             if (hit.getType() == HitResult.Type.BLOCK) {
                 double curDis = hit.getPos().squaredDistanceTo(rayOrigin);
                 if (curDis < bestSqDist) {
@@ -373,7 +374,7 @@ public class MLGBucketTask extends Task {
             double pitchProgress = (pitch - dpitchStart) / (pitchHalfWidth - dpitchStart);
             double yawResolution = _config.epicClutchConeYawDivisionStart + pitchProgress * (_config.epicClutchConeYawDivisionEnd - _config.epicClutchConeYawDivisionStart); // lerp from start to end
             for (double yaw = 0; yaw < 360; yaw += 360.0 / yawResolution) {
-                RaycastContext rctx = castCone(yaw, pitch);
+                RayTraceContext rctx = castCone(yaw, pitch);
                 cctx.checkRay(mod, rctx);
             }
         }
@@ -383,7 +384,7 @@ public class MLGBucketTask extends Task {
         Vec3d center = mod.getPlayer().getPos();
         for (int dx = -2; dx <= 2; ++dx) {
             for (int dz = -2; dz <= 2; ++dz) {
-                RaycastContext ctx = castDown(center.add(dx, 0, dz));
+                RayTraceContext ctx = castDown(center.add(dx, 0, dz));
                 cctx.checkRay(mod, ctx);
             }
         }
@@ -391,13 +392,13 @@ public class MLGBucketTask extends Task {
         return Optional.ofNullable(cctx.bestBlock);
     }
 
-    private RaycastContext castDown(Vec3d origin) {
+    private RayTraceContext castDown(Vec3d origin) {
         Entity player = MinecraftClient.getInstance().player;
         assert player != null;
-        return new RaycastContext(origin, origin.add(0, -1 * _config.castDownDistance, 0), RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.ANY, player);
+        return new RayTraceContext(origin, origin.add(0, -1 * _config.castDownDistance, 0), RayTraceContext.ShapeType.COLLIDER, RayTraceContext.FluidHandling.ANY, player);
     }
 
-    private RaycastContext castCone(double yaw, double pitch) {
+    private RayTraceContext castCone(double yaw, double pitch) {
         Entity player = MinecraftClient.getInstance().player;
         assert player != null;
         Vec3d origin = player.getPos();
@@ -407,7 +408,7 @@ public class MLGBucketTask extends Task {
         double dx = dH * Math.cos(yawRad);
         double dz = dH * Math.sin(yawRad);
         Vec3d end = origin.add(dx, -1 * dy, dz);
-        return new RaycastContext(origin, end, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.ANY, player);
+        return new RayTraceContext(origin, end, RayTraceContext.ShapeType.COLLIDER, RayTraceContext.FluidHandling.ANY, player);
     }
 
     @Override
@@ -520,8 +521,8 @@ public class MLGBucketTask extends Task {
             }
         }
 
-        public void checkRay(AltoClef mod, RaycastContext rctx) {
-            BlockHitResult hit = mod.getWorld().raycast(rctx);
+        public void checkRay(AltoClef mod, RayTraceContext rctx) {
+            BlockHitResult hit = mod.getWorld().rayTrace(rctx);
             if (hit.getType() == HitResult.Type.BLOCK) {
                 BlockPos check = hit.getBlockPos();
                 // For now, REQUIRE we land on this

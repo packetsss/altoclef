@@ -26,7 +26,7 @@ import net.minecraft.item.Items;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3i;
-import net.minecraft.world.RaycastContext;
+import net.minecraft.world.RayTraceContext;
 
 import java.util.HashSet;
 import java.util.function.Predicate;
@@ -63,7 +63,7 @@ public class CollectBucketLiquidTask extends ResourceTask {
     protected void onResourceStart(AltoClef mod) {
         // Track fluids
         mod.getBehaviour().push();
-        mod.getBehaviour().setRayTracingFluidHandling(RaycastContext.FluidHandling.SOURCE_ONLY);
+        mod.getBehaviour().setRayTracingFluidHandling(RayTraceContext.FluidHandling.SOURCE_ONLY);
 
         // Avoid breaking / placing blocks at our liquid
         mod.getBehaviour().avoidBlockBreaking((pos) -> MinecraftClient.getInstance().world.getBlockState(pos).getBlock() == toCollect);

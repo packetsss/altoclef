@@ -35,7 +35,7 @@ public class JankCraftingRecipeMapping {
                 for (WrappedRecipeEntry recipe : recipes.values()) {
                     assert world != null;
                     Recipe<?> value = recipe.value();
-                    Item output = RecipeVer.getOutput(value,world).getItem();
+                    Item output = RecipeVer.getOutput(value, world).getItem();
                     recipeMapping.computeIfAbsent(output, k -> new ArrayList<>()).add(recipe);
                 }
             }
@@ -59,24 +59,23 @@ public class JankCraftingRecipeMapping {
                 List<ItemTarget> toSatisfy = Arrays.stream(recipe.getSlots())
                         .filter(itemTarget -> itemTarget != null && !itemTarget.isEmpty())
                         .collect(Collectors.toList());
-                // Check if the recipe has ingredients
-                if (!checkRecipe.value().getIngredients().isEmpty()) {
-                    // Iterate through the ingredients of the recipe
-                    for (Ingredient ingredient : checkRecipe.value().getIngredients()) {
-                        // Skip empty ingredients
-                        if (ingredient.isEmpty()) {
-                            continue;
-                        }
-                        // Iterate through the items to satisfy
-                        outer:
-                        for (int i = 0; i < toSatisfy.size(); ++i) {
-                            ItemTarget target = toSatisfy.get(i);
-                            // Check if any of the ingredient's matching stacks matches the item target
-                            for (ItemStack stack : ingredient.getMatchingStacksClient()) {
-                                if (target.matches(stack.getItem())) {
-                                    toSatisfy.remove(i);
-                                    break outer;
-                                }
+
+
+                // Iterate through the ingredients of the recipe
+                for (Ingredient ingredient : checkRecipe.value().getPreviewInputs()) {
+                    // Skip empty ingredients
+                    if (ingredient.isEmpty()) {
+                        continue;
+                    }
+                    // Iterate through the items to satisfy
+                    outer:
+                    for (int i = 0; i < toSatisfy.size(); ++i) {
+                        ItemTarget target = toSatisfy.get(i);
+                        // Check if any of the ingredient's matching stacks matches the item target
+                        for (ItemStack stack : ingredient.getMatchingStacksClient()) {
+                            if (target.matches(stack.getItem())) {
+                                toSatisfy.remove(i);
+                                break outer;
                             }
                         }
                     }

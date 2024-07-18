@@ -282,7 +282,7 @@ public class KillEnderDragonTask extends Task {
                                 break;
                             }
                             //DamageSource.DRAGON_BREATH
-                            Entity head = dragon.head;
+                            Entity head = dragon.partHead;
                             // Go for the head
                             if (head.isInRange(mod.getPlayer(), 7.5) && dragon.ticksSinceDeath <= 1) {
                                 // Equip weapon

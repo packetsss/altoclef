@@ -1,6 +1,7 @@
 package adris.altoclef.tasks.movement;
 
 import adris.altoclef.AltoClef;
+import adris.altoclef.multiversion.blockpos.BlockPosHelper;
 import adris.altoclef.multiversion.world.WorldVer;
 import adris.altoclef.tasksystem.Task;
 import net.minecraft.util.registry.RegistryKey;
@@ -12,15 +13,15 @@ import net.minecraft.world.biome.Biome;
  */
 public class SearchWithinBiomeTask extends SearchChunksExploreTask {
 
-    private final RegistryKey<Biome> _toSearch;
+    private final Biome _toSearch;
 
-    public SearchWithinBiomeTask(RegistryKey<Biome> toSearch) {
+    public SearchWithinBiomeTask(Biome toSearch) {
         _toSearch = toSearch;
     }
 
     @Override
     protected boolean isChunkWithinSearchSpace(AltoClef mod, ChunkPos pos) {
-        return WorldVer.isBiomeAtPos(mod.getWorld(),_toSearch,adris.altoclef.multiversion.blockpos.BlockPosHelper.add(pos.getStartPos(),1,1,1));
+        return WorldVer.isBiomeAtPos(mod.getWorld(),_toSearch, BlockPosHelper.add(pos.getCenterBlockPos(),1,1,1));
     }
 
     @Override

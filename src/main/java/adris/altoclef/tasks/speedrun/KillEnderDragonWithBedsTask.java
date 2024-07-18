@@ -212,7 +212,7 @@ public class KillEnderDragonWithBedsTask extends Task {
 
         // most of these numbers were arbitrarily added through some testing, its possible not all of these cases need to be tested
         // it seems to work fairly well tho, so I would rather not touch it :p
-        Vec3d dragonHeadPos = dragon.head.getBoundingBox().getCenter();
+        Vec3d dragonHeadPos = dragon.partHead.getBoundingBox().getCenter();
         Vec3d bedHeadPos = WorldHelper.toVec3d(bedHead);
 
         double dist = dragonHeadPos.distanceTo(bedHeadPos);

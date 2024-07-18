@@ -23,7 +23,7 @@ repositories {
     maven {
         name = "MiranCZRepo"
         url = "https://mirancz.github.io/maven/"
-        artifactUrls("https://mirancz.github.io/maven/cabaletta/baritone-unoptimized/1.16.5")
+        artifactUrls("https://mirancz.github.io/maven/cabaletta/baritone-unoptimized/1.16.1")
     }
     maven {
         name = 'babbaj-repo'
@@ -60,11 +60,11 @@ dependencies {
     // Thank you georgeagostino for fixing my garbage
     if (getProject().hasProperty("altoclef.development")) {
         // Must run build from baritone-plus once
-        modImplementation "baritone-api-fabric:baritone-unoptimized-fabric-1.16.5"
-        include "baritone-api-fabric:baritone-unoptimized-fabric-1.16.5"
+        modImplementation "baritone-api-fabric:baritone-unoptimized-fabric-1.16.1"
+        include "baritone-api-fabric:baritone-unoptimized-fabric-1.16.1"
     } else {
-        modImplementation "cabaletta:baritone-unoptimized-fabric:1.16.5"
-        include "cabaletta:baritone-unoptimized-fabric:1.16.5"
+        modImplementation "cabaletta:baritone-unoptimized-fabric:1.16.1"
+        include "cabaletta:baritone-unoptimized-fabric:1.16.1"
     }
     //modImplementation 'baritone-api-fabric:baritone-api-fabric:1.6.3'
     //implementation files('baritone-plus/build/libs/baritone-unoptimized-fabric-1.6.3.jar')

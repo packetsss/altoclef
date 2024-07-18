@@ -7,7 +7,7 @@ import adris.altoclef.util.WoodType;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.LeavesBlock;
-import net.minecraft.block.MapColor;
+import net.minecraft.block.MaterialColor;
 import net.minecraft.block.entity.AbstractFurnaceBlockEntity;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
@@ -176,7 +176,7 @@ public class ItemHelper {
         }
     };
     // This is kinda jank ngl
-    private static final Map<MapColor, ColorfulItems> colorMap = new HashMap<MapColor, ColorfulItems>() {
+    private static final Map<MaterialColor, ColorfulItems> colorMap = new HashMap<MaterialColor, ColorfulItems>() {
         {
             p(DyeColor.RED, "red", Items.RED_DYE, Items.RED_WOOL, Items.RED_BED, Items.RED_CARPET, Items.RED_STAINED_GLASS, Items.RED_STAINED_GLASS_PANE, Items.RED_TERRACOTTA, Items.RED_GLAZED_TERRACOTTA, Items.RED_CONCRETE, Items.RED_CONCRETE_POWDER, Items.RED_BANNER, Items.RED_SHULKER_BOX, Blocks.RED_WALL_BANNER);
             p(DyeColor.WHITE, "white", Items.WHITE_DYE, Items.WHITE_WOOL, Items.WHITE_BED, Items.WHITE_CARPET, Items.WHITE_STAINED_GLASS, Items.WHITE_STAINED_GLASS_PANE, Items.WHITE_TERRACOTTA, Items.WHITE_GLAZED_TERRACOTTA, Items.WHITE_CONCRETE, Items.WHITE_CONCRETE_POWDER, Items.WHITE_BANNER, Items.WHITE_SHULKER_BOX, Blocks.WHITE_WALL_BANNER);
@@ -198,7 +198,7 @@ public class ItemHelper {
         }
 
         void p(DyeColor color, String colorName, Item dye, Item wool, Item bed, Item carpet, Item stainedGlass, Item stainedGlassPane, Item terracotta, Item glazedTerracotta, Item concrete, Item concretePowder, Item banner, Item shulker, Block wallBanner) {
-            put(color.getMapColor(), new ColorfulItems(color, colorName, dye, wool, bed, carpet, stainedGlass, stainedGlassPane, terracotta, glazedTerracotta, concrete, concretePowder, banner, shulker, wallBanner));
+            put(color.getMaterialColor(), new ColorfulItems(color, colorName, dye, wool, bed, carpet, stainedGlass, stainedGlassPane, terracotta, glazedTerracotta, concrete, concretePowder, banner, shulker, wallBanner));
         }
     };
     private static final Map<WoodType, WoodItems> woodMap = new HashMap<WoodType, WoodItems>() {
@@ -307,12 +307,12 @@ public class ItemHelper {
         return strippedToLogs.getOrDefault(logItem, null);
     }
 
-    public static ColorfulItems getColorfulItems(MapColor color) {
+    public static ColorfulItems getColorfulItems(MaterialColor color) {
         return colorMap.get(color);
     }
 
     public static ColorfulItems getColorfulItems(DyeColor color) {
-        return getColorfulItems(color.getMapColor());
+        return getColorfulItems(color.getMaterialColor());
     }
 
     public static Collection<ColorfulItems> getColorfulItems() {

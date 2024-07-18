@@ -24,11 +24,7 @@ import net.minecraft.network.ClientConnection;
 import net.minecraft.util.math.*;
 import net.minecraft.world.World;
 import net.minecraft.world.biome.Biome;
-import net.minecraft.world.biome.BiomeKeys;
-
-//#if MC >= 11802
-//$$ import net.minecraft.util.registry.RegistryEntry;
-//#endif
+import net.minecraft.world.biome.Biomes;
 
 import java.util.*;
 
@@ -284,15 +280,15 @@ public interface WorldHelper {
     //#else
     static boolean isOcean(Biome b) {
     //#endif
-        return (WorldVer.isBiome(b,BiomeKeys.OCEAN)
-                || WorldVer.isBiome(b,BiomeKeys.COLD_OCEAN)
-                || WorldVer.isBiome(b,BiomeKeys.DEEP_COLD_OCEAN)
-                || WorldVer.isBiome(b,BiomeKeys.DEEP_OCEAN)
-                || WorldVer.isBiome(b,BiomeKeys.DEEP_FROZEN_OCEAN)
-                || WorldVer.isBiome(b,BiomeKeys.DEEP_LUKEWARM_OCEAN)
-                || WorldVer.isBiome(b,BiomeKeys.LUKEWARM_OCEAN)
-                || WorldVer.isBiome(b,BiomeKeys.WARM_OCEAN)
-                || WorldVer.isBiome(b,BiomeKeys.FROZEN_OCEAN));
+        return (b == Biomes.OCEAN
+                || b == Biomes.COLD_OCEAN
+                || b == Biomes.DEEP_COLD_OCEAN
+                || b == Biomes.DEEP_OCEAN
+                || b == Biomes.DEEP_FROZEN_OCEAN
+                || b == Biomes.DEEP_LUKEWARM_OCEAN
+                || b == Biomes.LUKEWARM_OCEAN
+                || b == Biomes.WARM_OCEAN
+                || b == Biomes.FROZEN_OCEAN);
     }
 
     static boolean isAir(AltoClef mod, BlockPos pos) {
