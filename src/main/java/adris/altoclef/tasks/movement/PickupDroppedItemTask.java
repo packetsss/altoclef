@@ -14,7 +14,6 @@ import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.progresscheck.MovementProgressChecker;
 import net.minecraft.block.*;
-import adris.altoclef.multiversion.versionedfields.Blocks;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.item.Item;
 import net.minecraft.util.math.BlockPos;
@@ -40,15 +39,10 @@ public class PickupDroppedItemTask extends AbstractDoToClosestObjectTask<ItemEnt
     Block[] annoyingBlocks = new Block[]{
             Blocks.VINE,
             Blocks.NETHER_SPROUTS,
-            Blocks.CAVE_VINES,
-            Blocks.CAVE_VINES_PLANT,
             Blocks.TWISTING_VINES,
             Blocks.TWISTING_VINES_PLANT,
             Blocks.WEEPING_VINES_PLANT,
             Blocks.LADDER,
-            Blocks.BIG_DRIPLEAF,
-            Blocks.BIG_DRIPLEAF_STEM,
-            Blocks.SMALL_DRIPLEAF,
             Blocks.TALL_GRASS,
             Blocks.GRASS
     };

@@ -1,8 +1,9 @@
 package adris.altoclef.tasks.speedrun.beatgame;
 
-import adris.altoclef.multiversion.versionedfields.Items;
+
 import adris.altoclef.tasks.speedrun.BeatMinecraftConfig;
 import net.minecraft.item.Item;
+import net.minecraft.item.Items;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,23 +24,18 @@ public class UselessItems {
                 Items.JUNGLE_SAPLING,
                 Items.ACACIA_SAPLING,
                 Items.DARK_OAK_SAPLING,
-                Items.MANGROVE_PROPAGULE,
-                Items.CHERRY_SAPLING,
 
                 // seeds
                 Items.BEETROOT_SEEDS,
                 Items.MELON_SEEDS,
                 Items.PUMPKIN_SEEDS,
                 Items.WHEAT_SEEDS,
-                Items.TORCHFLOWER_SEEDS,
 
                 // random jung, might add more things in the future
                 Items.FEATHER,
                 Items.EGG,
-                Items.PINK_PETALS,
                 Items.BONE,
                 Items.LEATHER,
-                Items.RAW_COPPER,
                 Items.WARPED_ROOTS,
                 Items.GUNPOWDER,
                 Items.MOSSY_COBBLESTONE,
@@ -49,9 +45,7 @@ public class UselessItems {
                 Items.COARSE_DIRT,
                 Items.SMOOTH_STONE,
                 Items.FLOWER_POT,
-                Items.MANGROVE_ROOTS,
                 Items.POPPY,
-                Items.MUDDY_MANGROVE_ROOTS,
                 Items.SPIDER_EYE,
                 Items.PINK_TULIP,
 
@@ -68,8 +62,7 @@ public class UselessItems {
                 Items.WHITE_TERRACOTTA,
                 Items.RED_TERRACOTTA,
 
-                Items.MOSS_BLOCK,
-                Items.MOSS_CARPET,
+
                 Items.BOW,
 
                 Items.EMERALD,
@@ -83,12 +76,6 @@ public class UselessItems {
                 Items.SUGAR_CANE,
                 Items.CHEST,
                 Items.RAIL,
-                Items.CALCITE,
-                Items.AMETHYST_BLOCK,
-                Items.AMETHYST_CLUSTER,
-                Items.AMETHYST_SHARD,
-                Items.BUDDING_AMETHYST,
-                Items.SMOOTH_BASALT,
                 Items.AZURE_BLUET,
 
                 Items.ACACIA_DOOR,
@@ -98,18 +85,13 @@ public class UselessItems {
                 Items.JUNGLE_DOOR,
                 Items.CHISELED_SANDSTONE,
                 Items.CACTUS,
-                Items.MUD,
-                Items.MANGROVE_LEAVES,
                 Items.SMOOTH_SANDSTONE_SLAB,
                 Items.SANDSTONE_WALL,
                 Items.TNT,
                 Items.PRISMARINE_CRYSTALS,
                 Items.SNOWBALL,
-                Items.DRIPSTONE_BLOCK,
-                Items.POINTED_DRIPSTONE,
                 Items.ARROW,
                 Items.YELLOW_TERRACOTTA,
-                Items.TUFF,
                 Items.SPRUCE_STAIRS,
                 Items.SPRUCE_DOOR,
                 Items.SPRUCE_FENCE,
@@ -117,8 +99,6 @@ public class UselessItems {
                 Items.ORANGE_TERRACOTTA,
                 Items.HEART_OF_THE_SEA,
                 Items.POTION,
-                Items.FLOWERING_AZALEA,
-                Items.COPPER_INGOT,
                 Items.ACACIA_SLAB,
                 Items.RABBIT_HIDE,
                 Items.RABBIT_FOOT,

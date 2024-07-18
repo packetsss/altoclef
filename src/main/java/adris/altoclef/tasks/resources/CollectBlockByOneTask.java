@@ -1,13 +1,13 @@
 package adris.altoclef.tasks.resources;
 
 import adris.altoclef.AltoClef;
-import adris.altoclef.multiversion.versionedfields.Blocks;
-import adris.altoclef.multiversion.versionedfields.Items;
 import adris.altoclef.tasks.ResourceTask;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.MiningRequirement;
 import net.minecraft.block.Block;
+import net.minecraft.block.Blocks;
 import net.minecraft.item.Item;
+import net.minecraft.item.Items;
 
 import java.util.Arrays;
 
@@ -67,12 +67,7 @@ public class CollectBlockByOneTask extends ResourceTask {
         }
     }
 
-    public static class CollectCobbledDeepslateTask extends CollectBlockByOneTask {
-
-        public CollectCobbledDeepslateTask(int targetCount) {
-            super(Items.COBBLED_DEEPSLATE, new Block[]{Blocks.DEEPSLATE, Blocks.COBBLED_DEEPSLATE}, MiningRequirement.WOOD, targetCount);
-        }
-    }
+    
 
     public static class CollectEndStoneTask extends CollectBlockByOneTask {
 

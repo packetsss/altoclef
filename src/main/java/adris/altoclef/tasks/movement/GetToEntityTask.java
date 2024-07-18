@@ -8,7 +8,6 @@ import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.progresscheck.MovementProgressChecker;
 import baritone.api.utils.input.Input;
 import net.minecraft.block.*;
-import adris.altoclef.multiversion.versionedfields.Blocks;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.math.BlockPos;
 
@@ -21,15 +20,10 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
     Block[] annoyingBlocks = new Block[]{
             Blocks.VINE,
             Blocks.NETHER_SPROUTS,
-            Blocks.CAVE_VINES,
-            Blocks.CAVE_VINES_PLANT,
             Blocks.TWISTING_VINES,
             Blocks.TWISTING_VINES_PLANT,
             Blocks.WEEPING_VINES_PLANT,
             Blocks.LADDER,
-            Blocks.BIG_DRIPLEAF,
-            Blocks.BIG_DRIPLEAF_STEM,
-            Blocks.SMALL_DRIPLEAF,
             Blocks.TALL_GRASS,
             Blocks.GRASS,
             Blocks.SWEET_BERRY_BUSH

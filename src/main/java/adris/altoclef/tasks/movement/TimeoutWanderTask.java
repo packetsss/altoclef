@@ -2,7 +2,6 @@ package adris.altoclef.tasks.movement;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
-import adris.altoclef.multiversion.versionedfields.Blocks;
 import adris.altoclef.tasks.entity.KillEntitiesTask;
 import adris.altoclef.tasksystem.ITaskRequiresGrounded;
 import adris.altoclef.tasksystem.Task;
@@ -36,15 +35,10 @@ public class TimeoutWanderTask extends Task implements ITaskRequiresGrounded {
     Block[] annoyingBlocks = new Block[]{
             Blocks.VINE,
             Blocks.NETHER_SPROUTS,
-            Blocks.CAVE_VINES,
-            Blocks.CAVE_VINES_PLANT,
             Blocks.TWISTING_VINES,
             Blocks.TWISTING_VINES_PLANT,
             Blocks.WEEPING_VINES_PLANT,
             Blocks.LADDER,
-            Blocks.BIG_DRIPLEAF,
-            Blocks.BIG_DRIPLEAF_STEM,
-            Blocks.SMALL_DRIPLEAF,
             Blocks.TALL_GRASS,
             Blocks.GRASS,
             Blocks.SWEET_BERRY_BUSH

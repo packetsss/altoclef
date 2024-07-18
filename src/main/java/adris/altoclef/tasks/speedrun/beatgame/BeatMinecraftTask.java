@@ -7,7 +7,6 @@ import adris.altoclef.commands.BlockScanner;
 import adris.altoclef.commands.SetGammaCommand;
 import adris.altoclef.mixins.EntityAccessor;
 import adris.altoclef.multiversion.blockpos.BlockPosVer;
-import adris.altoclef.multiversion.versionedfields.Blocks;
 import adris.altoclef.tasks.*;
 import adris.altoclef.tasks.construction.DestroyBlockTask;
 import adris.altoclef.tasks.construction.PlaceBlockNearbyTask;
@@ -33,6 +32,7 @@ import adris.altoclef.util.time.TimerGame;
 import baritone.api.utils.input.Input;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.block.EndPortalFrameBlock;
 import net.minecraft.client.gui.screen.CreditsScreen;
 import net.minecraft.client.network.ClientPlayerEntity;
@@ -47,7 +47,6 @@ import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.util.math.*;
 import net.minecraft.world.Difficulty;
 import org.apache.commons.lang3.ArrayUtils;
-import adris.altoclef.multiversion.versionedfields.Items;
 
 import java.util.*;
 import java.util.function.Predicate;
@@ -373,7 +372,7 @@ public class BeatMinecraftTask extends Task {
             return itemStorage.getItemCount(item);
         } else if (item == Items.IRON_ORE) {
             int count = itemStorage.getItemCount(Items.IRON_ORE, Items.IRON_INGOT);
-            count += itemStorage.getItemCount(Items.BUCKET, Items.WATER_BUCKET, Items.LAVA_BUCKET, Items.AXOLOTL_BUCKET, Items.POWDER_SNOW_BUCKET) * 3;
+            count += itemStorage.getItemCount(Items.BUCKET, Items.WATER_BUCKET, Items.LAVA_BUCKET) * 3;
             count += hasItem(mod, Items.SHIELD) ? 1 : 0;
             count += hasItem(mod, Items.FLINT_AND_STEEL) ? 1 : 0;
 
@@ -414,13 +413,13 @@ public class BeatMinecraftTask extends Task {
 
     private static Block[] mapOreItemToBlocks(Item item) {
         if (item.equals(Items.IRON_ORE)) {
-            return new Block[]{Blocks.DEEPSLATE_IRON_ORE, Blocks.IRON_ORE};
+            return new Block[]{ Blocks.IRON_ORE};
         } else if (item.equals(Items.GOLD_ORE)) {
-            return new Block[]{Blocks.DEEPSLATE_GOLD_ORE, Blocks.GOLD_ORE};
+            return new Block[]{Blocks.GOLD_ORE};
         } else if (item.equals(Items.DIAMOND)) {
-            return new Block[]{Blocks.DEEPSLATE_DIAMOND_ORE, Blocks.DIAMOND_ORE};
+            return new Block[]{Blocks.DIAMOND_ORE};
         } else if (item.equals(Items.COAL)) {
-            return new Block[]{Blocks.DEEPSLATE_COAL_ORE, Blocks.COAL_ORE};
+            return new Block[]{Blocks.COAL_ORE};
         }
 
         throw new IllegalStateException("Invalid ore: " + item);
@@ -1298,31 +1297,8 @@ public class BeatMinecraftTask extends Task {
 
 
         if (!ironGearSatisfied && !eyeGearSatisfied) {
-            blackListDangerousBlock(mod, Blocks.DEEPSLATE_COAL_ORE);
             blackListDangerousBlock(mod, Blocks.COAL_ORE);
-            blackListDangerousBlock(mod, Blocks.DEEPSLATE_IRON_ORE);
             blackListDangerousBlock(mod, Blocks.IRON_ORE);
-        }
-
-        List<Block> ancientCityBlocks = List.of(Blocks.DEEPSLATE_BRICKS, Blocks.SCULK, Blocks.SCULK_VEIN, Blocks.SCULK_SENSOR, Blocks.SCULK_SHRIEKER, Blocks.DEEPSLATE_TILE_STAIRS, Blocks.CRACKED_DEEPSLATE_BRICKS, Blocks.SOUL_LANTERN, Blocks.DEEPSLATE_TILES, Blocks.POLISHED_DEEPSLATE);
-        final int radius = 5;
-        for (BlockPos pos : mod.getBlockScanner().getKnownLocations(ItemHelper.itemsToBlocks(ItemHelper.WOOL))) {
-
-            searchLoop:
-            for (int x = -radius; x < radius; x++) {
-                for (int y = -radius; y < radius; y++) {
-                    for (int z = -radius; z < radius; z++) {
-                        BlockPos p = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(pos,x,y,z);
-                        Block block = mod.getWorld().getBlockState(p).getBlock();
-
-                        if (ancientCityBlocks.contains(block)) {
-                            Debug.logMessage("Blacklisting ancient city wool " + pos);
-                            mod.getBlockScanner().requestBlockUnreachable(pos, 0);
-                            break searchLoop;
-                        }
-                    }
-                }
-            }
         }
 
         if (locateStrongholdTask.isActive() && WorldHelper.getCurrentDimension() == Dimension.OVERWORLD && !mod.getClientBaritone().getExploreProcess().isActive() && timer1.elapsed()) {

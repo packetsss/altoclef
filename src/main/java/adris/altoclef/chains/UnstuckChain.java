@@ -2,7 +2,6 @@ package adris.altoclef.chains;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.multiversion.entity.PlayerVer;
-import adris.altoclef.multiversion.versionedfields.Blocks;
 import adris.altoclef.tasks.construction.DestroyBlockTask;
 import adris.altoclef.tasks.movement.GetOutOfWaterTask;
 import adris.altoclef.tasks.movement.SafeRandomShimmyTask;
@@ -12,6 +11,7 @@ import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.time.TimerGame;
 import baritone.api.utils.input.Input;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.block.EndPortalFrameBlock;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.player.PlayerEntity;
@@ -64,31 +64,6 @@ public class UnstuckChain extends SingleTaskChain {
 
         posHistory.clear();
         setTask(new GetOutOfWaterTask());
-    }
-
-    private void checkStuckInPowderedSnow(AltoClef mod) {
-        PlayerEntity player = mod.getPlayer();
-
-        if (PlayerVer.inPowderedSnow(player)) {
-            isProbablyStuck = true;
-            BlockPos destroyPos = null;
-
-            Optional<BlockPos> nearest = mod.getBlockScanner().getNearestBlock(Blocks.POWDER_SNOW);
-            if (nearest.isPresent()) {
-                destroyPos = nearest.get();
-            }
-
-            BlockPos headPos = WorldHelper.toBlockPos(adris.altoclef.multiversion.entity.EntityHelper.getEyePos(player)).down();
-            if (mod.getWorld().getBlockState(headPos).getBlock() == Blocks.POWDER_SNOW) {
-                destroyPos = headPos;
-            } else if (mod.getWorld().getBlockState(player.getBlockPos()).getBlock() == Blocks.POWDER_SNOW) {
-                destroyPos = player.getBlockPos();
-            }
-
-            if (destroyPos != null) {
-                setTask(new DestroyBlockTask(destroyPos));
-            }
-        }
     }
 
     private void checkStuckOnEndPortalFrame(AltoClef mod) {
@@ -149,7 +124,6 @@ public class UnstuckChain extends SingleTaskChain {
         }
 
         checkStuckInWater(mod);
-        checkStuckInPowderedSnow(mod);
         checkEatingGlitch(mod);
         checkStuckOnEndPortalFrame(mod);
 
