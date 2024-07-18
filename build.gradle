@@ -1,65 +1,21 @@
-import com.replaymod.gradle.preprocess.PreprocessTask
-
-buildscript {
-    def (major, minor, patch) = project.name.split("-")[0].tokenize('.')
-    project.ext.mcVersion = "${major}${minor.padLeft(2, '0')}${(patch ?: '').padLeft(2, '0')}" as int
-
-    dependencies {
-        classpath 'fabric-loom:fabric-loom.gradle.plugin:1.0-SNAPSHOT'
-    }
-}
-
-
 plugins {
+    id "fabric-loom" version "1.4-SNAPSHOT"
     id "maven-publish"
     id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 apply plugin: 'fabric-loom'
-apply plugin: 'com.replaymod.preprocess'
 
-preprocess {
-    patternAnnotation.set("adris.altoclef.multiversion.Pattern")
-}
 
-sourceCompatibility = mcVersion >= 12006 ?  JavaVersion.VERSION_21 : JavaVersion.VERSION_17
+sourceCompatibility = JavaVersion.VERSION_17
 targetCompatibility = sourceCompatibility
 
 
-
-tasks.withType(JavaCompile).configureEach {
-    options.release = mcVersion >= 12006 ?  21 : 17
-}
 
 archivesBaseName = project.archives_base_name
 version = "${project.name}-${project.mod_version}"
 group = project.maven_group
 
-def mappingsVersions = [
-        11605: "1.16.5+build.10",
-        11701: "1.17.1+build.65",
-        11800: "1.18+build.1",
-        11802: "1.18.2+build.4",
-        11904: "1.19.4+build.2",
-        12001: "1.20.1+build.10",
-        12002: "1.20.2+build.4",
-        12004: "1.20.4+build.3",
-        12005: "1.20.5+build.1",
-        12006: "1.20.6+build.3",
-]
-
-def fabricApiVersions = [
-        11605: "0.42.0+1.16",
-        11701: "0.46.1+1.17",
-        11800: "0.44.0+1.18",
-        11802: "0.77.0+1.18.2",
-        11904: "0.87.2+1.19.4",
-        12001: "0.92.2+1.20.1",
-        12002: "0.91.2+1.20.2",
-        12004: "0.96.3+1.20.4",
-        12005: "0.97.8+1.20.5",
-        12006: "0.100.0+1.20.6",
-]
 
 
 repositories {
@@ -67,7 +23,7 @@ repositories {
     maven {
         name = "MiranCZRepo"
         url = "https://mirancz.github.io/maven/"
-        artifactUrls("https://mirancz.github.io/maven/cabaletta/baritone-unoptimized/${project.name}")
+        artifactUrls("https://mirancz.github.io/maven/cabaletta/baritone-unoptimized/1.16.5")
     }
     maven {
         name = 'babbaj-repo'
@@ -80,13 +36,12 @@ repositories {
 
 dependencies {
     //to change the versions see the gradle.properties file
-    minecraft("com.mojang:minecraft:${project.name}")
-    mappings("net.fabricmc:yarn:${mappingsVersions[mcVersion]}:v2")
+    minecraft("com.mojang:minecraft:${project.minecraft_version}")
+    mappings("net.fabricmc:yarn:${project.yarn_mappings}:v2")
     modImplementation("net.fabricmc:fabric-loader:${project.loader_version}")
-    include(implementation(annotationProcessor("io.github.llamalad7:mixinextras-fabric:0.3.5")))
 
     // Fabric API. This is technically optional, but you probably want it anyway.
-    modImplementation("net.fabricmc.fabric-api:fabric-api:${fabricApiVersions[mcVersion]}")
+    modImplementation("net.fabricmc.fabric-api:fabric-api:${project.fabric_version}")
 
     // Jackson JSON
     implementation 'com.fasterxml.jackson.core:jackson-core:2.16.0'
@@ -105,11 +60,11 @@ dependencies {
     // Thank you georgeagostino for fixing my garbage
     if (getProject().hasProperty("altoclef.development")) {
         // Must run build from baritone-plus once
-        modImplementation "baritone-api-fabric:baritone-unoptimized-fabric-${project.name}"
-        include "baritone-api-fabric:baritone-unoptimized-fabric-${project.name}"
+        modImplementation "baritone-api-fabric:baritone-unoptimized-fabric-1.16.5"
+        include "baritone-api-fabric:baritone-unoptimized-fabric-1.16.5"
     } else {
-        modImplementation "cabaletta:baritone-unoptimized-fabric:${project.name}"
-        include "cabaletta:baritone-unoptimized-fabric:${project.name}"
+        modImplementation "cabaletta:baritone-unoptimized-fabric:1.16.5"
+        include "cabaletta:baritone-unoptimized-fabric:1.16.5"
     }
     //modImplementation 'baritone-api-fabric:baritone-api-fabric:1.6.3'
     //implementation files('baritone-plus/build/libs/baritone-unoptimized-fabric-1.6.3.jar')
@@ -119,13 +74,12 @@ shadowJar {
 }
 
 remapJar {
-    dependsOn("shadowJar")
+    dependsOn(":shadowJar")
     input.set(shadowJar.archiveFile)
 }
 
 processResources {
-    inputs.property("version", project.version)
-    inputs.property("mcVersion", project.name)
+    inputs.property "version", project.version
 
     filesMatching("fabric.mod.json") {
         expand "version": project.version,
