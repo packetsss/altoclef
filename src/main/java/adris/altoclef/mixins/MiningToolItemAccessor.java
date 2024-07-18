@@ -11,8 +11,8 @@ import java.util.Set;
 public interface MiningToolItemAccessor {
 
     //#if MC <= 11605
-    //$$ @Accessor("effectiveBlocks")
-    //$$ Set<Block> getEffectiveBlocks();
+    @Accessor("effectiveBlocks")
+    Set<Block> getEffectiveBlocks();
     //#endif
 
 }

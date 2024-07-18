@@ -20,7 +20,7 @@ public enum MiningRequirement implements Comparable<MiningRequirement> {
             for (MiningRequirement req : MiningRequirement.values()) {
                 if (req == MiningRequirement.HAND) continue;
                 Item pick = req.getMinimumPickaxe();
-                if (pick.getDefaultStack().isSuitableFor(block.getDefaultState())) {
+                if (adris.altoclef.multiversion.item.ItemHelper.isSuitableFor(pick, block.getDefaultState())) {
                     return req;
                 }
             }

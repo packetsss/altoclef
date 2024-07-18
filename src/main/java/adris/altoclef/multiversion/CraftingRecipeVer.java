@@ -9,9 +9,9 @@ public class CraftingRecipeVer {
     @Pattern
     private static ItemStack getOutput(CraftingRecipe craftingRecipe) {
         //#if MC >= 11904
-        return craftingRecipe.getResult(null);
+        //$$ return craftingRecipe.getOutput(null);
         //#else
-        //$$ return craftingRecipe.getOutput();
+        return craftingRecipe.getOutput();
         //#endif
     }
 

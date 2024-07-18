@@ -1,17 +1,17 @@
 package adris.altoclef.multiversion;
 
 import net.minecraft.block.Block;
-import net.minecraft.registry.tag.BlockTags;
-import net.minecraft.registry.Registries;
+import net.minecraft.tag.BlockTags;
+import net.minecraft.util.registry.Registry;
 
 public class BlockTagVer {
 
 
     public static boolean isWool(Block block) {
         //#if MC >= 11802
-        return Registries.BLOCK.getKey(block).map(e -> Registries.BLOCK.entryOf(e).streamTags().anyMatch(t -> t == BlockTags.WOOL)).orElse(false);
+        //$$ return Registry.BLOCK.getKey(block).map(e -> Registry.BLOCK.entryOf(e).streamTags().anyMatch(t -> t == BlockTags.WOOL)).orElse(false);
         //#else
-        //$$ return BlockTags.WOOL.contains(block);
+        return BlockTags.WOOL.contains(block);
         //#endif
     }
 

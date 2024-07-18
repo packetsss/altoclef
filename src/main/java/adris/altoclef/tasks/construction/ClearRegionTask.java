@@ -49,7 +49,7 @@ public class ClearRegionTask extends Task implements ITaskRequiresGrounded {
         for (int xx = 0; xx < Math.abs(x); ++xx) {
             for (int yy = 0; yy < Math.abs(y); ++yy) {
                 for (int zz = 0; zz < Math.abs(z); ++zz) {
-                    BlockPos toCheck = new BlockPos(_from).add(xx * -Integer.signum(x),yy * -Integer.signum(y),zz * -Integer.signum(z));
+                    BlockPos toCheck = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(new BlockPos(_from),xx * -Integer.signum(x),yy * -Integer.signum(y),zz * -Integer.signum(z));
                     assert MinecraftClient.getInstance().world != null;
                     if (!MinecraftClient.getInstance().world.isAir(toCheck)) {
                         return false;

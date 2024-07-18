@@ -11,12 +11,12 @@ public interface EntityAccessor {
     @Accessor("inNetherPortal")
     boolean isInNetherPortal();
 
-    @Accessor
+    @Accessor("netherPortalCooldown")
     int getPortalCooldown();
 
     //#if MC <= 11605
-    //$$ @Invoker("getLandingPos")
-    //$$ BlockPos invokeGetLandingPos();
+    @Invoker("getLandingPos")
+    BlockPos invokeGetLandingPos();
     //#endif
 
 }

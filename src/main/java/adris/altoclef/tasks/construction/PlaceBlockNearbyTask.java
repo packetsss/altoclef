@@ -223,7 +223,7 @@ public class PlaceBlockNearbyTask extends Task {
             }
             Hand hand = Hand.MAIN_HAND;
             assert MinecraftClient.getInstance().interactionManager != null;
-            if (MinecraftClient.getInstance().interactionManager.interactBlock(mod.getPlayer(),hand, (BlockHitResult) mouseOver) == ActionResult.SUCCESS &&
+            if (MinecraftClient.getInstance().interactionManager.interactBlock(mod.getPlayer(),MinecraftClient.getInstance().world, hand ,(BlockHitResult) mouseOver) == ActionResult.SUCCESS &&
                     mod.getPlayer().isSneaking()) {
                 mod.getPlayer().swingHand(hand);
                 _justPlaced = targetPlace;
@@ -249,8 +249,8 @@ public class PlaceBlockNearbyTask extends Task {
         int range = 7;
         BlockPos best = null;
         double smallestScore = Double.POSITIVE_INFINITY;
-        BlockPos start = mod.getPlayer().getBlockPos().add(-range,-range,-range);
-        BlockPos end = mod.getPlayer().getBlockPos().add(range,range,range);
+        BlockPos start = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(mod.getPlayer().getBlockPos(),-range,-range,-range);
+        BlockPos end = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(mod.getPlayer().getBlockPos(),range,range,range);
         for (BlockPos blockPos : WorldHelper.scanRegion(mod, start, end)) {
             boolean solid = WorldHelper.isSolidBlock(mod, blockPos);
             boolean inside = WorldHelper.isInsidePlayer(mod, blockPos);

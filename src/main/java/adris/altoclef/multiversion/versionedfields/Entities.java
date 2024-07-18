@@ -15,15 +15,15 @@ public class Entities {
         UNSUPPORTED = VersionedFieldHelper.getUnsupportedEntityClass();
 
         //#if MC >= 11904
-        WARDEN = net.minecraft.entity.mob.WardenEntity.class;
+        //$$ WARDEN = net.minecraft.entity.mob.WardenEntity.class;
         //#else
-        //$$ WARDEN = UNSUPPORTED;
+        WARDEN = UNSUPPORTED;
         //#endif
 
         //#if MC >= 11701
-        GLOW_SQUID = net.minecraft.entity.passive.GlowSquidEntity.class;
+        //$$ GLOW_SQUID = net.minecraft.entity.passive.GlowSquidEntity.class;
         //#else
-        //$$ GLOW_SQUID = UNSUPPORTED;
+        GLOW_SQUID = UNSUPPORTED;
         //#endif
     }
 

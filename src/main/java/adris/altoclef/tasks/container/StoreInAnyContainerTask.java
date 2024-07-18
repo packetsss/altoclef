@@ -87,7 +87,7 @@ public class StoreInAnyContainerTask extends Task {
                 int range = 6;
                 for (int dx = -range; dx <= range; ++dx) {
                     for (int dz = -range; dz <= range; ++dz) {
-                        BlockPos offset = containerPos.add(dx,0,dz);
+                        BlockPos offset = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(containerPos,dx,0,dz);
                         if (mod.getWorld().getBlockState(offset).getBlock() == Blocks.SPAWNER) {
                             _dungeonChests.add(containerPos);
                             return false;

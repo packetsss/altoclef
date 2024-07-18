@@ -7,7 +7,7 @@ import adris.altoclef.eventbus.events.ChatMessageEvent;
 import adris.altoclef.eventbus.events.TaskFinishedEvent;
 import adris.altoclef.ui.MessagePriority;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.network.message.MessageType;
+import net.minecraft.network.MessageType;
 import net.minecraft.world.World;
 
 import java.util.Objects;
@@ -66,12 +66,12 @@ public class Butler {
 
     private static boolean shouldAccept(MessageType messageType) {
         //#if MC >= 11904
-        return messageType.chat().style().isItalic()
-                && messageType.chat().style().getColor() != null
-                && Objects.equals(messageType.chat().style().getColor().getName(), "gray");
+        //$$ return messageType.chat().style().isItalic()
+        //$$         && messageType.chat().style().getColor() != null
+        //$$         && Objects.equals(messageType.chat().style().getColor().getName(), "gray");
         //#else
-        //$$ //it doesnt look like previous versions did any type of checking
-        //$$ return true;
+        //it doesnt look like previous versions did any type of checking
+        return true;
         //#endif
     }
 

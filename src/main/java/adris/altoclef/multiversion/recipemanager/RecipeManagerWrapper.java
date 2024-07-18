@@ -25,18 +25,18 @@ public class RecipeManagerWrapper {
     }
 
     //#if MC>12001
-    public Collection<WrappedRecipeEntry> values() {
-        return recipeManager.values().stream().map(r -> new WrappedRecipeEntry(r.id(),r.value())).collect(Collectors.toSet());
-    }
-    //#else
     //$$ public Collection<WrappedRecipeEntry> values() {
-    //$$    List<WrappedRecipeEntry> result = new ArrayList<>();
-    //$$    for (Identifier id : recipeManager.keys().toList()) {
-    //$$        result.add(new WrappedRecipeEntry(id, recipeManager.get(id).get()));
-    //$$    }
-    //$$
-    //$$    return result;
+    //$$     return recipeManager.values().stream().map(r -> new WrappedRecipeEntry(r.id(),r.value())).collect(Collectors.toSet());
     //$$ }
+    //#else
+    public Collection<WrappedRecipeEntry> values() {
+       List<WrappedRecipeEntry> result = new ArrayList<>();
+       for (Identifier id : recipeManager.keys().toList()) {
+           result.add(new WrappedRecipeEntry(id, recipeManager.get(id).get()));
+       }
+
+       return result;
+    }
     //#endif
 
 

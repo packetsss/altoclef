@@ -25,25 +25,25 @@ public class DamageSourceWrapper {
 
     public boolean bypassesArmor() {
         //#if MC >= 11904
-        return source.isIn(net.minecraft.registry.tag.DamageTypeTags.BYPASSES_ARMOR);
+        //$$ return source.isIn(net.minecraft.registry.tag.DamageTypeTags.BYPASSES_ARMOR);
         //#else
-        //$$ return source.bypassesArmor();
+        return source.bypassesArmor();
         //#endif
     }
 
     public boolean bypassesShield() {
         //#if MC >= 11904
-        return source.isIn(net.minecraft.registry.tag.DamageTypeTags.BYPASSES_SHIELD);
+        //$$ return source.isIn(net.minecraft.registry.tag.DamageTypeTags.BYPASSES_SHIELD);
         //#else
-        //$$ return source.isUnblockable();
+        return source.isUnblockable();
         //#endif
     }
 
     public boolean isOutOfWorld() {
         //#if MC >= 11904
-        return source.isOf(net.minecraft.entity.damage.DamageTypes.OUT_OF_WORLD);
+        //$$ return source.isOf(net.minecraft.entity.damage.DamageTypes.OUT_OF_WORLD);
         //#else
-        //$$ return source.isOutOfWorld();
+        return source.isOutOfWorld();
         //#endif
     }
 

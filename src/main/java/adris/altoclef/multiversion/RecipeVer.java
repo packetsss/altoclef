@@ -11,9 +11,9 @@ public class RecipeVer {
 
     public static ItemStack getOutput(Recipe<?> recipe, World world) {
         //#if MC >= 11904
-        return recipe.getResult(world.getRegistryManager());
+        //$$ return recipe.getOutput(world.getRegistryManager());
         //#else
-        //$$ return recipe.getOutput();
+        return recipe.getOutput();
         //#endif
     }
 

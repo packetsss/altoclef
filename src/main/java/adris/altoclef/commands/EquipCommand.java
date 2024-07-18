@@ -5,7 +5,7 @@ import adris.altoclef.commandsystem.*;
 import adris.altoclef.tasks.misc.EquipArmorTask;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.helpers.ItemHelper;
-import net.minecraft.item.Equipment;
+import net.minecraft.item.Wearable;
 import net.minecraft.item.Item;
 
 public class EquipCommand extends Command {
@@ -31,7 +31,7 @@ public class EquipCommand extends Command {
 
         for (ItemTarget target : items) {
             for (Item item : target.getMatches()) {
-                if (!(item instanceof Equipment)) {
+                if (!(item instanceof Wearable)) {
                     throw new CommandException("'"+item.toString().toUpperCase() + "' cannot be equipped!");
                 }
             }

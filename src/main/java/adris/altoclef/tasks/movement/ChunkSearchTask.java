@@ -44,7 +44,7 @@ abstract class ChunkSearchTask extends Task {
     }
 
     public ChunkSearchTask(ChunkPos chunkPos) {
-        this(chunkPos.getStartPos().add(1,1,1));
+        this(adris.altoclef.multiversion.blockpos.BlockPosHelper.add(chunkPos.getStartPos(),1,1,1));
     }
 
     public Set<ChunkPos> getSearchedChunks() {

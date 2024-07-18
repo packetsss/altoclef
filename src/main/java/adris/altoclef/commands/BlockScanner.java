@@ -306,7 +306,7 @@ public class BlockScanner {
         HashMap<Block, HashSet<BlockPos>> map = new HashMap<>();
 
         BlockPos pos = mod.getPlayer().getBlockPos();
-        World world = mod.getPlayer().getWorld();
+        World world = mod.getPlayer().getEntityWorld();
 
         for (int x = pos.getX() - 8; x <= pos.getX() + 8; x++) {
             for (int y = pos.getY() - 8; y < pos.getY() + 8; y++) {
@@ -342,7 +342,7 @@ public class BlockScanner {
     private void rescan(int maxCount, int cutOffRadius) {
         long ms = System.currentTimeMillis();
 
-        ChunkPos playerChunkPos = mod.getPlayer().getChunkPos();
+        ChunkPos playerChunkPos = adris.altoclef.multiversion.entity.EntityHelper.getChunkPos(mod.getPlayer());
         Vec3d playerPos = mod.getPlayer().getPos();
 
         HashSet<ChunkPos> visited = new HashSet<>();
@@ -433,10 +433,10 @@ public class BlockScanner {
         boolean isPriorityChunk = getChunkDist(chunkPos, playerChunkPos) <= 2;
 
         for (int x = chunkPos.getStartX(); x <= chunkPos.getEndX(); x++) {
-            for (int y = world.getBottomY(); y < world.getTopY(); y++) {
+            for (int y = adris.altoclef.multiversion.world.WorldHelper.getBottomY(world); y < adris.altoclef.multiversion.world.WorldHelper.getTopY(world); y++) {
                 for (int z = chunkPos.getStartZ(); z <= chunkPos.getEndZ(); z++) {
                     BlockPos p = new BlockPos(x, y, z);
-                    if (this.isUnreachable(p) || world.isOutOfHeightLimit(p)) continue;
+                    if (this.isUnreachable(p) || adris.altoclef.multiversion.world.WorldHelper.isOutOfHeightLimit(world,p)) continue;
 
                     BlockState state = chunk.getBlockState(p);
                     if (state.isAir()) continue;

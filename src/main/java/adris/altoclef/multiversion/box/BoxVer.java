@@ -10,9 +10,9 @@ public class BoxVer {
    @Pattern
     public Box of(Vec3d center, double x, double y, double z) {
        //#if MC >= 11701
-       return Box.of(center, x, y, z);
+       //$$ return Box.of(center, x, y, z);
        //#else
-       //$$ return adris.altoclef.multiversion.box.BoxHelper.of(center, x, y, z);
+       return adris.altoclef.multiversion.box.BoxHelper.of(center, x, y, z);
        //#endif
    }
 

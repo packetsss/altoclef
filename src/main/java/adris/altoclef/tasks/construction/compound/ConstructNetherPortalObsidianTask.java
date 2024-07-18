@@ -179,10 +179,10 @@ public class ConstructNetherPortalObsidianTask extends Task {
                     if (surroundedByAir(world,pos)) {
                         queue.add(pos.up());
                         queue.add(pos.down());
-                        queue.add(pos.east());
-                        queue.add(pos.west());
-                        queue.add(pos.north());
-                        queue.add(pos.south());
+                        queue.add(pos.offset(Direction.EAST, 1));
+                        queue.add(pos.offset(Direction.WEST, 1));
+                        queue.add(pos.offset(Direction.NORTH, 1));
+                        queue.add(pos.offset(Direction.SOUTH, 1));
                     } else {
                         return new PlaceStructureBlockTask(pos);
                     }
@@ -214,8 +214,8 @@ public class ConstructNetherPortalObsidianTask extends Task {
     }
 
     private boolean surroundedByAir(World world, BlockPos pos) {
-        return world.getBlockState(pos.west()).isAir() && world.getBlockState(pos.south()).isAir() && world.getBlockState(pos.east()).isAir() &&
-                world.getBlockState(pos.up()).isAir() && world.getBlockState(pos.down()).isAir() && world.getBlockState(pos.north()).isAir();
+        return world.getBlockState(pos.offset(Direction.WEST, 1)).isAir() && world.getBlockState(pos.offset(Direction.SOUTH, 1)).isAir() && world.getBlockState(pos.offset(Direction.EAST, 1)).isAir() &&
+                world.getBlockState(pos.up()).isAir() && world.getBlockState(pos.down()).isAir() && world.getBlockState(pos.offset(Direction.NORTH, 1)).isAir();
     }
 
     @Override

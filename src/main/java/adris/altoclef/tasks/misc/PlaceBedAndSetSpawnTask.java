@@ -58,26 +58,26 @@ public class PlaceBedAndSetSpawnTask extends Task {
     private final Vec3i BED_PLACE_POS = new Vec3i(1, 0, 1);
     private final Vec3i[] BED_PLACE_POS_OFFSET = new Vec3i[]{
             BED_PLACE_POS,
-            BED_PLACE_POS.north(),
-            BED_PLACE_POS.south(),
-            BED_PLACE_POS.east(),
-            BED_PLACE_POS.west(),
-            BED_PLACE_POS.add(-1,0,1),
-            BED_PLACE_POS.add(1,0,1),
-            BED_PLACE_POS.add(-1,0,-1),
-            BED_PLACE_POS.add(1,0,-1),
-            BED_PLACE_POS.north(2),
-            BED_PLACE_POS.south(2),
-            BED_PLACE_POS.east(2),
-            BED_PLACE_POS.west(2),
-            BED_PLACE_POS.add(-2,0,1),
-            BED_PLACE_POS.add(-2,0,2),
-            BED_PLACE_POS.add(2,0,1),
-            BED_PLACE_POS.add(2,0,2),
-            BED_PLACE_POS.add(-2,0,-1),
-            BED_PLACE_POS.add(-2,0,-2),
-            BED_PLACE_POS.add(2,0,-1),
-            BED_PLACE_POS.add(2,0,-2)
+            BED_PLACE_POS.offset(Direction.NORTH, 1),
+            BED_PLACE_POS.offset(Direction.SOUTH, 1),
+            BED_PLACE_POS.offset(Direction.EAST, 1),
+            BED_PLACE_POS.offset(Direction.WEST, 1),
+            adris.altoclef.multiversion.blockpos.BlockPosHelper.add(BED_PLACE_POS,-1,0,1),
+            adris.altoclef.multiversion.blockpos.BlockPosHelper.add(BED_PLACE_POS,1,0,1),
+            adris.altoclef.multiversion.blockpos.BlockPosHelper.add(BED_PLACE_POS,-1,0,-1),
+            adris.altoclef.multiversion.blockpos.BlockPosHelper.add(BED_PLACE_POS,1,0,-1),
+            BED_PLACE_POS.offset(Direction.NORTH, 2),
+            BED_PLACE_POS.offset(Direction.SOUTH, 2),
+            BED_PLACE_POS.offset(Direction.EAST, 2),
+            BED_PLACE_POS.offset(Direction.WEST, 2),
+            adris.altoclef.multiversion.blockpos.BlockPosHelper.add(BED_PLACE_POS,-2,0,1),
+            adris.altoclef.multiversion.blockpos.BlockPosHelper.add(BED_PLACE_POS,-2,0,2),
+            adris.altoclef.multiversion.blockpos.BlockPosHelper.add(BED_PLACE_POS,2,0,1),
+            adris.altoclef.multiversion.blockpos.BlockPosHelper.add(BED_PLACE_POS,2,0,2),
+            adris.altoclef.multiversion.blockpos.BlockPosHelper.add(BED_PLACE_POS,-2,0,-1),
+            adris.altoclef.multiversion.blockpos.BlockPosHelper.add(BED_PLACE_POS,-2,0,-2),
+            adris.altoclef.multiversion.blockpos.BlockPosHelper.add(BED_PLACE_POS,2,0,-1),
+            adris.altoclef.multiversion.blockpos.BlockPosHelper.add(BED_PLACE_POS,2,0,-2)
     };
     private final Direction BED_PLACE_DIRECTION = Direction.UP;
     private final TimerGame bedInteractTimeout = new TimerGame(5);
@@ -337,7 +337,7 @@ public class PlaceBedAndSetSpawnTask extends Task {
         for (int dx = 0; dx < BED_CLEAR_SIZE.getX(); ++dx) {
             for (int dz = 0; dz < BED_CLEAR_SIZE.getZ(); ++dz) {
                 for (int dy = 0; dy < BED_CLEAR_SIZE.getY(); ++dy) {
-                    BlockPos toClear = currentBedRegion.add(dx,dy,dz);
+                    BlockPos toClear = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(currentBedRegion,dx,dy,dz);
                     if (WorldHelper.isSolidBlock(mod, toClear)) {
                         currentBreak = toClear;
                         break outer;
@@ -562,7 +562,7 @@ public class PlaceBedAndSetSpawnTask extends Task {
         for (int x = 0; x < BED_CLEAR_SIZE.getX(); ++x) {
             for (int y = 0; y < BED_CLEAR_SIZE.getY(); ++y) {
                 for (int z = 0; z < BED_CLEAR_SIZE.getZ(); ++z) {
-                    BlockPos checkPos = pos.add(x,y,z);
+                    BlockPos checkPos = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(pos,x,y,z);
                     if (!isGoodToPlaceInsideOrClear(mod, checkPos)) {
                         Debug.logInternal("Not a good position: " + checkPos);
                         return false;

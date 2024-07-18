@@ -13,9 +13,9 @@ public interface MovementHelperMixin {
 
     @Redirect(method = "avoidBreaking", at = @At(value = "INVOKE", target = "Lnet/minecraft/block/BlockState;getBlock()Lnet/minecraft/block/Block;",
             //#if MC >= 12001
-            ordinal = 1
+            //$$ ordinal = 1
             //#else
-            //$$ ordinal = 0
+            ordinal = 0
             //#endif
     ))
     private static Block allowInfested(BlockState instance) {

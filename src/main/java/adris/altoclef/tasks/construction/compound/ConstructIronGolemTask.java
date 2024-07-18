@@ -45,8 +45,8 @@ public class ConstructIronGolemTask extends Task {
         }
         if (_position == null) {
             for (BlockPos pos : WorldHelper.scanRegion(mod,
-                    new BlockPos(mod.getPlayer().getBlockX(), 64, mod.getPlayer().getBlockZ()),
-                    new BlockPos(mod.getPlayer().getBlockX(), 128, mod.getPlayer().getBlockZ()))) {
+                    new BlockPos(adris.altoclef.multiversion.entity.EntityHelper.getBlockX(mod.getPlayer()), 64, adris.altoclef.multiversion.entity.EntityHelper.getBlockZ(mod.getPlayer())),
+                    new BlockPos(adris.altoclef.multiversion.entity.EntityHelper.getBlockX(mod.getPlayer()), 128, adris.altoclef.multiversion.entity.EntityHelper.getBlockZ(mod.getPlayer())))) {
                 if (mod.getWorld().getBlockState(pos).getBlock() == Blocks.AIR) {
                     _position = pos;
                     break;
@@ -73,29 +73,29 @@ public class ConstructIronGolemTask extends Task {
             setDebugState("Placing the center iron block");
             return new PlaceBlockTask(_position.up(), Blocks.IRON_BLOCK);
         }
-        if (!WorldHelper.isBlock(mod, _position.up().east(), Blocks.IRON_BLOCK)) {
-            if (!WorldHelper.isBlock(mod, _position.up().east(), Blocks.AIR)) {
+        if (!WorldHelper.isBlock(mod, _position.up().offset(Direction.EAST, 1), Blocks.IRON_BLOCK)) {
+            if (!WorldHelper.isBlock(mod, _position.up().offset(Direction.EAST, 1), Blocks.AIR)) {
                 setDebugState("Destroying block in way of east iron block");
-                return new DestroyBlockTask(_position.up().east());
+                return new DestroyBlockTask(_position.up().offset(Direction.EAST, 1));
             }
             setDebugState("Placing the east iron block");
-            return new PlaceBlockTask(_position.up().east(), Blocks.IRON_BLOCK);
+            return new PlaceBlockTask(_position.up().offset(Direction.EAST, 1), Blocks.IRON_BLOCK);
         }
-        if (!WorldHelper.isBlock(mod, _position.up().west(), Blocks.IRON_BLOCK)) {
-            if (!WorldHelper.isBlock(mod, _position.up().west(), Blocks.AIR)) {
+        if (!WorldHelper.isBlock(mod, _position.up().offset(Direction.WEST, 1), Blocks.IRON_BLOCK)) {
+            if (!WorldHelper.isBlock(mod, _position.up().offset(Direction.WEST, 1), Blocks.AIR)) {
                 setDebugState("Destroying block in way of west iron block");
-                return new DestroyBlockTask(_position.up().west());
+                return new DestroyBlockTask(_position.up().offset(Direction.WEST, 1));
             }
             setDebugState("Placing the west iron block");
-            return new PlaceBlockTask(_position.up().west(), Blocks.IRON_BLOCK);
+            return new PlaceBlockTask(_position.up().offset(Direction.WEST, 1), Blocks.IRON_BLOCK);
         }
-        if (!WorldHelper.isBlock(mod, _position.east(), Blocks.AIR)) {
+        if (!WorldHelper.isBlock(mod, _position.offset(Direction.EAST, 1), Blocks.AIR)) {
             setDebugState("Clearing area on east side...");
-            return new DestroyBlockTask(_position.east());
+            return new DestroyBlockTask(_position.offset(Direction.EAST, 1));
         }
-        if (!WorldHelper.isBlock(mod, _position.west(), Blocks.AIR)) {
+        if (!WorldHelper.isBlock(mod, _position.offset(Direction.WEST, 1), Blocks.AIR)) {
             setDebugState("Clearing area on west side...");
-            return new DestroyBlockTask(_position.west());
+            return new DestroyBlockTask(_position.offset(Direction.WEST, 1));
         }
         if (!WorldHelper.isBlock(mod, _position.up(2), Blocks.AIR)) {
             setDebugState("Destroying block in way of pumpkin");
@@ -136,9 +136,9 @@ public class ConstructIronGolemTask extends Task {
         int needed = 0;
         if (mod.getWorld().getBlockState(_position).getBlock() != Blocks.IRON_BLOCK)
             needed++;
-        if (mod.getWorld().getBlockState(_position.up().west()).getBlock() != Blocks.IRON_BLOCK)
+        if (mod.getWorld().getBlockState(_position.up().offset(Direction.WEST, 1)).getBlock() != Blocks.IRON_BLOCK)
             needed++;
-        if (mod.getWorld().getBlockState(_position.up().east()).getBlock() != Blocks.IRON_BLOCK)
+        if (mod.getWorld().getBlockState(_position.up().offset(Direction.EAST, 1)).getBlock() != Blocks.IRON_BLOCK)
             needed++;
         if (mod.getWorld().getBlockState(_position.up()).getBlock() != Blocks.IRON_BLOCK)
             needed++;

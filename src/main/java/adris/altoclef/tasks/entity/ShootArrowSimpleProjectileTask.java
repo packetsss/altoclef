@@ -63,15 +63,15 @@ public class ShootArrowSimpleProjectileTask extends Task {
 
         // Set player rotation
         if (Float.isNaN(pitch)) {
-            return new Rotation(target.getYaw(), target.getPitch());
+            return new Rotation(target.yaw, target.pitch);
         } else {
             return new Rotation(Vec3dToYaw(mod, new Vec3d(posX, posY, posZ)), pitch);
         }
     }
 
     private static float Vec3dToYaw(AltoClef mod, Vec3d vec) {
-        return (mod.getPlayer().getYaw() +
-                MathHelper.wrapDegrees((float) Math.toDegrees(Math.atan2(vec.getZ() - mod.getPlayer().getZ(), vec.getX() - mod.getPlayer().getX())) - 90f - mod.getPlayer().getYaw()));
+        return (mod.getPlayer().yaw +
+                MathHelper.wrapDegrees((float) Math.toDegrees(Math.atan2(vec.getZ() - mod.getPlayer().getZ(), vec.getX() - mod.getPlayer().getX())) - 90f - mod.getPlayer().yaw));
     }
 
     @Override

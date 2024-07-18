@@ -35,7 +35,7 @@ public class ItemHelper {
             Items.GLASS_BOTTLE, Items.GLOWSTONE_DUST, Items.REDSTONE, Items.STICK, Items.SUGAR, Items.POTION,
             Items.NETHER_STAR, Items.COAL, Items.WITHER_SKELETON_SKULL, Items.GHAST_TEAR, Items.IRON_INGOT,
             Items.CARROT, Items.POTATO, Items.BAKED_POTATO, Items.COPPER_INGOT};
-    public static final Item[] DIRTS = new Item[]{Items.DIRT, Items.DIRT_PATH, Items.COARSE_DIRT, Items.ROOTED_DIRT};
+    public static final Item[] DIRTS = new Item[]{Items.DIRT, Items.GRASS_PATH, Items.COARSE_DIRT, Items.ROOTED_DIRT};
     public static final Item[] PLANKS = new Item[]{Items.ACACIA_PLANKS, Items.BIRCH_PLANKS, Items.CRIMSON_PLANKS,
             Items.DARK_OAK_PLANKS, Items.OAK_PLANKS, Items.JUNGLE_PLANKS, Items.SPRUCE_PLANKS, Items.WARPED_PLANKS,
             Items.MANGROVE_PLANKS, Items.CHERRY_PLANKS, Items.BAMBOO_PLANKS};
@@ -365,7 +365,7 @@ public class ItemHelper {
                 // BlockTags.LEAVES); should also work... but is slower
                 b instanceof LeavesBlock
                         || b == Blocks.COBWEB
-                        || b == Blocks.SHORT_GRASS
+                        || b == Blocks.GRASS
                         || b == Blocks.TALL_GRASS
                         || b == Blocks.LILY_PAD
                         || b == Blocks.FERN

@@ -17,7 +17,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.BlockWithEntity;
 import net.minecraft.block.Blocks;
-import net.minecraft.block.ButtonBlock;
+import net.minecraft.block.AbstractButtonBlock;
 import net.minecraft.block.CraftingTableBlock;
 import net.minecraft.block.DoorBlock;
 import net.minecraft.block.FenceGateBlock;
@@ -161,8 +161,8 @@ public class ProjectileProtectionWallTask extends Task implements ITaskRequiresG
 
         BlockHitResult bhr = new BlockHitResult(hitPos, side.getOpposite(), neighbour, false);
 
-        mod.getPlayer().setYaw((float) getYaw(hitPos));
-        mod.getPlayer().setPitch((float) getPitch(hitPos));
+        mod.getPlayer().yaw = (float) getYaw(hitPos);
+        mod.getPlayer().pitch = (float) getPitch(hitPos);
 		swap(slot);
 
         interact(bhr, hand);
@@ -175,7 +175,7 @@ public class ProjectileProtectionWallTask extends Task implements ITaskRequiresG
 	public static boolean isClickable(Block block) {
         return block instanceof CraftingTableBlock
             || block instanceof AnvilBlock
-            || block instanceof ButtonBlock
+            || block instanceof AbstractButtonBlock
             || block instanceof AbstractPressurePlateBlock
             || block instanceof BlockWithEntity
             || block instanceof BedBlock
@@ -189,7 +189,7 @@ public class ProjectileProtectionWallTask extends Task implements ITaskRequiresG
         boolean wasSneaking = mod.getPlayer().input.sneaking;
         mod.getPlayer().input.sneaking = false;
 
-        ActionResult result = mod.getController().interactBlock(mod.getPlayer(),hand, blockHitResult);
+        ActionResult result = mod.getController().interactBlock(mod.getPlayer(),MinecraftClient.getInstance().world, hand ,blockHitResult);
 
         if (result.shouldSwingHand()) {
             mod.getPlayer().swingHand(hand);
@@ -205,7 +205,7 @@ public class ProjectileProtectionWallTask extends Task implements ITaskRequiresG
         if (!World.isValid(blockPos)) return false;
 
         // Check if current block is replaceable
-        if (!mod.getWorld().getBlockState(blockPos).isReplaceable()) return false;
+        if (!mod.getWorld().getBlockState(blockPos).getMaterial().isReplaceable()) return false;
 
         // Check if intersects entities
         return !checkEntities || mod.getWorld().canPlace(Blocks.OBSIDIAN.getDefaultState(), blockPos, ShapeContext.absent());
@@ -219,12 +219,12 @@ public class ProjectileProtectionWallTask extends Task implements ITaskRequiresG
         if (slot == PlayerSlot.OFFHAND_SLOT.getInventorySlot()) return true;
         if (slot < 0 || slot > 8) return false;
 
-        mod.getPlayer().getInventory().selectedSlot = slot;
+        mod.getPlayer().inventory.selectedSlot = slot;
         return true;
     }
     
     public double getYaw(Vec3d pos) {
-        return mod.getPlayer().getYaw() + MathHelper.wrapDegrees((float) Math.toDegrees(Math.atan2(pos.getZ() - mod.getPlayer().getZ(), pos.getX() - mod.getPlayer().getX())) - 90f - mod.getPlayer().getYaw());
+        return mod.getPlayer().yaw + MathHelper.wrapDegrees((float) Math.toDegrees(Math.atan2(pos.getZ() - mod.getPlayer().getZ(), pos.getX() - mod.getPlayer().getX())) - 90f - mod.getPlayer().yaw);
     }
 
     public double getPitch(Vec3d pos) {
@@ -234,6 +234,6 @@ public class ProjectileProtectionWallTask extends Task implements ITaskRequiresG
 
         double diffXZ = Math.sqrt(diffX * diffX + diffZ * diffZ);
 
-        return mod.getPlayer().getPitch() + MathHelper.wrapDegrees((float) -Math.toDegrees(Math.atan2(diffY, diffXZ)) - mod.getPlayer().getPitch());
+        return mod.getPlayer().pitch + MathHelper.wrapDegrees((float) -Math.toDegrees(Math.atan2(diffY, diffXZ)) - mod.getPlayer().pitch);
     }
 }

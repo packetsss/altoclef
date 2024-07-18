@@ -174,7 +174,7 @@ public class PlaceObsidianBucketTask extends Task {
         if (mod.getWorld().getBlockState(_pos).getBlock() != Blocks.LAVA) {
             // Don't place lava at our position!
             // Would lead to an embarrassing death.
-            BlockPos targetPos = _pos.add(-1,1,0);
+            BlockPos targetPos = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(_pos,-1,1,0);
             if (!mod.getPlayer().getBlockPos().equals(targetPos) && mod.getItemStorage().hasItem(Items.LAVA_BUCKET)) {
                 Debug.logInternal("Positioning player before placing lava...");
                 return new GetToBlockTask(targetPos, false);
@@ -196,14 +196,14 @@ public class PlaceObsidianBucketTask extends Task {
                 return null;
             }
             Debug.logInternal("Placing lava for cast...");
-            return new InteractWithBlockTask(new ItemTarget(Items.LAVA_BUCKET, 1), Direction.WEST, _pos.add(1,0,0), false);
+            return new InteractWithBlockTask(new ItemTarget(Items.LAVA_BUCKET, 1), Direction.WEST, adris.altoclef.multiversion.blockpos.BlockPosHelper.add(_pos,1,0,0), false);
         }
         // Lava placed, Now, place water.
         BlockPos waterCheck = _pos.up();
         if (mod.getWorld().getBlockState(waterCheck).getBlock() != Blocks.WATER) {
             Debug.logInternal("Placing water for cast...");
             // Get to position to avoid weird stuck scenario
-            BlockPos targetPos = _pos.add(-1,1,0);
+            BlockPos targetPos = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(_pos,-1,1,0);
             if (!mod.getPlayer().getBlockPos().equals(targetPos) && mod.getItemStorage().hasItem(Items.WATER_BUCKET)) {
                 Debug.logInternal("Positioning player before placing water...");
                 return new GetToBlockTask(targetPos, false);
@@ -216,7 +216,7 @@ public class PlaceObsidianBucketTask extends Task {
                 _currentDestroyTarget = waterCheck.up();
                 return null;
             }
-            return new InteractWithBlockTask(new ItemTarget(Items.WATER_BUCKET, 1), Direction.WEST, _pos.add(1,1,0), true);
+            return new InteractWithBlockTask(new ItemTarget(Items.WATER_BUCKET, 1), Direction.WEST, adris.altoclef.multiversion.blockpos.BlockPosHelper.add(_pos,1,1,0), true);
         }
         return null;
     }

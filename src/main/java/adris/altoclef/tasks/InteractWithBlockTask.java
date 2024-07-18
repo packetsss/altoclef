@@ -62,7 +62,7 @@ public class InteractWithBlockTask extends Task {
             Blocks.BIG_DRIPLEAF_STEM,
             Blocks.SMALL_DRIPLEAF,
             Blocks.TALL_GRASS,
-            Blocks.SHORT_GRASS,
+            Blocks.GRASS,
             Blocks.SWEET_BERRY_BUSH
     };
     private Task unstuckTask = null;
@@ -146,14 +146,14 @@ public class InteractWithBlockTask extends Task {
 
     private static BlockPos[] generateSides(BlockPos pos) {
         return new BlockPos[]{
-                pos.add(1,0,0),
-                pos.add(-1,0,0),
-                pos.add(0,0,1),
-                pos.add(0,0,-1),
-                pos.add(1,0,-1),
-                pos.add(1,0,1),
-                pos.add(-1,0,-1),
-                pos.add(-1,0,1)
+                adris.altoclef.multiversion.blockpos.BlockPosHelper.add(pos,1,0,0),
+                adris.altoclef.multiversion.blockpos.BlockPosHelper.add(pos,-1,0,0),
+                adris.altoclef.multiversion.blockpos.BlockPosHelper.add(pos,0,0,1),
+                adris.altoclef.multiversion.blockpos.BlockPosHelper.add(pos,0,0,-1),
+                adris.altoclef.multiversion.blockpos.BlockPosHelper.add(pos,1,0,-1),
+                adris.altoclef.multiversion.blockpos.BlockPosHelper.add(pos,1,0,1),
+                adris.altoclef.multiversion.blockpos.BlockPosHelper.add(pos,-1,0,-1),
+                adris.altoclef.multiversion.blockpos.BlockPosHelper.add(pos,-1,0,1)
         };
     }
 

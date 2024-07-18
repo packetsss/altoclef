@@ -92,7 +92,7 @@ public class RavageRuinedPortalsTask extends Task {
         if (mod.getWorld().getBlockState(blockPos.up(1)).getBlock() == Blocks.WATER || blockPos.getY() < 50) {
             return false;
         }
-        for (BlockPos check : WorldHelper.scanRegion(mod, blockPos.add(-4,-2,-4), blockPos.add(4,2,4))) {
+        for (BlockPos check : WorldHelper.scanRegion(mod, adris.altoclef.multiversion.blockpos.BlockPosHelper.add(blockPos,-4,-2,-4), adris.altoclef.multiversion.blockpos.BlockPosHelper.add(blockPos,4,2,4))) {
             if (mod.getWorld().getBlockState(check).getBlock() == Blocks.NETHERRACK) {
                 return true;
             }

@@ -110,7 +110,7 @@ public class CraftingRecipeTracker extends Tracker{
             if (craftingRecipe instanceof SpecialCraftingRecipe) continue;
 
             // the arguments shouldn't be used, we can just pass null
-            ItemStack result = new ItemStack(craftingRecipe.getResult(null).getItem(), craftingRecipe.getResult(null).getCount());
+            ItemStack result = new ItemStack(craftingRecipe.getOutput().getItem(), craftingRecipe.getOutput().getCount());
 
             Item[][] altoclefRecipeItems = getShapedCraftingRecipe(craftingRecipe.getIngredients());
 
@@ -141,7 +141,7 @@ public class CraftingRecipeTracker extends Tracker{
         int x = 0;
 
         for (Ingredient ingredient : ingredients) {
-            ItemStack[] stacks = ingredient.getMatchingStacks();
+            ItemStack[] stacks = ingredient.getMatchingStacksClient();
             Item[] items = new Item[stacks.length];
 
             for (int i = 0; i < stacks.length; i++) {

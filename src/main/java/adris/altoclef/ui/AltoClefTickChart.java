@@ -5,7 +5,7 @@ import adris.altoclef.multiversion.InGameHudVer;
 import adris.altoclef.multiversion.DrawContextWrapper;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.ColorHelper;
+import net.minecraft.client.gui.hud.BackgroundHelper;
 import net.minecraft.util.math.MathHelper;
 
 import java.util.ArrayList;
@@ -113,11 +113,11 @@ public class AltoClefTickChart {
     }
 
     private static int lerp(float delta, int start, int end) {
-        int i = (int) MathHelper.lerp(delta, ColorHelper.Argb.getAlpha(start), ColorHelper.Argb.getAlpha(end));
-        int j = (int) MathHelper.lerp(delta, ColorHelper.Argb.getRed(start), ColorHelper.Argb.getRed(end));
-        int k = (int) MathHelper.lerp(delta, ColorHelper.Argb.getGreen(start), ColorHelper.Argb.getGreen(end));
-        int l = (int) MathHelper.lerp(delta, ColorHelper.Argb.getBlue(start), ColorHelper.Argb.getBlue(end));
-        return ColorHelper.Argb.getArgb(i, j, k, l);
+        int i = (int) MathHelper.lerp(delta, BackgroundHelper.ColorMixer.getAlpha(start), BackgroundHelper.ColorMixer.getAlpha(end));
+        int j = (int) MathHelper.lerp(delta, BackgroundHelper.ColorMixer.getRed(start), BackgroundHelper.ColorMixer.getRed(end));
+        int k = (int) MathHelper.lerp(delta, BackgroundHelper.ColorMixer.getGreen(start), BackgroundHelper.ColorMixer.getGreen(end));
+        int l = (int) MathHelper.lerp(delta, BackgroundHelper.ColorMixer.getBlue(start), BackgroundHelper.ColorMixer.getBlue(end));
+        return BackgroundHelper.ColorMixer.getArgb(i, j, k, l);
     }
 
     private static double nanosToMillis(double nanos) {

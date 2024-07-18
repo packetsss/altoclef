@@ -39,8 +39,8 @@ public class UnstuckChain extends SingleTaskChain {
         if (posHistory.size() < 100) return;
 
         // is not in water
-        if (!mod.getWorld().getBlockState(mod.getPlayer().getSteppingPos()).getBlock().equals(Blocks.WATER)
-                && !mod.getWorld().getBlockState(mod.getPlayer().getSteppingPos().down()).getBlock().equals(Blocks.WATER))
+        if (!mod.getWorld().getBlockState(((adris.altoclef.mixins.EntityAccessor) mod.getPlayer()).invokeGetLandingPos()).getBlock().equals(Blocks.WATER)
+                && !mod.getWorld().getBlockState(((adris.altoclef.mixins.EntityAccessor) mod.getPlayer()).invokeGetLandingPos().down()).getBlock().equals(Blocks.WATER))
             return;
 
         // everything should be fine
@@ -78,7 +78,7 @@ public class UnstuckChain extends SingleTaskChain {
                 destroyPos = nearest.get();
             }
 
-            BlockPos headPos = WorldHelper.toBlockPos(player.getEyePos()).down();
+            BlockPos headPos = WorldHelper.toBlockPos(adris.altoclef.multiversion.entity.EntityHelper.getEyePos(player)).down();
             if (mod.getWorld().getBlockState(headPos).getBlock() == Blocks.POWDER_SNOW) {
                 destroyPos = headPos;
             } else if (mod.getWorld().getBlockState(player.getBlockPos()).getBlock() == Blocks.POWDER_SNOW) {
@@ -92,7 +92,7 @@ public class UnstuckChain extends SingleTaskChain {
     }
 
     private void checkStuckOnEndPortalFrame(AltoClef mod) {
-        BlockState state = mod.getWorld().getBlockState(mod.getPlayer().getSteppingPos());
+        BlockState state = mod.getWorld().getBlockState(((adris.altoclef.mixins.EntityAccessor) mod.getPlayer()).invokeGetLandingPos());
 
         // if we are standing on an end portal frame that is NOT filled, get off otherwise we will get stuck
         if (state.getBlock() == Blocks.END_PORTAL_FRAME && !state.get(EndPortalFrameBlock.EYE)) {

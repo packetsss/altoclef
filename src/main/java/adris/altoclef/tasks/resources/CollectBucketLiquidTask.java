@@ -157,7 +157,7 @@ public class CollectBucketLiquidTask extends ResourceTask {
             return new DoToClosestBlockTask(blockPos -> {
                 // Clear above if lava because we can't enter.
                 // but NOT if we're standing right above.
-                if (mod.getWorld().getBlockState(blockPos.up()).isSolid()) {
+                if (mod.getWorld().getBlockState(blockPos.up()).getMaterial().isSolid()) {
                     if (!progressChecker.check(mod)) {
                         mod.getClientBaritone().getPathingBehavior().cancelEverything();
                         mod.getClientBaritone().getPathingBehavior().forceCancel();

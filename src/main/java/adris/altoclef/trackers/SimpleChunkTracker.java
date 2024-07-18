@@ -72,8 +72,8 @@ public class SimpleChunkTracker {
      */
     public boolean scanChunk(ChunkPos chunk, Predicate<BlockPos> onBlockStop) {
         if (!isChunkLoaded(chunk)) return false;
-        int bottomY = mod.getWorld().getBottomY();
-        int topY = mod.getWorld().getTopY();
+        int bottomY = adris.altoclef.multiversion.world.WorldHelper.getBottomY(mod.getWorld());
+        int topY = adris.altoclef.multiversion.world.WorldHelper.getTopY(mod.getWorld());
 
         //Debug.logInternal("SCANNED CHUNK " + chunk.toString());
         for (int xx = chunk.getStartX(); xx <= chunk.getEndX(); ++xx) {

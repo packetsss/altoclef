@@ -150,7 +150,7 @@ public class KillEnderDragonTask extends Task {
                             mod.getControllerExtras().attack(toDestroy);
                         }
                         // Go next to the crystal, arbitrary where we just need to get close.
-                        return new GetToBlockTask(toDestroy.getBlockPos().add(1,0,0), false);
+                        return new GetToBlockTask(adris.altoclef.multiversion.blockpos.BlockPosHelper.add(toDestroy.getBlockPos(),1,0,0), false);
                     },
                     EndCrystalEntity.class
             );
@@ -308,7 +308,7 @@ public class KillEnderDragonTask extends Task {
                                         for (int dz = -2; dz <= 2; ++dz) {
                                             // We have sort of a rounded circle here.
                                             if (Math.abs(dx) == 2 && Math.abs(dz) == 2) continue;
-                                            BlockPos toCheck = exitPortalTop.add(dx,bottomYDelta,dz);
+                                            BlockPos toCheck = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(exitPortalTop,dx,bottomYDelta,dz);
                                             double distSq = BlockPosVer.getSquaredDistance(toCheck,head.getPos());
                                             if (distSq < closestDist) {
                                                 closest = toCheck;

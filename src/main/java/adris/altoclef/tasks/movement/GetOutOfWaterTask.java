@@ -33,7 +33,7 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
 
         boolean hasBlockBelow = false;
         for (int i = 0; i < 3; i++) {
-            if (mod.getWorld().getBlockState(mod.getPlayer().getSteppingPos().down(i)).getBlock() != Blocks.WATER) {
+            if (mod.getWorld().getBlockState(((adris.altoclef.mixins.EntityAccessor) mod.getPlayer()).invokeGetLandingPos().down(i)).getBlock() != Blocks.WATER) {
                 hasBlockBelow = true;
             }
         }
@@ -51,7 +51,7 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
             }
 
             mod.getSlotHandler().forceEquipItem(mod.getClientBaritoneSettings().acceptableThrowawayItems.value.toArray(new Item[0]));
-            LookHelper.lookAt(mod, mod.getPlayer().getSteppingPos().down());
+            LookHelper.lookAt(mod, ((adris.altoclef.mixins.EntityAccessor) mod.getPlayer()).invokeGetLandingPos().down());
             mod.getInputControls().tryPress(Input.CLICK_RIGHT);
         }
 

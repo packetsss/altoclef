@@ -348,7 +348,7 @@ public class ConstructNetherPortalBucketTask extends Task {
                 if (level != 8) continue;
             }
 
-            queue.addAll(List.of(origin.north(), origin.south(), origin.east(), origin.west(), origin.up(), origin.down()));
+            queue.addAll(List.of(origin.offset(Direction.NORTH, 1), origin.offset(Direction.SOUTH, 1), origin.offset(Direction.EAST, 1), origin.offset(Direction.WEST, 1), origin.up(), origin.down()));
 
             bonus++;
         }
@@ -378,7 +378,7 @@ public class ConstructNetherPortalBucketTask extends Task {
                 for (int dx = -1; dx < sizeAllocation.getX() + 1; ++dx) {
                     for (int dz = -1; dz < sizeAllocation.getZ() + 1; ++dz) {
                         for (int dy = -1; dy < sizeAllocation.getY(); ++dy) {
-                            BlockPos toCheck = lava.add(offset).add(sizeOffset).add(dx,dy,dz);
+                            BlockPos toCheck = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(lava.add(offset).add(sizeOffset),dx,dy,dz);
                             assert MinecraftClient.getInstance().world != null;
                             BlockState state = MinecraftClient.getInstance().world.getBlockState(toCheck);
                             if (state.getBlock() == Blocks.LAVA || state.getBlock() == Blocks.WATER || state.getBlock() == Blocks.BEDROCK) {

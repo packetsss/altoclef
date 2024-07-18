@@ -9,7 +9,7 @@ import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import net.minecraft.item.Item;
-import net.minecraft.registry.Registries;
+import net.minecraft.util.registry.Registry;
 import net.minecraft.util.Identifier;
 
 import java.io.IOException;
@@ -43,8 +43,8 @@ public class ItemDeserializer extends StdDeserializer<Object> {
                 String itemKey = p.getText();
                 itemKey = ItemHelper.trimItemName(itemKey);
                 Identifier identifier = new Identifier(itemKey);
-                if (Registries.ITEM.containsId(identifier)) {
-                    item = Registries.ITEM.get(identifier);
+                if (Registry.ITEM.containsId(identifier)) {
+                    item = Registry.ITEM.get(identifier);
                 } else {
                     Debug.logWarning("Invalid item name:" + itemKey + " at " + p.getCurrentLocation().toString());
                 }

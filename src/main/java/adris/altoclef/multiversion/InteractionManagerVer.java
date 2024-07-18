@@ -16,18 +16,18 @@ public class InteractionManagerVer {
     @Pattern
     public ActionResult interactItem(ClientPlayerInteractionManager interactionManager, PlayerEntity player, Hand hand) {
         //#if MC >= 11904
-        return interactionManager.interactItem(player,hand);
+        //$$ return interactionManager.interactItem(player,hand);
         //#else
-        //$$ return interactionManager.interactItem(player,MinecraftClient.getInstance().world,hand);
+        return interactionManager.interactItem(player,MinecraftClient.getInstance().world,hand);
         //#endif
     }
 
     @Pattern
     public ActionResult interactBlock(ClientPlayerInteractionManager interactionManager, ClientPlayerEntity player, Hand hand, BlockHitResult hitResult) {
         //#if MC >= 11904
-        return interactionManager.interactBlock(player,hand, hitResult);
+        //$$ return interactionManager.interactBlock(player,hand, hitResult);
         //#else
-        //$$ return interactionManager.interactBlock(player,MinecraftClient.getInstance().world, hand ,hitResult);
+        return interactionManager.interactBlock(player,MinecraftClient.getInstance().world, hand ,hitResult);
         //#endif
     }
 

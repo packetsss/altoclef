@@ -45,7 +45,7 @@ public class ToolSetMixin {
 
     @Inject(method = "getBestSlot(Lnet/minecraft/block/Block;ZZ)I", at = @At("HEAD"), cancellable = true)
     public void inject(Block b, boolean preferSilkTouch, boolean pathingCalculation, CallbackInfoReturnable<Integer> cir) {
-        if (b.getDefaultState().getBlock().getHardness() == 0) cir.setReturnValue(this.player.getInventory().selectedSlot);
+        if (b.getDefaultState().getHardness(null, null) == 0) cir.setReturnValue(this.player.inventory.selectedSlot);
     }
 
 

@@ -102,9 +102,9 @@ public class InventorySubTracker extends Tracker {
 
     public List<ItemStack> getInventoryStacks(boolean includeCursor) {
         ClientPlayerEntity player = MinecraftClient.getInstance().player;
-        if (player == null || player.getInventory() == null)
+        if (player == null || player.inventory == null)
             return Collections.emptyList();
-        PlayerInventory inv = player.getInventory();
+        PlayerInventory inv = player.inventory;
         // 36 player + 1 offhand + 4 armor
         List<ItemStack> result = new ArrayList<>(41 + (includeCursor ? 1 : 0));
         if (includeCursor) {

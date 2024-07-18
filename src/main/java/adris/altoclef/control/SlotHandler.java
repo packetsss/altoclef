@@ -105,7 +105,7 @@ public class SlotHandler {
         if (StorageHelper.getItemStackInSlot(PlayerSlot.getEquipSlot()).getItem() == toEquip) return true;
 
         // Always equip to the second slot. First + last is occupied by baritone.
-        mod.getPlayer().getInventory().selectedSlot = 1;
+        mod.getPlayer().inventory.selectedSlot = 1;
 
         // If our item is in our cursor, simply move it to the hotbar.
         boolean inCursor = StorageHelper.getItemStackInSlot(CursorSlot.SLOT).getItem() == toEquip;
@@ -136,7 +136,7 @@ public class SlotHandler {
                             || item == Items.CROSSBOW
                             || item == Items.FLINT_AND_STEEL || item == Items.FIRE_CHARGE
                             || item == Items.ENDER_PEARL
-                            || item instanceof FireworkRocketItem
+                            || item instanceof FireworkItem
                             || item instanceof SpawnEggItem
                             || item == Items.END_CRYSTAL
                             || item == Items.EXPERIENCE_BOTTLE
@@ -148,7 +148,7 @@ public class SlotHandler {
                             || item instanceof OnAStickItem
                             || item == Items.COMPASS
                             || item instanceof EmptyMapItem
-                            || item instanceof Equipment
+                            || item instanceof Wearable
                             || item == Items.LEAD
                             || item == Items.SHIELD;
                 }
@@ -236,7 +236,7 @@ public class SlotHandler {
     public void refreshInventory() {
         if (MinecraftClient.getInstance().player == null)
             return;
-        for (int i = 0; i < MinecraftClient.getInstance().player.getInventory().main.size(); ++i) {
+        for (int i = 0; i < MinecraftClient.getInstance().player.inventory.main.size(); ++i) {
             Slot slot = Slot.getFromCurrentScreenInventory(i);
             clickSlotForce(slot, 0, SlotActionType.PICKUP);
             clickSlotForce(slot, 0, SlotActionType.PICKUP);

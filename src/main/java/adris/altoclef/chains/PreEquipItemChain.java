@@ -48,7 +48,7 @@ public class PreEquipItemChain extends SingleTaskChain {
         BlockStateInterface bsi = new BlockStateInterface(BaritoneAPI.getProvider().getPrimaryBaritone().getPlayerContext());
         for (IMovement iMovement : path.movements()) {
             Movement movement = (Movement) iMovement;
-            if (movement.toBreak(bsi).stream().anyMatch(pos -> mod.getWorld().getBlockState(pos).getBlock().getHardness() > 0)
+            if (movement.toBreak(bsi).stream().anyMatch(pos -> mod.getWorld().getBlockState(pos).getHardness(null, null) > 0)
                     || !movement.toPlace(bsi).isEmpty()) return;
         }
 

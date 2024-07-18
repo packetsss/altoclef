@@ -250,7 +250,7 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
 
                 // Special case: Get close enough to our base if we're placing in the bad zone
                 if (lavaTarget.isBelow()) {
-                    BlockPos posClose = _portalOrigin.add(lavaTarget.where).add(-1,1,0);
+                    BlockPos posClose = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(_portalOrigin.add(lavaTarget.where),-1,1,0);
                     // If we're not right at that point and we're registered to keep fighting for it, go for it.
                     if (!mod.getPlayer().getBlockPos().equals(posClose)) {
                         if (!_specialBottomCaseCloserTimer.elapsed()) {
@@ -373,7 +373,7 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
             if (level != 8) return 0;
         }
 
-        BlockPos[] toCheck = new BlockPos[]{origin.north(), origin.south(), origin.east(), origin.west(), origin.up(), origin.down()};
+        BlockPos[] toCheck = new BlockPos[]{origin.offset(Direction.NORTH, 1), origin.offset(Direction.SOUTH, 1), origin.offset(Direction.EAST, 1), origin.offset(Direction.WEST, 1), origin.up(), origin.down()};
 
         int bonus = 0;
         for (BlockPos check : toCheck) {
@@ -405,7 +405,7 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
                 for (int dx = -1; dx < sizeAllocation.getX() + 1; ++dx) {
                     for (int dz = -1; dz < sizeAllocation.getZ() + 1; ++dz) {
                         for (int dy = -1; dy < sizeAllocation.getY(); ++dy) {
-                            BlockPos toCheck = lava.add(offset).add(sizeOffset).add(dx,dy,dz);
+                            BlockPos toCheck = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(lava.add(offset).add(sizeOffset),dx,dy,dz);
                             BlockState state = MinecraftClient.getInstance().world.getBlockState(toCheck);
                             if (state.getBlock() == Blocks.LAVA || state.getBlock() == Blocks.BEDROCK) {
                                 found = false;
@@ -444,7 +444,7 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
         for (int dx = 0; dx < PORTALABLE_REGION_SIZE.getX(); ++dx) {
             for (int dz = 0; dz < PORTALABLE_REGION_SIZE.getZ(); ++dz) {
                 for (int dy = 0; dy < PORTALABLE_REGION_SIZE.getY(); ++dy) {
-                    BlockPos toCheck = getPortalRegionCorner().add(dx,dy,dz);
+                    BlockPos toCheck = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(getPortalRegionCorner(),dx,dy,dz);
                     if (shouldBeDestroyed(toCheck)) return toCheck;
                 }
             }

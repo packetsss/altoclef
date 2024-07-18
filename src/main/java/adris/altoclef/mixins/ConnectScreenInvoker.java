@@ -1,6 +1,6 @@
 package adris.altoclef.mixins;
 
-import net.minecraft.client.gui.screen.multiplayer.ConnectScreen;
+import net.minecraft.client.gui.screen.ConnectScreen;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
@@ -8,7 +8,7 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 public interface ConnectScreenInvoker {
 
     //#if MC <= 11605
-    //$$ @Invoker("connect")
-    //$$ void invokeConnect(String address, int port);
+    @Invoker("connect")
+    void invokeConnect(String address, int port);
     //#endif
 }

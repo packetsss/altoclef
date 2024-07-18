@@ -13,18 +13,18 @@ public class LivingEntityVer {
     @Pattern
     private static Iterable<ItemStack> getItemsEquipped(LivingEntity entity) {
         //#if MC >= 12005
-        return entity.getEquippedItems();
+        //$$ return entity.getEquippedItems();
         //#else
-        //$$ return entity.getItemsEquipped();
+        return entity.getItemsEquipped();
         //#endif
     }
 
     @Pattern
     private static boolean isSuitableFor(Item item, BlockState state) {
         //#if MC >= 12005
-        return item.getDefaultStack().isSuitableFor(state);
+        //$$ return item.getDefaultStack().isSuitableFor(state);
         //#else
-        //$$ return item.isSuitableFor(state);
+        return adris.altoclef.multiversion.item.ItemHelper.isSuitableFor(item, state);
         //#endif
     }
 

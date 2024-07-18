@@ -7,7 +7,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.util.math.MatrixStack;
-import org.joml.Matrix4f;
+import net.minecraft.util.math.Matrix4f;
 
 import java.awt.*;
 import java.time.Instant;

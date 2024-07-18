@@ -140,7 +140,7 @@ public class FastTravelTask extends Task {
                 if (WorldHelper.inRangeXZ(mod.getPlayer(), netherTarget, IN_NETHER_CLOSE_ENOUGH_THRESHOLD) &&
                         mod.getClientBaritone().getPathingBehavior().isSafeToCancel()) {
                     // If we're precisely at our target XZ or if we've tried long enough
-                    if ((mod.getPlayer().getBlockX() == netherTarget.getX() && mod.getPlayer().getBlockZ() == netherTarget.getZ()) || _attemptToMoveToIdealNetherCoordinateTimeout.elapsed()) {
+                    if ((adris.altoclef.multiversion.entity.EntityHelper.getBlockX(mod.getPlayer()) == netherTarget.getX() && adris.altoclef.multiversion.entity.EntityHelper.getBlockZ(mod.getPlayer()) == netherTarget.getZ()) || _attemptToMoveToIdealNetherCoordinateTimeout.elapsed()) {
                         return _goToOverworldTask;
                     }
                 }

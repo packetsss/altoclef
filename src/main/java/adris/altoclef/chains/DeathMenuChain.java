@@ -86,7 +86,7 @@ public class DeathMenuChain extends TaskChain {
                     Text screenMessage = ((DeathScreenAccessor) screen).getMessage();
                     String deathMessage = screenMessage != null ? screenMessage.getString() : "Unknown"; //"(not implemented yet)"; //screen.children().toString();
                     MinecraftClient.getInstance().player.requestRespawn();
-                    MinecraftClient.getInstance().setScreen(null);
+                    MinecraftClient.getInstance().openScreen(null);
                     for (String i : mod.getModSettings().getDeathCommand().split(" & ")) {
                         String command = i.replace("{deathmessage}", deathMessage);
                         String prefix = mod.getModSettings().getCommandPrefix();
@@ -115,7 +115,7 @@ public class DeathMenuChain extends TaskChain {
                 if (shouldAutoReconnect(mod)) {
                     Debug.logMessage("RECONNECTING: Going to Multiplayer Screen");
                     reconnecting = true;
-                    MinecraftClient.getInstance().setScreen(new MultiplayerScreen(new TitleScreen()));
+                    MinecraftClient.getInstance().openScreen(new MultiplayerScreen(new TitleScreen()));
                 } else {
                     // Cancel if we disconnect and are not auto-reconnecting.
                     mod.cancelUserTask();

@@ -275,7 +275,7 @@ public interface LookHelper {
         }
 
         // Get the world of the entity
-        World world = entity.getWorld();
+        World world = entity.getEntityWorld();
 
         // Create a raycast context with the start and end points, shape type, fluid handling, and entity performing the raycast
         RaycastContext context = new RaycastContext(start, end, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, entity);
@@ -305,8 +305,8 @@ public interface LookHelper {
      * @return the look rotation of the entity
      */
     static Rotation getLookRotation(Entity entity) {
-        float pitch = entity.getPitch();
-        float yaw = entity.getYaw();
+        float pitch = entity.pitch;
+        float yaw = entity.yaw;
         return new Rotation(yaw, pitch);
     }
 
@@ -538,8 +538,8 @@ public interface LookHelper {
         }
 
         // Set the player's yaw and pitch
-        mod.getPlayer().setYaw(rotation.getYaw());
-        mod.getPlayer().setPitch(rotation.getPitch());
+        mod.getPlayer().yaw = rotation.getYaw();
+        mod.getPlayer().pitch = rotation.getPitch();
     }
 
     /**
@@ -553,8 +553,8 @@ public interface LookHelper {
         mod.getClientBaritone().getLookBehavior().updateTarget(rotation, true);
 
         // Set the player's yaw and pitch
-        mod.getPlayer().setYaw(rotation.getYaw());
-        mod.getPlayer().setPitch(rotation.getPitch());
+        mod.getPlayer().yaw = rotation.getYaw();
+        mod.getPlayer().pitch = rotation.getPitch();
     }
 
     /**

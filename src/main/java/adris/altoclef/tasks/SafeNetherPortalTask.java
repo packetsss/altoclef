@@ -43,10 +43,10 @@ public class SafeNetherPortalTask extends Task {
             mod.getClientBaritone().getInputOverrideHandler().clearAllKeys();
         }
 
-        if (mod.getPlayer().getPortalCooldown() < 10) {
+        if (((EntityAccessor) mod.getPlayer()).getPortalCooldown() < 10) {
             if (positions != null && directions != null) {
-                BlockPos pos1 = mod.getPlayer().getSteppingPos().offset(axis, 1);
-                BlockPos pos2 = mod.getPlayer().getSteppingPos().offset(axis, -1);
+                BlockPos pos1 = ((adris.altoclef.mixins.EntityAccessor) mod.getPlayer()).invokeGetLandingPos().offset(axis, 1);
+                BlockPos pos2 = ((adris.altoclef.mixins.EntityAccessor) mod.getPlayer()).invokeGetLandingPos().offset(axis, -1);
 
                 if (mod.getWorld().getBlockState(pos1).isAir() || mod.getWorld().getBlockState(pos1).getBlock().equals(Blocks.SOUL_SAND)) {
                     boolean passed = false;

@@ -109,7 +109,7 @@ public class MobDefenseChain extends SingleTaskChain {
             if (toDealWith instanceof EndermanEntity || toDealWith instanceof SlimeEntity || toDealWith instanceof BlazeEntity) {
 
                 numberOfProblematicEntities += 1;
-            } else if (toDealWith instanceof DrownedEntity && toDealWith.getEquippedItems() == Items.TRIDENT) {
+            } else if (toDealWith instanceof DrownedEntity && toDealWith.getItemsEquipped() == Items.TRIDENT) {
                 // Drowned with tridents are also REALLY dangerous, maybe we should increase this??
                 numberOfProblematicEntities += 5;
             }
@@ -201,7 +201,7 @@ public class MobDefenseChain extends SingleTaskChain {
                     && !mod.getPlayer().getItemCooldownManager().isCoolingDown(offhandItem)
                     && mod.getClientBaritone().getPathingBehavior().isSafeToCancel()
                     && blowingUp.getClientFuseTime(blowingUp.getFuseSpeed()) > 0.5) {
-                LookHelper.lookAt(mod, blowingUp.getEyePos());
+                LookHelper.lookAt(mod, adris.altoclef.multiversion.entity.EntityHelper.getEyePos(blowingUp));
                 ItemStack shieldSlot = StorageHelper.getItemStackInSlot(PlayerSlot.OFFHAND_SLOT);
                 if (shieldSlot.getItem() != Items.SHIELD) {
                     mod.getSlotHandler().forceEquipItemToOffhand(Items.SHIELD);
@@ -392,14 +392,14 @@ public class MobDefenseChain extends SingleTaskChain {
         BlockPos p = mod.getPlayer().getBlockPos();
         BlockPos[] toCheck = new BlockPos[]{
                 p,
-                p.add(1,0,0),
-                p.add(1,0,-1),
-                p.add(0,0,-1),
-                p.add(-1,0,-1),
-                p.add(-1,0,0),
-                p.add(-1,0,1),
-                p.add(0,0,1),
-                p.add(1,0,1)
+                adris.altoclef.multiversion.blockpos.BlockPosHelper.add(p,1,0,0),
+                adris.altoclef.multiversion.blockpos.BlockPosHelper.add(p,1,0,-1),
+                adris.altoclef.multiversion.blockpos.BlockPosHelper.add(p,0,0,-1),
+                adris.altoclef.multiversion.blockpos.BlockPosHelper.add(p,-1,0,-1),
+                adris.altoclef.multiversion.blockpos.BlockPosHelper.add(p,-1,0,0),
+                adris.altoclef.multiversion.blockpos.BlockPosHelper.add(p,-1,0,1),
+                adris.altoclef.multiversion.blockpos.BlockPosHelper.add(p,0,0,1),
+                adris.altoclef.multiversion.blockpos.BlockPosHelper.add(p,1,0,1)
         };
         for (BlockPos check : toCheck) {
             Block b = mod.getWorld().getBlockState(check).getBlock();
@@ -491,7 +491,7 @@ public class MobDefenseChain extends SingleTaskChain {
                         if (ghastBall.isPresent() && ghast.isPresent() && runAwayTask == null
                                 && mod.getClientBaritone().getPathingBehavior().isSafeToCancel()) {
                             mod.getClientBaritone().getPathingBehavior().requestPause();
-                            LookHelper.lookAt(mod, ghast.get().getEyePos());
+                            LookHelper.lookAt(mod, adris.altoclef.multiversion.entity.EntityHelper.getEyePos(ghast.get()));
                         }
                         return false;
                         // Ignore ghast balls

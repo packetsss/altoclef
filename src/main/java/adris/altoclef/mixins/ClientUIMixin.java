@@ -4,7 +4,7 @@ import adris.altoclef.eventbus.EventBus;
 import adris.altoclef.eventbus.events.ClientRenderEvent;
 import adris.altoclef.multiversion.DrawContextWrapper;
 import net.minecraft.client.gui.hud.InGameHud;
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.DrawableHelper;
 import net.minecraft.client.util.math.MatrixStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -18,9 +18,9 @@ public final class ClientUIMixin {
             at = @At("TAIL")
     )
     //#if MC >= 12001
-    private void clientRender(DrawContext obj, float tickDelta, CallbackInfo ci) {
+    //$$ private void clientRender(DrawContext obj, float tickDelta, CallbackInfo ci) {
     //#else
-    //$$ private void clientRender(MatrixStack obj, float tickDelta, CallbackInfo ci) {
+    private void clientRender(MatrixStack obj, float tickDelta, CallbackInfo ci) {
     //#endif
         EventBus.publish(new ClientRenderEvent(DrawContextWrapper.of(obj), tickDelta));
     }

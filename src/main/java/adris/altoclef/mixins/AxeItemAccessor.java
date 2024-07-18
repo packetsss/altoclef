@@ -10,8 +10,8 @@ import java.util.Set;
 public interface AxeItemAccessor {
 
     //#if MC <= 11605
-    //$$ @Accessor("field_23139")
-    //$$ Set<net.minecraft.block.Material> getEffectiveMaterials();
+    @Accessor("field_23139")
+    Set<net.minecraft.block.Material> getEffectiveMaterials();
     //#endif
 
 }

@@ -27,7 +27,7 @@ import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.BiomeKeys;
 
 //#if MC >= 11802
-import net.minecraft.registry.entry.RegistryEntry;
+//$$ import net.minecraft.util.registry.RegistryEntry;
 //#endif
 
 import java.util.*;
@@ -108,8 +108,8 @@ public interface WorldHelper {
     static Dimension getCurrentDimension() {
         ClientWorld world = MinecraftClient.getInstance().world;
         if (world == null) return Dimension.OVERWORLD;
-        if (world.getDimension().ultrawarm()) return Dimension.NETHER;
-        if (world.getDimension().natural()) return Dimension.OVERWORLD;
+        if (world.getDimension().isUltrawarm()) return Dimension.NETHER;
+        if (world.getDimension().isNatural()) return Dimension.OVERWORLD;
         return Dimension.END;
     }
 
@@ -180,7 +180,7 @@ public interface WorldHelper {
     }
 
     static int getGroundHeight(AltoClef mod, int x, int z) {
-        for (int y = mod.getWorld().getTopY(); y >= mod.getWorld().getBottomY(); --y) {
+        for (int y = adris.altoclef.multiversion.world.WorldHelper.getTopY(mod.getWorld()); y >= adris.altoclef.multiversion.world.WorldHelper.getBottomY(mod.getWorld()); --y) {
             BlockPos check = new BlockPos(x, y, z);
             if (isSolidBlock(mod, check)) return y;
         }
@@ -207,7 +207,7 @@ public interface WorldHelper {
 
     static int getGroundHeight(AltoClef mod, int x, int z, Block... groundBlocks) {
         Set<Block> possibleBlocks = new HashSet<>(Arrays.asList(groundBlocks));
-        for (int y = mod.getWorld().getTopY(); y >= mod.getWorld().getBottomY(); --y) {
+        for (int y = adris.altoclef.multiversion.world.WorldHelper.getTopY(mod.getWorld()); y >= adris.altoclef.multiversion.world.WorldHelper.getBottomY(mod.getWorld()); --y) {
             BlockPos check = new BlockPos(x, y, z);
             if (possibleBlocks.contains(mod.getWorld().getBlockState(check).getBlock())) return y;
 
@@ -240,7 +240,7 @@ public interface WorldHelper {
             return true;
         }
         // Fall down
-        for (int dy = 1; dy <= toBreak.getY() - mod.getWorld().getBottomY(); ++dy) {
+        for (int dy = 1; dy <= toBreak.getY() - adris.altoclef.multiversion.world.WorldHelper.getBottomY(mod.getWorld()); ++dy) {
             BlockPos check = toBreak.down(dy);
             BlockState s = mod.getWorld().getBlockState(check);
             boolean tooFarToFall = dy > mod.getClientBaritoneSettings().maxFallHeightNoWater.value;
@@ -280,9 +280,9 @@ public interface WorldHelper {
     }
 
     //#if MC >= 11802
-    static boolean isOcean(RegistryEntry<Biome> b) {
+    //$$ static boolean isOcean(RegistryEntry<Biome> b) {
     //#else
-    //$$ static boolean isOcean(Biome b) {
+    static boolean isOcean(Biome b) {
     //#endif
         return (WorldVer.isBiome(b,BiomeKeys.OCEAN)
                 || WorldVer.isBiome(b,BiomeKeys.COLD_OCEAN)

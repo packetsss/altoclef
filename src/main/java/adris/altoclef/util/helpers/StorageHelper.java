@@ -66,7 +66,7 @@ public class StorageHelper {
             return StorageHelper.getItemStackInCursorSlot();
         }
         // Inventory slot when inventory is NOT open
-        PlayerInventory inv = player.getInventory();
+        PlayerInventory inv = player.inventory;
         if (inv != null) {
             if (slot.equals(PlayerSlot.OFFHAND_SLOT))
                 return inv.offHand.stream().findFirst().orElse(ItemStack.EMPTY);
@@ -141,7 +141,7 @@ public class StorageHelper {
         //      PREFER (Always use silk touch if we have)
         //      AVOID  (Don't use silk touch if we can)
         //  }
-        if (state.getBlock().getHardness() == 0) return Optional.ofNullable(PlayerSlot.getEquipSlot());
+        if (state.getHardness(null, null) == 0) return Optional.ofNullable(PlayerSlot.getEquipSlot());
 
         Slot bestToolSlot = null;
         double highestSpeed = Double.NEGATIVE_INFINITY;
@@ -150,7 +150,7 @@ public class StorageHelper {
                 continue;
             ItemStack stack = getItemStackInSlot(slot);
             if (stack.getItem() instanceof ToolItem) {
-                if (stack.getItem().getDefaultStack().isSuitableFor(state)) {
+                if (adris.altoclef.multiversion.item.ItemHelper.isSuitableFor(stack.getItem(), state)) {
                     if (shouldSaveStack(mod,  state.getBlock(), stack)) continue;
 
                     double speed = ToolSet.calculateSpeedVsBlock(stack, state);
@@ -415,12 +415,12 @@ public class StorageHelper {
     public static boolean isArmorEquipped(AltoClef mod, Item... any) {
         for (Item item : any) {
             if (item instanceof ArmorItem armor) {
-                ItemStack equippedStack = mod.getPlayer().getInventory().getArmorStack(armor.getSlotType().getEntitySlotId());
+                ItemStack equippedStack = mod.getPlayer().inventory.getArmorStack(armor.getSlotType().getEntitySlotId());
                 if (equippedStack.getItem().equals(item))
                     return true;
             }
             if (item instanceof ShieldItem shield) {
-                ItemStack equippedStack = mod.getPlayer().getInventory().getStack(OFF_HAND_SLOT);
+                ItemStack equippedStack = mod.getPlayer().inventory.getStack(OFF_HAND_SLOT);
                 if (equippedStack.getItem().equals(shield))
                     return true;
             }
@@ -610,7 +610,7 @@ public class StorageHelper {
     public static ItemStack getItemStackInCursorSlot() {
         if (MinecraftClient.getInstance().player != null) {
             if (MinecraftClient.getInstance().player.currentScreenHandler != null) {
-                return MinecraftClient.getInstance().player.currentScreenHandler.getCursorStack();
+                return MinecraftClient.getInstance().player.inventory.getCursorStack();
             }
         }
         return ItemStack.EMPTY;

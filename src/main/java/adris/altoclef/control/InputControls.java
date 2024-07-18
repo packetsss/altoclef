@@ -28,15 +28,15 @@ public class InputControls {
     private static KeyBinding inputToKeyBinding(Input input) {
         GameOptions o = MinecraftClient.getInstance().options;
         return switch (input) {
-            case MOVE_FORWARD -> o.forwardKey;
-            case MOVE_BACK -> o.backKey;
-            case MOVE_LEFT -> o.leftKey;
-            case MOVE_RIGHT -> o.rightKey;
-            case CLICK_LEFT -> o.attackKey;
-            case CLICK_RIGHT -> o.useKey;
-            case JUMP -> o.jumpKey;
-            case SNEAK -> o.sneakKey;
-            case SPRINT -> o.sprintKey;
+            case MOVE_FORWARD -> o.keyForward;
+            case MOVE_BACK -> o.keyBack;
+            case MOVE_LEFT -> o.keyLeft;
+            case MOVE_RIGHT -> o.keyRight;
+            case CLICK_LEFT -> o.keyAttack;
+            case CLICK_RIGHT -> o.keyUse;
+            case JUMP -> o.keyJump;
+            case SNEAK -> o.keySneak;
+            case SPRINT -> o.keySprint;
             default -> throw new IllegalArgumentException("Invalid key input/not accounted for: " + input);
         };
     }
@@ -70,8 +70,8 @@ public class InputControls {
 
     public void forceLook(float yaw, float pitch) {
         if (MinecraftClient.getInstance().player != null) {
-            MinecraftClient.getInstance().player.setYaw(yaw);
-            MinecraftClient.getInstance().player.setPitch(pitch);
+            MinecraftClient.getInstance().player.yaw = yaw;
+            MinecraftClient.getInstance().player.pitch = pitch;
         }
     }
 

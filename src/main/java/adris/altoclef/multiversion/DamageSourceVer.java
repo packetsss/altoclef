@@ -8,9 +8,9 @@ public class DamageSourceVer {
 
     public static DamageSource getFallDamageSource(World world) {
         //#if MC >= 11904
-        return world.getDamageSources().fall();
+        //$$ return world.getDamageSources().fall();
         //#else
-        //$$ return DamageSource.FALL;
+        return DamageSource.FALL;
         //#endif
     }
 

@@ -40,7 +40,7 @@ public class CollectObsidianTask extends ResourceTask {
     }
 
     private static BlockPos getLavaStructurePos(BlockPos lavaPos) {
-        return lavaPos.add(1,1,0);
+        return adris.altoclef.multiversion.blockpos.BlockPosHelper.add(lavaPos,1,1,0);
     }
 
     private static BlockPos getLavaWaterPos(BlockPos lavaPos) {
@@ -48,8 +48,8 @@ public class CollectObsidianTask extends ResourceTask {
     }
 
     private static BlockPos getGoodObsidianPosition(AltoClef mod) {
-        BlockPos start = mod.getPlayer().getBlockPos().add(-3,-3,-3);
-        BlockPos end = mod.getPlayer().getBlockPos().add(3,3,3);
+        BlockPos start = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(mod.getPlayer().getBlockPos(),-3,-3,-3);
+        BlockPos end = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(mod.getPlayer().getBlockPos(),3,3,3);
         for (BlockPos pos : WorldHelper.scanRegion(mod, start, end)) {
             if (!WorldHelper.canBreak(mod, pos) || !WorldHelper.canPlace(mod, pos)) {
                 return null;

@@ -14,9 +14,9 @@ public class EntityVer {
     @Pattern
     public int getPortalCooldown(Entity entity) {
         //#if MC >= 12001
-        return entity.getPortalCooldown();
+        //$$ return entity.getPortalCooldown();
         //#else
-        //$$ return ((EntityAccessor) entity).getPortalCooldown();
+        return ((EntityAccessor) entity).getPortalCooldown();
         //#endif
     }
 
@@ -24,90 +24,90 @@ public class EntityVer {
     @Pattern
     public BlockPos getLandingPos(Entity entity) {
         //#if MC >= 11701
-        return entity.getSteppingPos();
+        //$$ return entity.getLandingPos();
         //#else
-        //$$ return ((adris.altoclef.mixins.EntityAccessor) entity).invokeGetLandingPos();
+        return ((adris.altoclef.mixins.EntityAccessor) entity).invokeGetLandingPos();
         //#endif
     }
 
     @Pattern
     private static float getPitch(Entity player) {
         //#if MC >= 11701
-        return player.getPitch();
+        //$$ return player.getPitch();
         //#else
-        //$$ return player.pitch;
+        return player.pitch;
         //#endif
     }
 
     @Pattern
     private static float getYaw(Entity player) {
         //#if MC >= 11701
-        return player.getYaw();
+        //$$ return player.getYaw();
         //#else
-        //$$ return player.yaw;
+        return player.yaw;
         //#endif
     }
 
     @Pattern
     private static void setPitch(Entity player, float value) {
         //#if MC >= 11701
-        player.setPitch(value);
+        //$$ player.setPitch(value);
         //#else
-        //$$ player.pitch = value;
+        player.pitch = value;
         //#endif
     }
 
     @Pattern
     private static void setYaw(Entity player, float value) {
         //#if MC >= 11701
-        player.setYaw(value);
+        //$$ player.setYaw(value);
         //#else
-        //$$ player.yaw = value;
+        player.yaw = value;
         //#endif
     }
 
     @Pattern
     private static Vec3d getEyePos(Entity entity) {
         //#if MC >= 11701
-        return entity.getEyePos();
+        //$$ return entity.getEyePos();
         //#else
-        //$$ return adris.altoclef.multiversion.entity.EntityHelper.getEyePos(entity);
+        return adris.altoclef.multiversion.entity.EntityHelper.getEyePos(entity);
         //#endif
     }
 
     @Pattern
     private static ChunkPos getChunkPos(Entity entity) {
         //#if MC >= 11701
-        return entity.getChunkPos();
+        //$$ return entity.getChunkPos();
         //#else
-        //$$ return adris.altoclef.multiversion.entity.EntityHelper.getChunkPos(entity);
+        return adris.altoclef.multiversion.entity.EntityHelper.getChunkPos(entity);
         //#endif
     }
 
     @Pattern
     private static int getBlockX(Entity entity) {
         //#if MC >= 11701
-        return entity.getBlockX();
+        //$$ return entity.getBlockX();
         //#else
-        //$$ return adris.altoclef.multiversion.entity.EntityHelper.getBlockX(entity);
+        return adris.altoclef.multiversion.entity.EntityHelper.getBlockX(entity);
         //#endif
     }
 
     @Pattern
     private static int getBlockY(Entity entity) {
         //#if MC >= 11701
-        return entity.getBlockY();
+        //$$ return entity.getBlockY();
         //#else
-        //$$ return adris.altoclef.multiversion.entity.EntityHelper.getBlockY(entity);
+        return adris.altoclef.multiversion.entity.EntityHelper.getBlockY(entity);
         //#endif
     }
 
     @Pattern
     private static int getBlockZ(Entity entity) {
         //#if MC >= 11701
-        return entity.getBlockZ();
+        //$$ return entity.getBlockZ();
         //#else
-        //$$ return adris.altoclef.multiversion.entity.EntityHelper.getBlockZ(entity);
+        return adris.altoclef.multiversion.entity.EntityHelper.getBlockZ(entity);
         //#endif
     }
 

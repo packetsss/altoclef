@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 //#if MC <= 11701
-//$$ import net.minecraft.world.biome.source.BiomeArray;
+import net.minecraft.world.biome.source.BiomeArray;
 //#endif
 
 import java.util.BitSet;
@@ -39,11 +39,11 @@ public class LoadChunkMixin {
             at = @At("RETURN")
     )
     //#if MC >= 11800
-    private void onLoadChunk(int x, int z, PacketByteBuf buf, NbtCompound nbt, Consumer<net.minecraft.network.packet.s2c.play.ChunkData.BlockEntityVisitor> consumer, CallbackInfoReturnable<WorldChunk> cir) {
+    //$$ private void onLoadChunk(int x, int z, PacketByteBuf buf, NbtCompound nbt, Consumer<net.minecraft.network.packet.s2c.play.ChunkData.BlockEntityVisitor> consumer, CallbackInfoReturnable<WorldChunk> cir) {
     //#elseif MC >= 11701
     //$$ private void onLoadChunk(int x, int z, net.minecraft.world.biome.source.BiomeArray biomes, PacketByteBuf buf, NbtCompound nbt, BitSet bitSet, CallbackInfoReturnable<WorldChunk> cir) {
     //#else
-    //$$ private void onLoadChunk(int x, int z, BiomeArray biomes, PacketByteBuf buf, NbtCompound tag, int verticalStripBitmask, boolean complete, CallbackInfoReturnable<WorldChunk> cir) {
+    private void onLoadChunk(int x, int z, BiomeArray biomes, PacketByteBuf buf, NbtCompound tag, int verticalStripBitmask, boolean complete, CallbackInfoReturnable<WorldChunk> cir) {
     //#endif
         // Publish a ChunkLoadEvent with the return value of the method as the argument
         EventBus.publish(new ChunkLoadEvent(cir.getReturnValue()));
@@ -60,12 +60,12 @@ public class LoadChunkMixin {
             at = @At("TAIL")
     )
     //#if MC > 12001
-    private void onChunkUnload(ChunkPos pos, CallbackInfo ci) {
-        EventBus.publish(new ChunkUnloadEvent(pos));
-    }
-    //#else
-    //$$ private void onChunkUnload(int x, int z, CallbackInfo ci) {
-    //$$     EventBus.publish(new ChunkUnloadEvent(new ChunkPos(x,z)));
+    //$$ private void onChunkUnload(ChunkPos pos, CallbackInfo ci) {
+    //$$     EventBus.publish(new ChunkUnloadEvent(pos));
     //$$ }
+    //#else
+    private void onChunkUnload(int x, int z, CallbackInfo ci) {
+        EventBus.publish(new ChunkUnloadEvent(new ChunkPos(x,z)));
+    }
     //#endif
 }

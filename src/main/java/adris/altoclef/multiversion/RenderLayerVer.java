@@ -7,9 +7,9 @@ public class RenderLayerVer {
 
     public static RenderLayer getGuiOverlay() {
         //#if MC >= 12001
-        return RenderLayer.getGuiOverlay();
+        //$$ return RenderLayer.getGuiOverlay();
         //#else
-        //$$ return null;
+        return null;
         //#endif
     }
 

@@ -23,7 +23,7 @@ public class CollectHangingSignTask extends CraftWithMatchingStrippedLogsTask {
 
 
         //#if MC <= 11802
-        //$$ throw new IllegalStateException("Hanging signs dont exist yet!");
+        throw new IllegalStateException("Hanging signs dont exist yet!");
         //#endif
     }
 

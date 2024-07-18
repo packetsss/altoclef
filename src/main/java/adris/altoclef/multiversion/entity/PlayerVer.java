@@ -11,43 +11,43 @@ public class PlayerVer {
 
     public static void sendChatMessage(ClientPlayerEntity player,String content) {
         //#if MC >= 11904
-        player.networkHandler.sendChatMessage(content);
+        //$$ player.networkHandler.sendChatMessage(content);
         //#else
-        //$$ player.sendChatMessage(content);
+        player.sendChatMessage(content);
         //#endif
     }
 
     public static void sendChatCommand(ClientPlayerEntity player,String content) {
         //#if MC >= 11904
-        player.networkHandler.sendChatCommand(content);
+        //$$ player.networkHandler.sendChatCommand(content);
         //#else
-        //$$ player.sendChatMessage("/"+content);
+        player.sendChatMessage("/"+content);
         //#endif
     }
 
     @Pattern
     private static ItemStack getCursorStack(PlayerEntity player) {
         //#if MC >= 11701
-        return player.currentScreenHandler.getCursorStack();
+        //$$ return player.currentScreenHandler.getCursorStack();
         //#else
-        //$$ return player.inventory.getCursorStack();
+        return player.inventory.getCursorStack();
         //#endif
     }
 
     @Pattern
     private static Inventory getInventory(PlayerEntity player) {
         //#if MC >= 11701
-        return player.getInventory();
+        //$$ return player.getInventory();
         //#else
-        //$$ return player.inventory;
+        return player.inventory;
         //#endif
     }
 
     public static boolean inPowderedSnow(PlayerEntity player) {
         //#if MC >= 11701
-        return player.inPowderSnow;
+        //$$ return player.inPowderSnow;
         //#else
-        //$$ return false;
+        return false;
         //#endif
     }
 

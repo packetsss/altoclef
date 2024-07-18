@@ -32,7 +32,7 @@ import net.minecraft.entity.mob.GhastEntity;
 import net.minecraft.entity.mob.ZombieEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
+import net.minecraft.util.registry.Registry;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3i;
@@ -123,7 +123,7 @@ public class Playground {
                 Debug.logWarning("Please specify a test (ex. stacked, bed, terminate)");
                 break;
             case "pickup":
-                mod.runUserTask(new PickupDroppedItemTask(new ItemTarget(Items.RAW_IRON, 3), true));
+                mod.runUserTask(new PickupDroppedItemTask(new ItemTarget(Items.IRON_ORE, 3), true));
                 break;
             case "chunk": {
                 // We may have missed a chunk that's far away...
@@ -253,8 +253,8 @@ public class Playground {
                     int total = 0;
                     File f = new File(fname);
                     FileWriter fw = new FileWriter(f);
-                    for (Identifier id : Registries.ITEM.getIds()) {
-                        Item item = Registries.ITEM.get(id);
+                    for (Identifier id : Registry.ITEM.getIds()) {
+                        Item item = Registry.ITEM.get(id);
                         if (!TaskCatalogue.isObtainable(item)) {
                             ++unobtainable;
                             fw.write(item.getTranslationKey() + "\n");

@@ -42,7 +42,7 @@ public class PlayerSlot extends Slot {
         switch (equipSlot) {
             case MAINHAND:
                 assert MinecraftClient.getInstance().player != null;
-                return Slot.getFromCurrentScreenInventory(MinecraftClient.getInstance().player.getInventory().selectedSlot);
+                return Slot.getFromCurrentScreenInventory(MinecraftClient.getInstance().player.inventory.selectedSlot);
             case OFFHAND:
                 return OFFHAND_SLOT;
             case FEET:

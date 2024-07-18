@@ -110,7 +110,7 @@ public class LocateStrongholdCoordinatesTask extends Task {
             if (mod.getEntityTracker().getClosestEntity(EyeOfEnderEntity.class).isPresent() &&
                     !mod.getClientBaritone().getPathingBehavior().isPathing()) {
                 LookHelper.lookAt(mod,
-                        mod.getEntityTracker().getClosestEntity(EyeOfEnderEntity.class).get().getEyePos());
+                        adris.altoclef.multiversion.entity.EntityHelper.getEyePos(mod.getEntityTracker().getClosestEntity(EyeOfEnderEntity.class).get()));
             }
 
             setDebugState("Waiting for eye to travel.");
@@ -173,7 +173,7 @@ public class LocateStrongholdCoordinatesTask extends Task {
                 assert MinecraftClient.getInstance().interactionManager != null;
                 if (_throwTimer.elapsed()) {
                     if (LookHelper.tryAvoidingInteractable(mod)) {
-                        MinecraftClient.getInstance().interactionManager.interactItem(mod.getPlayer(),Hand.MAIN_HAND);
+                        MinecraftClient.getInstance().interactionManager.interactItem(mod.getPlayer(),MinecraftClient.getInstance().world,Hand.MAIN_HAND);
                         //MinecraftClient.getInstance().options.keyUse.setPressed(true);
                         _throwTimer.reset();
                     }

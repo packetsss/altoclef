@@ -72,7 +72,7 @@ public class JankCraftingRecipeMapping {
                         for (int i = 0; i < toSatisfy.size(); ++i) {
                             ItemTarget target = toSatisfy.get(i);
                             // Check if any of the ingredient's matching stacks matches the item target
-                            for (ItemStack stack : ingredient.getMatchingStacks()) {
+                            for (ItemStack stack : ingredient.getMatchingStacksClient()) {
                                 if (target.matches(stack.getItem())) {
                                     toSatisfy.remove(i);
                                     break outer;

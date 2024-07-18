@@ -108,7 +108,7 @@ public class KillEnderDragonWithBedsTask extends Task {
 
         if (dragonDead) {
             setDebugState("Waiting for overworld portal to spawn.");
-            return new GetToBlockTask(endPortalTop.down(4).west());
+            return new GetToBlockTask(endPortalTop.down(4).offset(Direction.WEST, 1));
         }
 
         if (!mod.getEntityTracker().entityFound(EnderDragonEntity.class) || dragonDead) {
@@ -125,8 +125,8 @@ public class KillEnderDragonWithBedsTask extends Task {
 
             if (dragonPhase.getType() == PhaseType.DYING) {
                 Debug.logMessage("Dragon is dead.");
-                if (mod.getPlayer().getPitch() != -90) {
-                    mod.getPlayer().setPitch(-90);
+                if (mod.getPlayer().pitch != -90) {
+                    mod.getPlayer().pitch = -90;
                 }
                 dragonDead = true;
                 return null;

@@ -7,17 +7,17 @@ public class OptionsVer {
 
     public static void setGamma(double value) {
         //#if MC >= 11904
-        MinecraftClient.getInstance().options.getGamma().setValue(value);
+        //$$ MinecraftClient.getInstance().options.getGamma().setValue(value);
         //#else
-        //$$ MinecraftClient.getInstance().options.gamma = value;
+        MinecraftClient.getInstance().options.gamma = value;
         //#endif
     }
 
     public static void setAutoJump(boolean value) {
         //#if MC >= 11904
-        MinecraftClient.getInstance().options.getAutoJump().setValue(value);
+        //$$ MinecraftClient.getInstance().options.getAutoJump().setValue(value);
         //#else
-        //$$ MinecraftClient.getInstance().options.autoJump = value;
+        MinecraftClient.getInstance().options.autoJump = value;
         //#endif
     }
 
