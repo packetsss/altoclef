@@ -1,14 +1,14 @@
 package adris.altoclef.mixins;
 
-import net.minecraft.block.Portal;
-import net.minecraft.world.dimension.PortalManager;
+import net.minecraft.client.MinecraftClient;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.gen.Accessor;
 
-@Mixin(PortalManager.class)
+@Mixin(MinecraftClient.class)
 public interface PortalManagerAccessor {
 
-    @Accessor("portal")
-    Portal accessPortal();
+
+    /**
+     * used in 1.21 and later to access portal manager (doesn't exist in earlier versions)
+     */
 
 }

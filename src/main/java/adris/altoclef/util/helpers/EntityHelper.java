@@ -97,9 +97,9 @@ public class EntityHelper {
                 damageAmount = 0.0;
             } else {
                 //#if MC >= 12100
-                k = EnchantmentHelper.getProtectionAmount(null, player, src);
+                //$$ k = EnchantmentHelper.getProtectionAmount(null, player, src);
                 //#else
-                //$$ k = EnchantmentHelper.getProtectionAmount(player.getArmorItems(), src);
+                k = EnchantmentHelper.getProtectionAmount(player.getArmorItems(), src);
                 //#endif
                 if (k > 0) {
                     damageAmount = DamageUtil.getInflictedDamage((float) damageAmount, (float) k);

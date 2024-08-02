@@ -78,7 +78,7 @@ public class BeatMinecraftTask extends Task {
     private static final double END_PORTAL_BED_SPAWN_RANGE = 8;
 
     // We don't want curse of binding
-    private static final Predicate<ItemStack> noCurseOfBinding = stack -> !EnchantmentHelper.hasAnyEnchantmentsWith(stack, net.minecraft.component.EnchantmentEffectComponentTypes.PREVENT_ARMOR_CHANGE);
+    private static final Predicate<ItemStack> noCurseOfBinding = stack -> !EnchantmentHelper.hasBindingCurse(stack);
 
     private static BeatMinecraftConfig config;
     private static GoToStrongholdPortalTask locateStrongholdTask;

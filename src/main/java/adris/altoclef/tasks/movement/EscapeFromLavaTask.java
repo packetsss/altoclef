@@ -188,7 +188,7 @@ public class EscapeFromLavaTask extends CustomBaritoneGoalTask {
 
 
     public HitResult raycast(AltoClef mod,double maxDistance, float pitch, float yaw) {
-        Vec3d cameraPos = mod.getPlayer().getCameraPosVec(MinecraftClient.getInstance().getRenderTickCounter().getTickDelta(true));
+        Vec3d cameraPos = mod.getPlayer().getCameraPosVec(MinecraftClient.getInstance().getTickDelta());
         Vec3d rotationVector = getRotationVector(pitch,yaw);
 
         Vec3d vec3d3 = cameraPos.add(rotationVector.x * maxDistance, rotationVector.y * maxDistance, rotationVector.z * maxDistance);

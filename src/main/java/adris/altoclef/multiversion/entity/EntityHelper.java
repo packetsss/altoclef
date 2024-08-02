@@ -10,10 +10,10 @@ import net.minecraft.world.dimension.NetherPortal;
 public class EntityHelper {
 
     //#if MC >= 12100
-    public static boolean isInNetherPortal(Entity entity) {
-       return (entity.portalManager != null && ((PortalManagerAccessor)entity.portalManager).accessPortal() instanceof NetherPortalBlock && entity.portalManager.isInPortal())
-               || entity.getPortalCooldown() > 0;
-    }
+    //$$ public static boolean isInNetherPortal(Entity entity) {
+    //$$    return (entity.portalManager != null && ((PortalManagerAccessor)entity.portalManager).accessPortal() instanceof NetherPortalBlock && entity.portalManager.isInPortal())
+    //$$            || entity.getPortalCooldown() > 0;
+    //$$ }
     //#endif
 
     //#if MC <= 11605

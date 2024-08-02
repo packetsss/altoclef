@@ -231,7 +231,7 @@ public interface WorldHelper {
     static boolean isInNetherPortal(AltoClef mod) {
         if (mod.getPlayer() == null)
             return false;
-        return adris.altoclef.multiversion.entity.EntityHelper.isInNetherPortal(mod.getPlayer());
+        return ((EntityAccessor)mod.getPlayer()).isInNetherPortal();
     }
 
     static boolean dangerousToBreakIfRightAbove(AltoClef mod, BlockPos toBreak) {

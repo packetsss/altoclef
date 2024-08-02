@@ -9,8 +9,8 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 @Mixin(Entity.class)
 public interface EntityAccessor {
     //#if MC <= 12006
-    //$$ @Accessor("inNetherPortal")
-    //$$ boolean isInNetherPortal();
+    @Accessor("inNetherPortal")
+    boolean isInNetherPortal();
     //#endif
 
     @Accessor
