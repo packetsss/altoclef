@@ -1,11 +1,13 @@
 package adris.altoclef.commands;
 
 import adris.altoclef.AltoClef;
+import adris.altoclef.NewTaskCatalogue;
 import adris.altoclef.Playground;
 import adris.altoclef.commandsystem.Arg;
 import adris.altoclef.commandsystem.ArgParser;
 import adris.altoclef.commandsystem.Command;
 import adris.altoclef.commandsystem.CommandException;
+import net.minecraft.item.Items;
 
 public class TestCommand extends Command {
 
@@ -15,7 +17,6 @@ public class TestCommand extends Command {
 
     @Override
     protected void call(AltoClef mod, ArgParser parser) throws CommandException {
-        Playground.TEMP_TEST_FUNCTION(mod, parser.get(String.class));
-        finish();
+        NewTaskCatalogue.printGetItem(mod, Items.LANTERN);
     }
 }

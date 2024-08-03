@@ -491,6 +491,10 @@ public class AltoClef implements ModInitializer {
         log(message, MessagePriority.TIMELY);
     }
 
+    public void log(Object object) {
+        log(object==null?"null":object.toString());
+    }
+
     /**
      * Logs to the console and also messages any player using the bot as a butler.
      */
