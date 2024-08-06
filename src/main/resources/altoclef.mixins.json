@@ -28,6 +28,8 @@
     "ClientBlockBreakMixin",
     "ClientOpenScreenMixin",
     "ClientTickMixin",
+    "CreateWorldScreenInvoker",
+    "CreateWorldScreenMixin",
     "DrawableHelperInvoker",
     "EntryMixin",
     "LoadChunkMixin",

@@ -193,6 +193,9 @@ public class AltoClef implements ModInitializer {
         // Playground
         Playground.IDLE_TEST_INIT_FUNCTION(this);
 
+        // task catalogue
+        NewTaskCatalogue.init();
+
         // External mod initialization
         runEnqueuedPostInits();
     }
