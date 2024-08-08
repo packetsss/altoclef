@@ -1,29 +1,13 @@
 package adris.altoclef.mixins;
 
-import adris.altoclef.NewTaskCatalogue;
+import adris.altoclef.newtaskcatalogue.NewTaskCatalogue;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.world.CreateWorldScreen;
-import net.minecraft.client.world.GeneratorOptionsHolder;
-import net.minecraft.resource.DataConfiguration;
-import net.minecraft.resource.ResourcePackManager;
-import net.minecraft.resource.ResourcePackProvider;
-import net.minecraft.resource.VanillaDataPackProvider;
-import net.minecraft.server.SaveLoading;
 import net.minecraft.text.Text;
-import net.minecraft.util.Util;
-import net.minecraft.world.gen.GeneratorOptions;
-import net.minecraft.world.gen.WorldPresets;
-import net.minecraft.world.level.WorldGenSettings;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
-
-import java.util.Objects;
-import java.util.Optional;
-import java.util.OptionalLong;
-import java.util.concurrent.CompletableFuture;
 
 @Mixin(CreateWorldScreen.class)
 public abstract class CreateWorldScreenMixin {

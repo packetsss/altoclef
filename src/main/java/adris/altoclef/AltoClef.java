@@ -16,6 +16,7 @@ import adris.altoclef.eventbus.events.TitleScreenEntryEvent;
 import adris.altoclef.multiversion.DrawContextWrapper;
 import adris.altoclef.multiversion.RenderLayerVer;
 import adris.altoclef.multiversion.versionedfields.Blocks;
+import adris.altoclef.newtaskcatalogue.NewTaskCatalogue;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskRunner;
 import adris.altoclef.trackers.*;

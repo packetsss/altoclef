@@ -1,8 +1,7 @@
 package adris.altoclef.commands;
 
 import adris.altoclef.AltoClef;
-import adris.altoclef.NewTaskCatalogue;
-import adris.altoclef.Playground;
+import adris.altoclef.newtaskcatalogue.NewTaskCatalogue;
 import adris.altoclef.commandsystem.Arg;
 import adris.altoclef.commandsystem.ArgParser;
 import adris.altoclef.commandsystem.Command;

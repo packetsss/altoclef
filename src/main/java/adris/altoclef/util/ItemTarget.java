@@ -62,6 +62,10 @@ public class ItemTarget {
         this(item, 1);
     }
 
+    public ItemTarget(ItemTarget toCopy) {
+        this(toCopy, toCopy.getTargetCount());
+    }
+
     public ItemTarget(ItemTarget toCopy, int newCount) {
         if (toCopy.itemMatches != null) {
             itemMatches = new Item[toCopy.itemMatches.length];

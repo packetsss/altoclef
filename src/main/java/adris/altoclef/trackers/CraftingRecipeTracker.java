@@ -29,7 +29,7 @@ public class CraftingRecipeTracker extends Tracker{
         shouldRebuild = true;
     }
 
-    public List<adris.altoclef.util.CraftingRecipe> getRecipeForItem(Item item) {
+    public List<adris.altoclef.util.CraftingRecipe> getRecipesForItem(Item item) {
         ensureUpdated();
 
         if (!hasRecipeForItem(item)) {
@@ -51,11 +51,13 @@ public class CraftingRecipeTracker extends Tracker{
         return itemRecipeMap.get(item).get(0);
     }
 
-    public List<RecipeTarget> getRecipeTarget(Item item, int targetCount) {
+    public List<RecipeTarget> getRecipeTargets(Item item, int targetCount) {
         ensureUpdated();
 
+        if (!hasRecipeForItem(item)) return List.of();
+
         List<RecipeTarget> targets = new ArrayList<>();
-        for (adris.altoclef.util.CraftingRecipe recipe : getRecipeForItem(item)) {
+        for (adris.altoclef.util.CraftingRecipe recipe : getRecipesForItem(item)) {
             targets.add(new RecipeTarget(item, targetCount, recipe));
         }
 
