@@ -14,8 +14,10 @@ import java.util.List;
  */
 public abstract class GatherTask {
 
+    private static int GLOBAL_ID = 0;
     private final List<GatherTask> children;
     private final ItemStack stack;
+    private final int id;
 
     public GatherTask(ItemStack stack, List<GatherTask> children) {
         if (children == null) {
@@ -26,6 +28,8 @@ public abstract class GatherTask {
         }
         this.children = children;
         this.stack = stack;
+        this.id = GLOBAL_ID;
+        GLOBAL_ID++;
     }
 
     private void updateChildren(AltoClef mod) {
@@ -36,6 +40,12 @@ public abstract class GatherTask {
         if (child == null) return;
         if (child.getType() == GatherType.PARENT) {
             throw new IllegalStateException("Cannot add parent as a child!");
+        }
+
+        for (GatherTask task : children) {
+            if (task.toString().equals(child.toString())) {
+                throw new IllegalStateException("how tho wtf");
+            }
         }
         children.add(child);
     }
@@ -65,4 +75,8 @@ public abstract class GatherTask {
     protected abstract boolean isSelfComplete(AltoClef mod);
 
 
+    @Override
+    public int hashCode() {
+        return id;
+    }
 }

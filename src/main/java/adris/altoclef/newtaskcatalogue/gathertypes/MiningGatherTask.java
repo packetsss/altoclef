@@ -48,6 +48,6 @@ public class MiningGatherTask extends GatherTask {
 
     @Override
     public String toString() {
-        return "mining "+toMine+" for: "+stack +" needs: "+getNeededItems();
+        return "mine "+toMine+" for: "+stack +" needs: "+getNeededItems();
     }
 }

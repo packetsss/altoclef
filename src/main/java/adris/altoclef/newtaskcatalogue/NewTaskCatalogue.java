@@ -36,7 +36,7 @@ public class NewTaskCatalogue {
 
     public static boolean bypass = false;
     private static LifecycledResourceManager resourceManager;
-    private static HashMap<Item, List<Block>> dropsToBlocks = new HashMap<>();
+    private static HashMap<Item, HashSet<Block>> dropsToBlocks = new HashMap<>();
 
     public static void init() {
         //FIXME this might be s bit sketchy but seems to work for now
@@ -105,7 +105,7 @@ public class NewTaskCatalogue {
 
             for (Item i : itemList) {
                 if (!dropsToBlocks.containsKey(i)) {
-                    dropsToBlocks.put(i, new ArrayList<>());
+                    dropsToBlocks.put(i, new HashSet<>());
                 }
                 dropsToBlocks.get(i).add(block);
             }
@@ -139,21 +139,29 @@ public class NewTaskCatalogue {
     }
 
     private static void growGatherTree(AltoClef mod, ItemStack needed, GatherTask gatherTask, HashSet<Item> alreadyMet) {
+        System.out.println("CALLED FUNCTION "+gatherTask.hashCode());
+
         alreadyMet.add(needed.getItem());
+
+        List<GatherTask> added = new ArrayList<>();
 
         // add crafting recipes
         for (RecipeTarget target : mod.getCraftingRecipeTracker().getRecipeTargets(needed.getItem(), needed.getCount())) {
-            gatherTask.addChild(new CraftingGatherTask(needed, target));
-            System.out.println("target= " + target.getRecipe() + ", needed = " + needed + ", gatherTask = " + gatherTask + ", alreadyMet = " + alreadyMet);
+            GatherTask task =new CraftingGatherTask(needed, target);
+
+            gatherTask.addChild(task);
+            added.add(task);
         }
 
         if (!dropsToBlocks.containsKey(needed.getItem())) {
             // mod.logWarning("Item not in blocks! "+needed.getItem());
         } else {
-
             // add blocks to mine
             for (Block block : dropsToBlocks.get(needed.getItem())) {
-                gatherTask.addChild(new MiningGatherTask(block, needed, null));
+                GatherTask task = new MiningGatherTask(block, needed, null);
+
+                gatherTask.addChild(task);
+                added.add(task);
             }
         }
 
@@ -161,23 +169,35 @@ public class NewTaskCatalogue {
 
 
         HashSet<Item> calledFor = new HashSet<>();
-        for (GatherTask child : gatherTask.getChildren()) {
+        for (GatherTask child : added) {
+            HashMap<Item, Integer> neededItemsMap = new HashMap<>();
+
             for (ItemStack stack : child.getNeededItems()) {
-                if (stack.isEmpty() || stack.getItem() == Items.AIR) continue;
+                neededItemsMap.put(stack.getItem(),neededItemsMap.getOrDefault(stack.getItem(),0)+stack.getCount());
+            }
+
+            System.out.println("CHILD LOOP START: "+child.hashCode());
+            for (Map.Entry<Item,Integer> entry : neededItemsMap.entrySet()) {
+                ItemStack stack = new ItemStack(entry.getKey(),entry.getValue());
+
+                if (stack.getItem() == Items.AIR || stack.getCount() <= 0) continue;
                 if (calledFor.contains(stack.getItem())) continue;
                 if (alreadyMet.contains(stack.getItem())) continue;
 
                 calledFor.add(stack.getItem());
 
+                System.out.println("getting "+stack + " ; "+child.hashCode());
+
                 // todo maybe make this non-recursive
                 growGatherTree(mod, stack, child, new HashSet<>(alreadyMet));
             }
+            System.out.println("CHILD LOOP END: "+child.hashCode());
         }
     }
 
     private static String print(GatherTask task, String prefix) {
         String str = "";
-        str += prefix + "|-- " + task.toString() + "\n";
+        str += prefix + "|-- " + task.toString() +"\n";
         for (GatherTask child : task.getChildren()) {
 
             str += print(child, prefix + "  ");
