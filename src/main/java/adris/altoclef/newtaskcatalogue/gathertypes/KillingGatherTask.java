@@ -26,6 +26,11 @@ public class KillingGatherTask extends GatherTask{
     }
 
     @Override
+    protected double getSelfWeight(AltoClef mod) {
+        return 0;
+    }
+
+    @Override
     protected boolean isSelfComplete(AltoClef mod) {
         return false;
     }

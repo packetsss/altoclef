@@ -16,7 +16,7 @@ import adris.altoclef.eventbus.events.TitleScreenEntryEvent;
 import adris.altoclef.multiversion.DrawContextWrapper;
 import adris.altoclef.multiversion.RenderLayerVer;
 import adris.altoclef.multiversion.versionedfields.Blocks;
-import adris.altoclef.newtaskcatalogue.NewTaskCatalogue;
+import adris.altoclef.newtaskcatalogue.dataparser.DataParser;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskRunner;
 import adris.altoclef.trackers.*;
@@ -195,7 +195,7 @@ public class AltoClef implements ModInitializer {
         Playground.IDLE_TEST_INIT_FUNCTION(this);
 
         // task catalogue
-        NewTaskCatalogue.init();
+        DataParser.init();
 
         // External mod initialization
         runEnqueuedPostInits();

@@ -1,10 +1,6 @@
 package adris.altoclef.newtaskcatalogue.gathertypes;
 
 import adris.altoclef.AltoClef;
-import adris.altoclef.tasks.container.CraftInTableTask;
-import adris.altoclef.tasks.speedrun.beatgame.prioritytask.tasks.CraftItemPriorityTask;
-import adris.altoclef.tasksystem.Task;
-import adris.altoclef.util.CraftingRecipe;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.RecipeTarget;
 import net.minecraft.item.Item;
@@ -14,17 +10,20 @@ import net.minecraft.item.Items;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CraftingGatherTask extends GatherTask{
+public class CraftingGatherTask extends GatherTask {
 
     private final RecipeTarget recipe;
+    private final int multiplier;
 
-    public CraftingGatherTask(ItemStack stack, RecipeTarget recipe) {
-       this(stack,recipe, null);
+    public CraftingGatherTask(ItemStack stack, RecipeTarget recipe, int multiplier) {
+        this(stack, recipe, null, multiplier);
+
     }
 
-    public CraftingGatherTask(ItemStack stack, RecipeTarget recipe, List<GatherTask> children) {
+    public CraftingGatherTask(ItemStack stack, RecipeTarget recipe, List<GatherTask> children, int multiplier) {
         super(stack, children);
         this.recipe = recipe;
+        this.multiplier = multiplier;
     }
 
 
@@ -36,7 +35,7 @@ public class CraftingGatherTask extends GatherTask{
             for (Item match : target.getMatches()) {
                 if (match == Items.AIR) continue;
 
-                stacks.add(new ItemStack(match));
+                stacks.add(new ItemStack(match, multiplier));
             }
         }
 
@@ -49,12 +48,17 @@ public class CraftingGatherTask extends GatherTask{
     }
 
     @Override
+    protected double getSelfWeight(AltoClef mod) {
+        return 0;
+    }
+
+    @Override
     protected boolean isSelfComplete(AltoClef mod) {
         return mod.getItemStorage().getItemCount(recipe.getOutputItem()) >= recipe.getTargetCount();
     }
 
     @Override
     public String toString() {
-        return "craft: "+getItemStack()+" with recipe: "+getNeededItems();
+        return "craft: " + getItemStack() + " with recipe: " + getNeededItems();
     }
 }

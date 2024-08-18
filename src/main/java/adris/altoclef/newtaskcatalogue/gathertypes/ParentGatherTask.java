@@ -8,22 +8,31 @@ import java.util.List;
 public class ParentGatherTask extends GatherTask{
 
 
-    public ParentGatherTask(ItemStack stack) {
-        super(stack, null);
+    private final ItemStack[] toGather;
+    public ParentGatherTask(ItemStack... stacks) {
+        super(ItemStack.EMPTY, null);
+        if (stacks.length == 0) {
+            throw new IllegalStateException("must need at least one stack!");
+        }
+
+        toGather = stacks;
     }
 
-    public ParentGatherTask(ItemStack stack, List<GatherTask> children) {
-        super(stack, children);
-    }
+
 
     @Override
     public List<ItemStack> getNeededItems() {
-        return List.of();
+        return List.of(toGather);
     }
 
     @Override
     public GatherType getType() {
         return GatherType.PARENT;
+    }
+
+    @Override
+    protected double getSelfWeight(AltoClef mod) {
+        return 0;
     }
 
     @Override

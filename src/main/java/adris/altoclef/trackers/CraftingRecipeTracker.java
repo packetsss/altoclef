@@ -158,6 +158,7 @@ public class CraftingRecipeTracker extends Tracker{
             if (stacks.length != 0) {
                 // FIXME this is so stupid, but TaskCatalogue is kinda setup this way, so it would require a rewrite to allow for multiple resource :')
                 result[x] = new Item[]{items[0]};
+                //result[x] = items;
             } else {
                 result[x] = null;
             }
