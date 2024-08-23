@@ -16,11 +16,11 @@ public class MiningGatherTask extends GatherTask {
 
 
     private final Block toMine;
-    private final int mineCount;
+    public int mineCount;
     private final ItemStack stack;
 
-    public MiningGatherTask(Block toMine,int mineCount, ItemStack stack, List<GatherTask> children) {
-        super(stack,children);
+    public MiningGatherTask(Block toMine,int mineCount, ItemStack stack) {
+        super(stack,null);
         this.toMine = toMine;
         this.mineCount = mineCount;
         this.stack = stack;

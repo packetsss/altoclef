@@ -12,8 +12,8 @@ import java.util.List;
 
 public class CraftingGatherTask extends GatherTask {
 
-    private final RecipeTarget recipe;
-    private final int multiplier;
+    public RecipeTarget recipe;
+    public int multiplier;
 
     public CraftingGatherTask(ItemStack stack, RecipeTarget recipe, int multiplier) {
         this(stack, recipe, null, multiplier);
@@ -40,6 +40,13 @@ public class CraftingGatherTask extends GatherTask {
         }
 
         return stacks;
+    }
+
+    @Override
+    public void update() {
+
+        multiplier = Math.ceilDiv(getItemStack().getCount(),multiplier);
+
     }
 
     @Override

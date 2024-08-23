@@ -36,6 +36,10 @@ public abstract class GatherTask {
         children.removeIf(child -> child.isComplete(mod));
     }
 
+    // todo refactor
+    public void update(){
+    }
+
     public void addChild(GatherTask child) {
         if (child == null) return;
         if (child.getType() == GatherType.PARENT) {
@@ -129,7 +133,7 @@ public abstract class GatherTask {
 
     }
 
-    protected final double getWeight(AltoClef mod) {
+    public final double getWeight(AltoClef mod) {
         double min = Double.POSITIVE_INFINITY;
 
         for (GatherTask child : children) {
@@ -146,6 +150,13 @@ public abstract class GatherTask {
 
     protected abstract boolean isSelfComplete(AltoClef mod);
 
+    public boolean canBeDone(AltoClef mod) {
+        for (ItemStack stack : getNeededItems()) {
+            if (mod.getItemStorage().getItemCount(stack.getItem()) < stack.getCount()) return false;
+        }
+
+        return true;
+    }
 
     @Override
     public int hashCode() {
