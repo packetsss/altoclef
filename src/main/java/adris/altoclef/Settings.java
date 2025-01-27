@@ -69,6 +69,19 @@ public class Settings implements IFailableConfigFile {
      */
     private String commandPrefix = "@";
 
+
+    /**
+     * Sets the log level of the mod; allowed values:
+     * ALL - all messages will be logged
+     * NORMAL - warnings and errors will be logged
+     * WARN - only warnings will be logged
+     * ERROR - only errors will be logged
+     * NONE - nothing will be logged
+     *
+     * dev note: NONE might not work completely for errors since some parts of the codebase bypass 'Debug.logError' calls and call 'System.err' directly instead
+     */
+    private String logLevel = "WARN";
+
     /**
      * When logging to chat, will prepend this to each log.
      */
@@ -444,6 +457,10 @@ public class Settings implements IFailableConfigFile {
 
     public boolean shouldHideAllWarningLogs() {
         return hideAllWarningLogs;
+    }
+
+    public String getLogLevel() {
+        return logLevel;
     }
 
     public String getCommandPrefix() {

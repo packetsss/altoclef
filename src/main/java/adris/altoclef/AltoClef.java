@@ -176,9 +176,6 @@ public class AltoClef implements ModInitializer {
             }
         });
 
-        // Debug jank/hookup
-        Debug.jankModInstance = this;
-
         // Tick with the client
         EventBus.subscribe(ClientTickEvent.class, evt -> {
             long nanos = System.nanoTime();
