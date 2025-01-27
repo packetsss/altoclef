@@ -80,7 +80,7 @@ public class Settings implements IFailableConfigFile {
      *
      * dev note: NONE might not work completely for errors since some parts of the codebase bypass 'Debug.logError' calls and call 'System.err' directly instead
      */
-    private String logLevel = "WARN";
+    private String logLevel = "NORMAL";
 
     /**
      * When logging to chat, will prepend this to each log.

@@ -112,7 +112,7 @@ public class Debug {
             case "WARN" -> level == WARN_LOG_LEVEL;
             case "ERROR" -> level == ERROR_LOG_LEVEL;
             default ->
-                    // invalid log level, switch to default (WARN)
+                    // invalid log level, switch to default (NORMAL)
                     level != DEBUG_LOG_LEVEL;
         };
 
