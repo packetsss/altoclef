@@ -1,51 +1,17 @@
-# AltoClef
-*Plays block game.*
+> [!WARNING]
+> This port is meant for speedrunning purposes, it is not guaranteed other features will work correctly.
 
-*Powered by Baritone.*
-
-A client side bot that tries to beat Minecraft on its own...
-
-**This fork is still under development and is nowhere near perfect, if you have any questions, suggestions, ideas or find a bug don't hesitate to reach out!
-You can use the [issues](https://github.com/MiranCZ/altoclef/issues). Or contact me on discord!**
-
-Became [the first bot to beat Minecraft fully autonomously](https://youtu.be/baAa6s8tahA) on May 24, 2021.
-
-**Join the [Discord Server](https://discord.gg/JdFP4Kqdqc)** for discussions/updates/goofs & gaffs
-
-## About this fork
-This fork aims to improve AltoClef by fixing a lot of bugs and optimizing some things. The main focus is optimizing the `MarvionBeatMinecraftTask` (I will just refer to it as `BeatMinecraftTask`) from [Marvion's fork](https://github.com/MarvionKirito/altoclef).
-
-Because I rewrote a good portion of the `BeatMinecraftTask` a lot of the config settings don't work. Although I plan to implement configs in the future of course.  
-
-## The preprocessor
-I am currently using the [replay mod preprocessor](https://github.com/ReplayMod/preprocessor) to keep the mod updated across multiple versions at the same time.
-
-### Versions
-Thanks to that, the mod is currently available on **fabric** for the following versions:
-- 1.20.1
-- 1.20.2
-- 1.20.4
-- 1.20.5
-- 1.20.6
-
-*note: All of the versions use the "same release" of Altoclef, altough some of them use older versions of baritone.* 
+AltoClef's main purpose was to speedrun the game. This branch is aimed to fulfill that goal again. But I would still like the bot to be reliable, so finishing one of hundreds of runs is not what I want to be aiming for. Both AltoClef and Baritone on here have been backported to 1.16.1.
 
 
-## How it works
+## Contributions are welcome!
+I do not plan to work on this much for the time being, so contributions are more than welcome (and who knows, it might even spark motivation in me to work on this gain!).
 
-Take a look at this [Guide from the wiki](https://github.com/MiranCZ/altoclef/wiki/1:-Documentation:-Big-Picture)
-or this [Video explanation](https://youtu.be/q5OmcinQ2ck?t=387)
+## Some things that could be optimized:
+*(ordered from most to least feasible imo)*
 
 
-## Download
-
-**Note:** After installing, please move/delete your old baritone configurations if you have any. Preexisting baritone
-configurations will interfere with altoclef and introduce bugs. This will be fixed in the future.
-
-[Check releases](https://github.com/MiranCZ/altoclef/releases)
-
-## [Usage Guide](usage.md)
-
-## [TODO's/Future Features](TODO.md)
-
-## [Development Guide](develop.md)
+- Reliably surviving in less than diamond armor
+- Most of the time is spent in the nether, some (at least basic) bastion routing would help so much
+- Water navigation, swimming, shipwreck looting would also help (but a whole new pathfinding system would need to be created)
+- Zero cycle would be pretty dang cool to pull off, but I feel like that one is not even possible
