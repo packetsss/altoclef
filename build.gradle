@@ -2,6 +2,7 @@ plugins {
     id "fabric-loom" version "1.4-SNAPSHOT"
     id "maven-publish"
     id 'com.github.johnrengelman.shadow' version '8.1.1'
+    id 'xyz.wagyourtail.jvmdowngrader' version '1.2.2'
 }
 
 apply plugin: 'fabric-loom'
@@ -34,6 +35,11 @@ repositories {
     }
 }
 
+// Configure JvmDowngrader to downgrade to Java 8
+jvmdg {
+    downgradeTo = JavaVersion.VERSION_1_8
+}
+
 dependencies {
     //to change the versions see the gradle.properties file
     minecraft("com.mojang:minecraft:${project.minecraft_version}")
@@ -47,6 +53,8 @@ dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-core:2.16.0'
     implementation 'com.fasterxml.jackson.core:jackson-annotations:2.16.0'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.0'
+    include('xyz.wagyourtail.jvmdowngrader:jvmdowngrader-java-api:0.9.0:downgraded-8')
+
 
     // Nether pathfinder
     implementation 'dev.babbaj:nether-pathfinder:1.5'
@@ -76,6 +84,17 @@ shadowJar {
 remapJar {
     dependsOn(":shadowJar")
     input.set(shadowJar.archiveFile)
+}
+
+downgradeJar {
+    downgradeTo = JavaVersion.VERSION_1_8
+    dependsOn(":remapJar")
+    inputFile.set(remapJar.archiveFile)
+}
+
+
+build {
+    dependsOn downgradeJar
 }
 
 processResources {

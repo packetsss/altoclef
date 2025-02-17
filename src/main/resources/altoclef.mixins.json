@@ -15,7 +15,6 @@
     "EntityAccessor",
     "GameOverlayMixin",
     "MiningToolItemAccessor",
-    "MovementHelperMixin",
     "PersistentProjectileEntityAccessor",
     "SlotClickMixin",
     "ToolSetMixin",

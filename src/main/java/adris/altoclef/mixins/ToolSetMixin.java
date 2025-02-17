@@ -2,7 +2,7 @@ package adris.altoclef.mixins;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.util.helpers.StorageHelper;
-import baritone.Baritone;
+import baritone.api.BaritoneAPI;
 import baritone.api.Settings;
 import baritone.utils.ToolSet;
 import com.llamalad7.mixinextras.sugar.Local;
@@ -18,30 +18,13 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-
 @Mixin(ToolSet.class)
 public class ToolSetMixin {
 
 
     @Shadow @Final private ClientPlayerEntity player;
     @Unique
-    private static final Settings.Setting<Boolean> trueSetting;
-
-    // create a setting that is always true using reflection
-    static {
-        Constructor<?> constructor = Settings.Setting.class.getDeclaredConstructors()[0];
-        constructor.setAccessible(true);
-
-        Settings.Setting<Boolean> instance;
-        try {
-            instance = (Settings.Setting<Boolean>) constructor.newInstance(Baritone.settings(),true);
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-            throw new RuntimeException(e);
-        }
-        trueSetting =  instance;
-    }
+    private static final Settings.Setting<Boolean> trueSetting = BaritoneAPI.getSettings().of(true);
 
     @Inject(method = "getBestSlot(Lnet/minecraft/block/Block;ZZ)I", at = @At("HEAD"), cancellable = true)
     public void inject(Block b, boolean preferSilkTouch, boolean pathingCalculation, CallbackInfoReturnable<Integer> cir) {
