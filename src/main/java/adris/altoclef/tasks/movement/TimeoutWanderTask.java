@@ -66,7 +66,7 @@ public class TimeoutWanderTask extends Task implements ITaskRequiresGrounded {
 
     public TimeoutWanderTask(boolean forceExplore) {
         this();
-        forceExplore = forceExplore;
+        this.forceExplore = forceExplore;
     }
 
     private static BlockPos[] generateSides(BlockPos pos) {

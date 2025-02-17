@@ -32,7 +32,7 @@ public class CollectEggsTask extends ResourceTask {
 
     @Override
     protected void onResourceStart(AltoClef mod) {
-        mod = mod;
+        this.mod = mod;
     }
 
     @Override

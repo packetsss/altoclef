@@ -34,7 +34,7 @@ public abstract class SearchChunksExploreTask extends Task {
 
     @Override
     protected void onStart(AltoClef mod) {
-        mod = mod;
+        this.mod = mod;
 
         // Listen for chunk loading
         chunkLoadedSubscription = EventBus.subscribe(ChunkLoadEvent.class, evt -> onChunkLoad(evt.chunk.getPos()));

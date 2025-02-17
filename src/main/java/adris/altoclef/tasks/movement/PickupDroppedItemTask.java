@@ -163,7 +163,7 @@ public class PickupDroppedItemTask extends AbstractDoToClosestObjectTask<ItemEnt
             }
             stuckCheck.reset();
         }
-        mod = mod;
+        this.mod = mod;
 
         // If we're getting a pickaxe for THIS resource...
         if (isIsGettingPickaxeFirst(mod) && collectingPickaxeForThisResource && !StorageHelper.miningRequirementMetInventory(mod, MiningRequirement.STONE)) {

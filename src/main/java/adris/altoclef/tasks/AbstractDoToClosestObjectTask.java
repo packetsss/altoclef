@@ -142,9 +142,9 @@ public abstract class AbstractDoToClosestObjectTask<T> extends Task {
         }
 
         public CachedHeuristic(double closestDistanceSqr, int tickAttempted, double heuristicValue) {
-            closestDistanceSqr = closestDistanceSqr;
-            tickAttempted = tickAttempted;
-            heuristicValue = heuristicValue;
+            this.closestDistanceSqr = closestDistanceSqr;
+            this.tickAttempted = tickAttempted;
+            this.heuristicValue = heuristicValue;
         }
 
         public double getHeuristicValue() {
@@ -168,7 +168,7 @@ public abstract class AbstractDoToClosestObjectTask<T> extends Task {
         }
 
         public void setTickAttempted(int tickAttempted) {
-            tickAttempted = tickAttempted;
+            this.tickAttempted = tickAttempted;
         }
     }
 }
