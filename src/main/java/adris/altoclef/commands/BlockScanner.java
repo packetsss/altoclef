@@ -433,7 +433,7 @@ public class BlockScanner {
         boolean isPriorityChunk = getChunkDist(chunkPos, playerChunkPos) <= 2;
 
         for (int x = chunkPos.getStartX(); x <= chunkPos.getEndX(); x++) {
-            for (int y = adris.altoclef.multiversion.world.WorldHelper.getBottomY(world); y < adris.altoclef.multiversion.world.WorldHelper.getTopY(world); y++) {
+            for (int y = WorldHelper.getBottomY(); y < WorldHelper.getTopY(); y++) {
                 for (int z = chunkPos.getStartZ(); z <= chunkPos.getEndZ(); z++) {
                     BlockPos p = new BlockPos(x, y, z);
                     if (this.isUnreachable(p) || adris.altoclef.multiversion.world.WorldHelper.isOutOfHeightLimit(world,p)) continue;

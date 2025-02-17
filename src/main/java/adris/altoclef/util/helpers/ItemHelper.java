@@ -1,8 +1,6 @@
 package adris.altoclef.util.helpers;
 
 import adris.altoclef.AltoClef;
-import adris.altoclef.multiversion.BlockTagVer;
-import adris.altoclef.multiversion.item.ItemVer;
 import adris.altoclef.util.WoodType;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
@@ -13,6 +11,7 @@ import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.tag.BlockTags;
 import net.minecraft.util.DyeColor;
 
 import java.util.*;
@@ -353,14 +352,14 @@ public class ItemHelper {
                         || b == Blocks.DEAD_BUSH
                         || b == Blocks.VINE
                         || b == Blocks.TRIPWIRE
-                        || BlockTagVer.isWool(b)
+                        || BlockTags.WOOL.contains(b)
                         || b == Blocks.NETHER_SPROUTS;
     }
 
     private static boolean isStackProtected(AltoClef mod, ItemStack stack) {
         if (stack.hasEnchantments() && mod.getModSettings().getDontThrowAwayEnchantedItems())
             return true;
-        if (ItemVer.hasCustomName(stack) && mod.getModSettings().getDontThrowAwayCustomNameItems())
+        if (stack.hasCustomName() && mod.getModSettings().getDontThrowAwayCustomNameItems())
             return true;
         return mod.getBehaviour().isProtected(stack.getItem()) || mod.getModSettings().isImportant(stack.getItem());
     }

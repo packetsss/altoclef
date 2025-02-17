@@ -3,8 +3,6 @@ package adris.altoclef.chains;
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 import adris.altoclef.mixins.DeathScreenAccessor;
-import adris.altoclef.multiversion.ConnectScreenVer;
-import adris.altoclef.multiversion.entity.PlayerVer;
 import adris.altoclef.tasksystem.TaskChain;
 import adris.altoclef.tasksystem.TaskRunner;
 import adris.altoclef.util.time.TimerGame;
@@ -95,10 +93,8 @@ public class DeathMenuChain extends TaskChain {
                             if (command.startsWith(prefix)) {
                                 AltoClef.getCommandExecutor().execute(command, () -> {
                                 }, Throwable::printStackTrace);
-                            } else if (command.startsWith("/")) {
-                                PlayerVer.sendChatCommand(MinecraftClient.getInstance().player, command.substring(1));
                             } else {
-                                PlayerVer.sendChatMessage(MinecraftClient.getInstance().player, command);
+                                MinecraftClient.getInstance().player.sendChatMessage(command);
                             }
                         }
                     }
@@ -129,7 +125,9 @@ public class DeathMenuChain extends TaskChain {
                     Debug.logWarning("Failed to re-connect to server, no server entry cached.");
                 } else {
                     MinecraftClient client = MinecraftClient.getInstance();
-                    ConnectScreenVer.connect(screen, client, ServerAddress.parse(prevServerEntry.address), prevServerEntry, false);
+                    ServerAddress address = ServerAddress.parse(prevServerEntry.address);
+
+                    new ConnectScreen(screen,client, address.getAddress(), address.getPort());
                     //ConnectScreen.connect(screen, client, ServerAddress.parse(_prevServerEntry.address), _prevServerEntry);
                     //client.setScreen(new ConnectScreen(screen, client, _prevServerEntry));
                 }

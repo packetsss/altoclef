@@ -3,7 +3,6 @@ package adris.altoclef.tasks.resources;
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 import adris.altoclef.TaskCatalogue;
-import adris.altoclef.multiversion.item.ItemVer;
 import adris.altoclef.tasks.CraftInInventoryTask;
 import adris.altoclef.tasks.DoToClosestBlockTask;
 import adris.altoclef.tasks.construction.DestroyBlockTask;
@@ -79,25 +78,25 @@ public class CollectFoodTask extends Task {
         if (count <= 0) return 0;
         for (CookableFoodTarget cookable : COOKABLE_FOODS) {
             if (food.getItem() == cookable.getRaw()) {
-                assert ItemVer.getFoodComponent(cookable.getCooked()) != null;
-                return count * ItemVer.getFoodComponent(cookable.getCooked()).getHunger();
+                assert cookable.getCooked().getFoodComponent() != null;
+                return count * cookable.getCooked().getFoodComponent().getHunger();
             }
         }
 
         //bread logic
-        assert ItemVer.getFoodComponent( Items.BREAD) != null;
+        assert Items.BREAD.getFoodComponent() != null;
 
         if (food.getItem().equals(Items.HAY_BLOCK)) {
-            return 3* ItemVer.getFoodComponent(Items.BREAD).getHunger()*count;
+            return 3* Items.BREAD.getFoodComponent().getHunger()*count;
         }
         if (food.getItem().equals(Items.WHEAT)) {
-            return (double) (ItemVer.getFoodComponent(Items.BREAD).getHunger() * count) /3;
+            return (double) (Items.BREAD.getFoodComponent().getHunger() * count) /3;
         }
 
         // We're just an ordinary item.
-        if (ItemVer.isFood(food.getItem())) {
-            assert ItemVer.getFoodComponent(food.getItem()) != null;
-            return count * ItemVer.getFoodComponent(food.getItem()).getHunger();
+        if (food.isFood()) {
+            assert food.getItem().getFoodComponent() != null;
+            return count * food.getItem().getFoodComponent().getHunger();
         }
         return 0;
     }
@@ -110,7 +109,7 @@ public class CollectFoodTask extends Task {
             potentialFood += getFoodPotential(food);
         }
         int potentialBread = (int) (mod.getItemStorage().getItemCount(Items.WHEAT) / 3) + mod.getItemStorage().getItemCount(Items.HAY_BLOCK) * 3;
-        potentialFood += Objects.requireNonNull(ItemVer.getFoodComponent( Items.BREAD)).getHunger() * potentialBread;
+        potentialFood += Objects.requireNonNull(Items.BREAD.getFoodComponent()).getHunger() * potentialBread;
         // Check smelting
         ScreenHandler screen = mod.getPlayer().currentScreenHandler;
         if (screen instanceof SmokerScreenHandler) {
@@ -394,16 +393,16 @@ public class CollectFoodTask extends Task {
                     // tf am I supposed to do if its empty
                     if (slot.isPresent()) {
                         ItemStack stack = StorageHelper.getItemStackInSlot(slot.get());
-                        if (ItemVer.isFood(stack.getItem())) {
+                        if (stack.isFood()) {
                             // calculate priority, if the item laying on the ground has lower priority than the one we are gonna throw out because of it
                             // dont pick it up, otherwise we would get stuck in an infinite loop
-                            int inventoryCost = ItemVer.getFoodComponent(stack.getItem()).getHunger() * stack.getCount();
+                            int inventoryCost = stack.getItem().getFoodComponent().getHunger() * stack.getCount();
 
                             double hunger = 0;
-                            if (ItemVer.isFood(itemToGrab)) {
-                                hunger = ItemVer.getFoodComponent(itemToGrab).getHunger();
+                            if (itemToGrab.isFood()) {
+                                hunger = itemToGrab.getFoodComponent().getHunger();
                             } else if (itemToGrab.equals(Items.WHEAT)) {
-                                hunger += ItemVer.getFoodComponent(Items.BREAD).getHunger()/3d;
+                                hunger += Items.BREAD.getFoodComponent().getHunger()/3d;
                             } else {
                                 mod.log("unknown food item: "+itemToGrab);
                             }
@@ -448,8 +447,8 @@ public class CollectFoodTask extends Task {
         }
 
         public int getCookedUnits() {
-            assert ItemVer.getFoodComponent(getCooked()) != null;
-            return ItemVer.getFoodComponent(getCooked()).getHunger();
+            assert getCooked().getFoodComponent() != null;
+            return getCooked().getFoodComponent().getHunger();
         }
 
         public boolean isFish() {

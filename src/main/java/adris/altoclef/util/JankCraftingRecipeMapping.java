@@ -1,14 +1,12 @@
 package adris.altoclef.util;
 
-import adris.altoclef.multiversion.RecipeVer;
-import adris.altoclef.multiversion.recipemanager.RecipeManagerWrapper;
-import adris.altoclef.multiversion.recipemanager.WrappedRecipeEntry;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.recipe.Ingredient;
 import net.minecraft.recipe.Recipe;
+import net.minecraft.recipe.RecipeManager;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -17,7 +15,7 @@ import java.util.stream.Collectors;
  * For crafting table/inventory recipe book crafting, we need to figure out identifiers given a recipe.
  */
 public class JankCraftingRecipeMapping {
-    private static final HashMap<Item, List<WrappedRecipeEntry>> recipeMapping = new HashMap<>();
+    private static final HashMap<Item, List<Recipe<?>>> recipeMapping = new HashMap<>();
 
     /**
      * Reloads the recipe mapping.
@@ -27,16 +25,15 @@ public class JankCraftingRecipeMapping {
 
         // Check if the network handler is available
         if (client.getNetworkHandler() != null) {
-            RecipeManagerWrapper recipes = RecipeManagerWrapper.of(client.getNetworkHandler().getRecipeManager());
+            RecipeManager recipes = client.getNetworkHandler().getRecipeManager();
             ClientWorld world = client.world;
 
             // Check if the recipe manager is available
             if (recipes != null) {
-                for (WrappedRecipeEntry recipe : recipes.values()) {
+                for (Recipe<?> value : recipes.values()) {
                     assert world != null;
-                    Recipe<?> value = recipe.value();
-                    Item output = RecipeVer.getOutput(value, world).getItem();
-                    recipeMapping.computeIfAbsent(output, k -> new ArrayList<>()).add(recipe);
+                    Item output = value.getOutput().getItem();
+                    recipeMapping.computeIfAbsent(output, k -> new ArrayList<>()).add(value);
                 }
             }
         }
@@ -49,12 +46,12 @@ public class JankCraftingRecipeMapping {
      * @param output The output item of the recipe.
      * @return An Optional containing the mapped recipe entry if found, or an empty Optional if not found.
      */
-    public static Optional<WrappedRecipeEntry> getMinecraftMappedRecipe(CraftingRecipe recipe, Item output) {
+    public static Optional<Recipe<?>> getMinecraftMappedRecipe(CraftingRecipe recipe, Item output) {
         reloadRecipeMapping();
         // Check if the output item is present in the recipe mapping
         if (recipeMapping.containsKey(output)) {
             // Iterate through all the recipes mapped to the output item
-            for (WrappedRecipeEntry checkRecipe : recipeMapping.get(output)) {
+            for (Recipe<?> checkRecipe : recipeMapping.get(output)) {
                 // Create a list of item targets to satisfy
                 List<ItemTarget> toSatisfy = Arrays.stream(recipe.getSlots())
                         .filter(itemTarget -> itemTarget != null && !itemTarget.isEmpty())
@@ -62,7 +59,7 @@ public class JankCraftingRecipeMapping {
 
 
                 // Iterate through the ingredients of the recipe
-                for (Ingredient ingredient : checkRecipe.value().getPreviewInputs()) {
+                for (Ingredient ingredient : checkRecipe.getPreviewInputs()) {
                     // Skip empty ingredients
                     if (ingredient.isEmpty()) {
                         continue;

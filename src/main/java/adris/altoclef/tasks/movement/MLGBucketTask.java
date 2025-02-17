@@ -2,7 +2,6 @@ package adris.altoclef.tasks.movement;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
-import adris.altoclef.multiversion.DamageSourceVer;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.helpers.*;
 import adris.altoclef.util.serialization.ItemDeserializer;
@@ -19,6 +18,7 @@ import net.minecraft.block.Blocks;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
 import net.minecraft.item.Items;
@@ -28,7 +28,6 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.RayTraceContext;
 import net.minecraft.world.RayTraceContext;
 
 import java.util.Arrays;
@@ -109,7 +108,7 @@ public class MLGBucketTask extends Task {
         double baseFallDamage = MathHelper.ceil(totalFallDistance - 3.0F);
         // Be a bit conservative, assume MORE damage
         assert world != null;
-        return EntityHelper.calculateResultingPlayerDamage(player, DamageSourceVer.getFallDamageSource(world), baseFallDamage);
+        return EntityHelper.calculateResultingPlayerDamage(player, DamageSource.FALL, baseFallDamage);
     }
 
     private static void moveLeftRight(AltoClef mod, int delta) {

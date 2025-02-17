@@ -1,8 +1,8 @@
 package adris.altoclef.ui;
 
 import adris.altoclef.AltoClef;
-import adris.altoclef.multiversion.InGameHudVer;
-import adris.altoclef.multiversion.DrawContextWrapper;
+import adris.altoclef.multiversion.DrawContextHelper;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.client.gui.hud.BackgroundHelper;
@@ -30,8 +30,8 @@ public class AltoClefTickChart {
         list.add(nanoTime);
     }
 
-    public void render(AltoClef mod, DrawContextWrapper context, int x, int width) {
-        if (InGameHudVer.shouldShowDebugHud() || !mod.getTaskRunner().isActive()) return;
+    public void render(AltoClef mod, DrawContextHelper context, int x, int width) {
+        if (MinecraftClient.getInstance().options.debugEnabled || !mod.getTaskRunner().isActive()) return;
 
         int height = context.getScaledWindowHeight();
         context.fill(x, height - 37, x + width, height, 0x90505050);
@@ -64,7 +64,7 @@ public class AltoClefTickChart {
     }
 
 
-    protected void drawTotalBar(DrawContextWrapper context, int x, int y, int index) {
+    protected void drawTotalBar(DrawContextHelper context, int x, int y, int index) {
         long l = list.get(index);
         int i = this.getHeight(l);
         int j = this.getColor(l);
@@ -76,7 +76,7 @@ public class AltoClefTickChart {
     }
 
 
-    protected void drawBorderedText(DrawContextWrapper context, String string, int x, int y) {
+    protected void drawBorderedText(DrawContextHelper context, String string, int x, int y) {
         MatrixStack matrixStack = context.getMatrices();
         matrixStack.push();
         matrixStack.scale(0.5f,0.5f,1);

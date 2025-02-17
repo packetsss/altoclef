@@ -13,8 +13,7 @@ import adris.altoclef.eventbus.events.ClientRenderEvent;
 import adris.altoclef.eventbus.events.ClientTickEvent;
 import adris.altoclef.eventbus.events.SendChatEvent;
 import adris.altoclef.eventbus.events.TitleScreenEntryEvent;
-import adris.altoclef.multiversion.DrawContextWrapper;
-import adris.altoclef.multiversion.RenderLayerVer;
+import adris.altoclef.multiversion.DrawContextHelper;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskRunner;
 import adris.altoclef.trackers.*;
@@ -226,8 +225,7 @@ public class AltoClef implements ModInitializer {
 
     /// GETTERS AND SETTERS
 
-    private void onClientRenderOverlay(DrawContextWrapper context) {
-        context.setRenderLayer(RenderLayerVer.getGuiOverlay());
+    private void onClientRenderOverlay(DrawContextHelper context) {
         if (settings.shouldShowTaskChain()) {
             commandStatusOverlay.render(this, context);
         }

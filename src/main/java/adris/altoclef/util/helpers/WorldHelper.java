@@ -3,8 +3,6 @@ package adris.altoclef.util.helpers;
 import adris.altoclef.AltoClef;
 import adris.altoclef.mixins.ClientConnectionAccessor;
 import adris.altoclef.mixins.EntityAccessor;
-import adris.altoclef.multiversion.MethodWrapper;
-import adris.altoclef.multiversion.world.WorldVer;
 import adris.altoclef.util.Dimension;
 import baritone.api.BaritoneAPI;
 import baritone.pathing.movement.CalculationContext;
@@ -176,7 +174,7 @@ public interface WorldHelper {
     }
 
     static int getGroundHeight(AltoClef mod, int x, int z) {
-        for (int y = adris.altoclef.multiversion.world.WorldHelper.getTopY(mod.getWorld()); y >= adris.altoclef.multiversion.world.WorldHelper.getBottomY(mod.getWorld()); --y) {
+        for (int y = getTopY(); y >= getBottomY(); --y) {
             BlockPos check = new BlockPos(x, y, z);
             if (isSolidBlock(mod, check)) return y;
         }
@@ -203,7 +201,7 @@ public interface WorldHelper {
 
     static int getGroundHeight(AltoClef mod, int x, int z, Block... groundBlocks) {
         Set<Block> possibleBlocks = new HashSet<>(Arrays.asList(groundBlocks));
-        for (int y = adris.altoclef.multiversion.world.WorldHelper.getTopY(mod.getWorld()); y >= adris.altoclef.multiversion.world.WorldHelper.getBottomY(mod.getWorld()); --y) {
+        for (int y = getTopY(); y >= getBottomY(); --y) {
             BlockPos check = new BlockPos(x, y, z);
             if (possibleBlocks.contains(mod.getWorld().getBlockState(check).getBlock())) return y;
 
@@ -236,7 +234,7 @@ public interface WorldHelper {
             return true;
         }
         // Fall down
-        for (int dy = 1; dy <= toBreak.getY() - adris.altoclef.multiversion.world.WorldHelper.getBottomY(mod.getWorld()); ++dy) {
+        for (int dy = 1; dy <= toBreak.getY() - getBottomY(); ++dy) {
             BlockPos check = toBreak.down(dy);
             BlockState s = mod.getWorld().getBlockState(check);
             boolean tooFarToFall = dy > mod.getClientBaritoneSettings().maxFallHeightNoWater.value;
@@ -377,7 +375,7 @@ public interface WorldHelper {
         if (state.getBlock() instanceof SpawnerBlock) {
             BlockEntity be = mod.getWorld().getBlockEntity(pos);
             if (be instanceof MobSpawnerBlockEntity blockEntity) {
-                return MethodWrapper.getRenderedEntity(blockEntity.getLogic(), mod.getWorld(),pos);
+                return blockEntity.getLogic().getRenderedEntity();
             }
         }
         return null;
@@ -507,4 +505,11 @@ public interface WorldHelper {
     }
 
 
+    static int getTopY() {
+        return 255;
+    }
+
+    static int getBottomY() {
+        return 0;
+    }
 }

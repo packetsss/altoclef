@@ -1,13 +1,11 @@
 package adris.altoclef.ui;
 
 import adris.altoclef.AltoClef;
-import adris.altoclef.multiversion.DrawContextWrapper;
+import adris.altoclef.multiversion.DrawContextHelper;
 import adris.altoclef.tasksystem.Task;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.Matrix4f;
 
 import java.awt.*;
 import java.time.Instant;
@@ -24,7 +22,7 @@ public class CommandStatusOverlay {
     private long timeRunning;
     private long lastTime = 0;
 
-    public void render(AltoClef mod, DrawContextWrapper context) {
+    public void render(AltoClef mod, DrawContextHelper context) {
         List<Task> tasks = Collections.emptyList();
         if (mod.getTaskRunner().getCurrentTaskChain() != null) {
             tasks = mod.getTaskRunner().getCurrentTaskChain().getTasks();
@@ -40,7 +38,7 @@ public class CommandStatusOverlay {
         matrixStack.pop();
     }
 
-    private void drawTaskChain(DrawContextWrapper context, TextRenderer renderer, int x, int y, MatrixStack matrices, int maxLines, List<Task> tasks, AltoClef mod) {
+    private void drawTaskChain(DrawContextHelper context, TextRenderer renderer, int x, int y, MatrixStack matrices, int maxLines, List<Task> tasks, AltoClef mod) {
         int whiteColor = 0xFFFFFFFF;
 
         matrices.scale(0.5f,0.5f,0.5f);
@@ -100,7 +98,7 @@ public class CommandStatusOverlay {
     }
 
 
-    private void renderTask(Task task, DrawContextWrapper context, TextRenderer renderer, int x, int y) {
+    private void renderTask(Task task, DrawContextHelper context, TextRenderer renderer, int x, int y) {
         String taskName = task.getClass().getSimpleName() + " ";
         context.drawText(renderer, taskName, x, y, new Color(128, 128, 128).getRGB(), true);
 

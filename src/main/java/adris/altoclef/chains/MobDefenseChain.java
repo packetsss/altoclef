@@ -3,7 +3,6 @@ package adris.altoclef.chains;
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 import adris.altoclef.control.KillAura;
-import adris.altoclef.multiversion.item.ItemVer;
 import adris.altoclef.tasks.construction.ProjectileProtectionWallTask;
 import adris.altoclef.tasks.entity.KillEntitiesTask;
 import adris.altoclef.tasks.movement.CustomBaritoneGoalTask;
@@ -86,7 +85,7 @@ public class MobDefenseChain extends SingleTaskChain {
         mod.getExtraBaritoneSettings().setInteractionPaused(true);
         if (!mod.getPlayer().isBlocking()) {
             ItemStack handItem = StorageHelper.getItemStackInSlot(PlayerSlot.getEquipSlot());
-            if (ItemVer.isFood(handItem)) {
+            if (handItem.isFood()) {
                 List<ItemStack> spaceSlots = mod.getItemStorage().getItemStacksPlayerInventory(false);
                 for (ItemStack spaceSlot : spaceSlots) {
                     if (spaceSlot.isEmpty()) {
@@ -126,7 +125,7 @@ public class MobDefenseChain extends SingleTaskChain {
     private void stopShielding(AltoClef mod) {
         if (shielding) {
             ItemStack cursor = StorageHelper.getItemStackInCursorSlot();
-            if (ItemVer.isFood(cursor)) {
+            if (cursor.isFood()) {
                 Optional<Slot> toMoveTo = mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursor, false).or(() -> StorageHelper.getGarbageSlot(mod));
                 if (toMoveTo.isPresent()) {
                     Slot garbageSlot = toMoveTo.get();

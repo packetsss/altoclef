@@ -1,7 +1,6 @@
 package adris.altoclef.ui;
 
 import adris.altoclef.Debug;
-import adris.altoclef.multiversion.entity.PlayerVer;
 import adris.altoclef.util.time.BaseTimer;
 import adris.altoclef.util.time.TimerReal;
 import net.minecraft.client.MinecraftClient;
@@ -82,9 +81,9 @@ public class MessageSender {
         assert networkHandler != null;
 
         if (command) {
-            PlayerVer.sendChatCommand(MinecraftClient.getInstance().player, message);
+            MinecraftClient.getInstance().player.sendChatMessage("/"+message);
         } else {
-            PlayerVer.sendChatMessage(MinecraftClient.getInstance().player, message);
+            MinecraftClient.getInstance().player.sendChatMessage(message);
         }
     }
 

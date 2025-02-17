@@ -1,8 +1,6 @@
 package adris.altoclef.util.helpers;
 
 import adris.altoclef.AltoClef;
-import adris.altoclef.multiversion.DamageSourceWrapper;
-import adris.altoclef.multiversion.MethodWrapper;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.DamageUtil;
 import net.minecraft.entity.Entity;
@@ -11,7 +9,6 @@ import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.*;
-import net.minecraft.entity.passive.IronGolemEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -69,20 +66,19 @@ public class EntityHelper {
      * Calculate the resulting damage dealt to a player as a result of some damage.
      * If this player were to receive this damage, the player's health will be subtracted by the resulting value.
      */
-    public static double calculateResultingPlayerDamage(PlayerEntity player, DamageSource src, double damageAmount) {
+    public static double calculateResultingPlayerDamage(PlayerEntity player, DamageSource source, double damageAmount) {
         // Copied logic from `PlayerEntity.applyDamage`
-        DamageSourceWrapper source = DamageSourceWrapper.of(src);
 
-        if (player.isInvulnerableTo(src))
+        if (player.isInvulnerableTo(source))
             return 0;
 
         // Armor Base
         if (!source.bypassesArmor()) {
-            damageAmount = MethodWrapper.getDamageLeft(damageAmount,src,player.getArmor(),player.getAttributeValue(EntityAttributes.GENERIC_ARMOR_TOUGHNESS));
+            damageAmount = DamageUtil.getDamageLeft((float) damageAmount,player.getArmor(), (float) player.getAttributeValue(EntityAttributes.GENERIC_ARMOR_TOUGHNESS));
         }
 
         // Enchantments & Potions
-        if (!source.bypassesShield()) {
+        if (!source.isUnblockable()) {
             int k;
             if (player.hasStatusEffect(StatusEffects.RESISTANCE) && source.isOutOfWorld()) {
                 //noinspection ConstantConditions
@@ -96,7 +92,7 @@ public class EntityHelper {
             if (damageAmount <= 0.0) {
                 damageAmount = 0.0;
             } else {
-                k = EnchantmentHelper.getProtectionAmount(player.getArmorItems(), src);
+                k = EnchantmentHelper.getProtectionAmount(player.getArmorItems(), source);
                 if (k > 0) {
                     damageAmount = DamageUtil.getInflictedDamage((float) damageAmount, (float) k);
                 }

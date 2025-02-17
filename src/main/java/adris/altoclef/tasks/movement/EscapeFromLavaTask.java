@@ -1,8 +1,6 @@
 package adris.altoclef.tasks.movement;
 
 import adris.altoclef.AltoClef;
-import adris.altoclef.multiversion.FoodComponentWrapper;
-import adris.altoclef.multiversion.item.ItemVer;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.helpers.LookHelper;
 import adris.altoclef.util.progresscheck.MovementProgressChecker;
@@ -145,7 +143,7 @@ public class EscapeFromLavaTask extends CustomBaritoneGoalTask {
         float saturation = player != null ? player.getHungerManager().getSaturationLevel() : 20;
         // Get best food item + calculate food total
         for (ItemStack stack : mod.getItemStorage().getItemStacksPlayerInventory(true)) {
-            if (ItemVer.isFood(stack)) {
+            if (stack.isFood()) {
                 //screw that, we are in lava, eat whatever we can
                 // Ignore protected items
                // if (!ItemHelper.canThrowAwayStack(mod, stack)) continue;
@@ -167,7 +165,7 @@ public class EscapeFromLavaTask extends CustomBaritoneGoalTask {
     }
 
     private static float getScore(ItemStack stack, float hunger, float saturation) {
-        FoodComponentWrapper food = ItemVer.getFoodComponent(stack.getItem());
+        FoodComponent food = stack.getItem().getFoodComponent();
 
         assert food != null;
         float hungerIfEaten = Math.min(hunger + food.getHunger(), 20);

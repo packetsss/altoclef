@@ -3,7 +3,6 @@ package adris.altoclef.tasks.resources;
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 import adris.altoclef.multiversion.blockpos.BlockPosVer;
-import adris.altoclef.multiversion.ToolMaterialVer;
 import adris.altoclef.tasks.AbstractDoToClosestObjectTask;
 import adris.altoclef.tasks.ResourceTask;
 import adris.altoclef.tasks.construction.DestroyBlockTask;
@@ -137,7 +136,7 @@ public class MineAndCollectTask extends ResourceTask {
                     if (item instanceof MiningToolItem) {
                         if (currentlyEquipped instanceof MiningToolItem currentPick) {
                             MiningToolItem swapPick = (MiningToolItem) item;
-                            if (ToolMaterialVer.getMiningLevel(swapPick) > ToolMaterialVer.getMiningLevel(currentPick)) {
+                            if (swapPick.getMaterial().getMiningLevel() > currentPick.getMaterial().getMiningLevel()) {
                                 // We can equip a better pickaxe.
                                 mod.getSlotHandler().forceEquipSlot(CursorSlot.SLOT);
                             }

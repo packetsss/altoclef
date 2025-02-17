@@ -1,12 +1,12 @@
 package adris.altoclef.eventbus.events;
 
-import adris.altoclef.multiversion.DrawContextWrapper;
+import adris.altoclef.multiversion.DrawContextHelper;
 
 public class ClientRenderEvent {
-    public DrawContextWrapper context;
+    public DrawContextHelper context;
     public float tickDelta;
 
-    public ClientRenderEvent(DrawContextWrapper context, float tickDelta) {
+    public ClientRenderEvent(DrawContextHelper context, float tickDelta) {
         this.context = context;
         this.tickDelta = tickDelta;
     }

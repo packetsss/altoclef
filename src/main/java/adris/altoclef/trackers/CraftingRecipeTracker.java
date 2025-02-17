@@ -1,8 +1,6 @@
 package adris.altoclef.trackers;
 
 import adris.altoclef.AltoClef;
-import adris.altoclef.multiversion.recipemanager.RecipeManagerWrapper;
-import adris.altoclef.multiversion.recipemanager.WrappedRecipeEntry;
 import adris.altoclef.util.RecipeTarget;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
@@ -101,10 +99,10 @@ public class CraftingRecipeTracker extends Tracker{
         ClientPlayNetworkHandler networkHandler =  MinecraftClient.getInstance().getNetworkHandler();
         if (networkHandler == null) return;
 
-        RecipeManagerWrapper recipeManager = RecipeManagerWrapper.of(networkHandler.getRecipeManager());
+        RecipeManager recipeManager = networkHandler.getRecipeManager();
 
-        for (WrappedRecipeEntry recipe : recipeManager.values()) {
-            if (!(recipe.value() instanceof net.minecraft.recipe.CraftingRecipe craftingRecipe)) continue;
+        for (Recipe<?> recipe : recipeManager.values()) {
+            if (!(recipe instanceof net.minecraft.recipe.CraftingRecipe craftingRecipe)) continue;
 
             // not implemented for now because it isn't needed (I hope xd)
             if (craftingRecipe instanceof SpecialCraftingRecipe) continue;
