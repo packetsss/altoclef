@@ -15,13 +15,13 @@ import net.minecraft.util.math.Vec3d;
 
 public class ThrowEnderPearlSimpleProjectileTask extends Task {
 
-    private final TimerGame _thrownTimer = new TimerGame(5);
-    private final BlockPos _target;
+    private final TimerGame thrownTimer = new TimerGame(5);
+    private final BlockPos target;
 
-    private boolean _thrown = false;
+    private boolean thrown = false;
 
     public ThrowEnderPearlSimpleProjectileTask(BlockPos target) {
-        _target = target;
+        this.target = target;
     }
 
     private static boolean cleanThrow(AltoClef mod, float yaw, float pitch) {
@@ -46,24 +46,24 @@ public class ThrowEnderPearlSimpleProjectileTask extends Task {
 
     @Override
     protected void onStart(AltoClef mod) {
-        _thrownTimer.forceElapse();
-        _thrown = false;
+        thrownTimer.forceElapse();
+        thrown = false;
     }
 
     @Override
     protected Task onTick(AltoClef mod) {
         // TODO: Unlikely/minor nitpick, but there could be other people throwing ender pearls, which would delay the bot.
         if (mod.getEntityTracker().entityFound(EnderPearlEntity.class)) {
-            _thrownTimer.reset();
+            thrownTimer.reset();
         }
-        if (_thrownTimer.elapsed()) {
+        if (thrownTimer.elapsed()) {
             if (mod.getSlotHandler().forceEquipItem(Items.ENDER_PEARL)) {
-                Rotation lookTarget = calculateThrowLook(mod, _target);
+                Rotation lookTarget = calculateThrowLook(mod, target);
                 LookHelper.lookAt(mod, lookTarget);
                 if (LookHelper.isLookingAt(mod, lookTarget)) {
                     mod.getInputControls().tryPress(Input.CLICK_RIGHT);
-                    _thrown = true;
-                    _thrownTimer.reset();
+                    thrown = true;
+                    thrownTimer.reset();
                 }
             }
         }
@@ -77,19 +77,19 @@ public class ThrowEnderPearlSimpleProjectileTask extends Task {
 
     @Override
     public boolean isFinished(AltoClef mod) {
-        return _thrown && _thrownTimer.elapsed() || (!_thrown && !mod.getItemStorage().hasItem(Items.ENDER_PEARL));
+        return thrown && thrownTimer.elapsed() || (!thrown && !mod.getItemStorage().hasItem(Items.ENDER_PEARL));
     }
 
     @Override
     protected boolean isEqual(Task other) {
         if (other instanceof ThrowEnderPearlSimpleProjectileTask task) {
-            return task._target.equals(_target);
+            return task.target.equals(target);
         }
         return false;
     }
 
     @Override
     protected String toDebugString() {
-        return "Simple Ender Pearling to " + _target;
+        return "Simple Ender Pearling to " + target;
     }
 }

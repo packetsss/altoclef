@@ -31,7 +31,7 @@ public class WorldSurvivalChain extends SingleTaskChain {
     private final TimerGame portalStuckTimer = new TimerGame(5);
     private boolean wasAvoidingDrowning;
 
-    private BlockPos _extinguishWaterPosition;
+    private BlockPos extinguishWaterPosition;
 
     public WorldSurvivalChain(TaskRunner runner) {
         super(runner);
@@ -73,7 +73,7 @@ public class WorldSurvivalChain extends SingleTaskChain {
                             mod.getClientBaritone().getLookBehavior().updateTarget(reach.get(), true);
                             if (mod.getClientBaritone().getPlayerContext().isLookingAt(targetWaterPos.down())) {
                                 if (mod.getSlotHandler().forceEquipItem(Items.WATER_BUCKET)) {
-                                    _extinguishWaterPosition = targetWaterPos;
+                                    extinguishWaterPosition = targetWaterPos;
                                     mod.getInputControls().tryPress(Input.CLICK_RIGHT);
                                     setTask(null);
                                     return 90;
@@ -84,12 +84,12 @@ public class WorldSurvivalChain extends SingleTaskChain {
                 }
                 setTask(new DoToClosestBlockTask(GetToBlockTask::new, Blocks.WATER));
                 return 90;
-            } else if (mod.getItemStorage().hasItem(Items.BUCKET) && _extinguishWaterPosition != null && mod.getBlockScanner().isBlockAtPosition(_extinguishWaterPosition, Blocks.WATER)) {
+            } else if (mod.getItemStorage().hasItem(Items.BUCKET) && extinguishWaterPosition != null && mod.getBlockScanner().isBlockAtPosition(extinguishWaterPosition, Blocks.WATER)) {
                 // Pick up the water
-                setTask(new InteractWithBlockTask(new ItemTarget(Items.BUCKET, 1), Direction.UP, _extinguishWaterPosition.down(), true));
+                setTask(new InteractWithBlockTask(new ItemTarget(Items.BUCKET, 1), Direction.UP, extinguishWaterPosition.down(), true));
                 return 60;
             } else {
-                _extinguishWaterPosition = null;
+                extinguishWaterPosition = null;
             }
         }
 

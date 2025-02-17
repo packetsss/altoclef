@@ -125,26 +125,26 @@ public class SmeltInSmokerTask extends ResourceTask {
     @SuppressWarnings("ConditionCoveredByFurtherCondition")
     static class DoSmeltInSmokerTask extends DoStuffInContainerTask {
 
-        private final SmeltTarget _target;
-        private final SmokerCache _smokerCache = new SmokerCache();
-        private final ItemTarget _allMaterials;
-        private boolean _ignoreMaterials;
+        private final SmeltTarget target;
+        private final SmokerCache smokerCache = new SmokerCache();
+        private final ItemTarget allMaterials;
+        private boolean ignoreMaterials;
 
         public DoSmeltInSmokerTask(SmeltTarget target, boolean ignoreMaterials) {
             super(Blocks.SMOKER, new ItemTarget(Items.SMOKER));
-            _target = target;
-            _ignoreMaterials = ignoreMaterials;
-            _allMaterials = new ItemTarget(Stream.concat(Arrays.stream(_target.getMaterial().getMatches()), Arrays.stream(_target.getOptionalMaterials())).toArray(Item[]::new), _target.getMaterial().getTargetCount());
+            this.target = target;
+            this.ignoreMaterials = ignoreMaterials;
+            allMaterials = new ItemTarget(Stream.concat(Arrays.stream(target.getMaterial().getMatches()), Arrays.stream(target.getOptionalMaterials())).toArray(Item[]::new), target.getMaterial().getTargetCount());
         }
 
         public void ignoreMaterials() {
-            _ignoreMaterials = true;
+            ignoreMaterials = true;
         }
 
         @Override
         protected boolean isSubTaskEqual(DoStuffInContainerTask other) {
             if (other instanceof DoSmeltInSmokerTask task) {
-                return task._target.equals(_target) && task._ignoreMaterials == _ignoreMaterials;
+                return task.target.equals(target) && task.ignoreMaterials == ignoreMaterials;
             }
             return false;
         }
@@ -160,48 +160,48 @@ public class SmeltInSmokerTask extends ResourceTask {
 
             mod.getBehaviour().addProtectedItems(ItemHelper.PLANKS);
             mod.getBehaviour().addProtectedItems(Items.COAL);
-            mod.getBehaviour().addProtectedItems(_allMaterials.getMatches());
-            mod.getBehaviour().addProtectedItems(_target.getMaterial().getMatches());
+            mod.getBehaviour().addProtectedItems(allMaterials.getMatches());
+            mod.getBehaviour().addProtectedItems(target.getMaterial().getMatches());
         }
 
         @Override
         protected Task onTick(AltoClef mod) {
             tryUpdateOpenSmoker(mod);
             // Include both regular + optional items
-            ItemTarget materialTarget = _allMaterials;
-            ItemTarget outputTarget = _target.getItem();
+            ItemTarget materialTarget = allMaterials;
+            ItemTarget outputTarget = target.getItem();
             // Materials needed = (mat_target (- 0*mat_in_inventory) - out_in_inventory - mat_in_furnace - out_in_furnace)
             // ^ 0 * mat_in_inventory because we always care aobut the TARGET materials, not how many LEFT there are.
             int materialsNeeded = materialTarget.getTargetCount()
                     /*- mod.getItemStorage().getItemCountInventoryOnly(materialTarget.getMatches())*/ // See comment above
                     - mod.getItemStorage().getItemCountInventoryOnly(outputTarget.getMatches())
-                    - (materialTarget.matches(_smokerCache.materialSlot.getItem()) ? _smokerCache.materialSlot.getCount() : 0)
-                    - (outputTarget.matches(_smokerCache.outputSlot.getItem()) ? _smokerCache.outputSlot.getCount() : 0);
-            double totalFuelInSmoker = ItemHelper.getFuelAmount(_smokerCache.fuelSlot) + _smokerCache.burningFuelCount + _smokerCache.burnPercentage;
+                    - (materialTarget.matches(smokerCache.materialSlot.getItem()) ? smokerCache.materialSlot.getCount() : 0)
+                    - (outputTarget.matches(smokerCache.outputSlot.getItem()) ? smokerCache.outputSlot.getCount() : 0);
+            double totalFuelInSmoker = ItemHelper.getFuelAmount(smokerCache.fuelSlot) + smokerCache.burningFuelCount + smokerCache.burnPercentage;
             // Fuel needed = (mat_target - out_in_inventory - out_in_furnace - totalFuelInFurnace)
-            double fuelNeeded = _ignoreMaterials
-                    ? Math.min(materialTarget.matches(_smokerCache.materialSlot.getItem()) ? _smokerCache.materialSlot.getCount() : 0, materialTarget.getTargetCount())
+            double fuelNeeded = ignoreMaterials
+                    ? Math.min(materialTarget.matches(smokerCache.materialSlot.getItem()) ? smokerCache.materialSlot.getCount() : 0, materialTarget.getTargetCount())
                     : materialTarget.getTargetCount()
                     /* - mod.getItemStorage().getItemCountInventoryOnly(materialTarget.getMatches()) */
                     - mod.getItemStorage().getItemCountInventoryOnly(outputTarget.getMatches())
-                    - (outputTarget.matches(_smokerCache.outputSlot.getItem()) ? _smokerCache.outputSlot.getCount() : 0)
+                    - (outputTarget.matches(smokerCache.outputSlot.getItem()) ? smokerCache.outputSlot.getCount() : 0)
                     - totalFuelInSmoker;
 
             // We don't have enough materials...
             if (mod.getItemStorage().getItemCountInventoryOnly(materialTarget.getMatches()) < materialsNeeded) {
                 setDebugState("Getting Materials");
-                return getMaterialTask(_target.getMaterial());
+                return getMaterialTask(target.getMaterial());
             }
 
             // We don't have enough fuel...
-            if (_smokerCache.burningFuelCount <= 0 && StorageHelper.calculateInventoryFuelCount(mod) < fuelNeeded) {
+            if (smokerCache.burningFuelCount <= 0 && StorageHelper.calculateInventoryFuelCount(mod) < fuelNeeded) {
                 setDebugState("Getting Fuel");
                 return new CollectFuelTask(fuelNeeded + 1);
             }
 
             // Make sure our materials are accessible in our inventory
-            if (StorageHelper.isItemInaccessibleToContainer(mod, _allMaterials)) {
-                return new MoveInaccessibleItemToInventoryTask(_allMaterials);
+            if (StorageHelper.isItemInaccessibleToContainer(mod, allMaterials)) {
+                return new MoveInaccessibleItemToInventoryTask(allMaterials);
             }
 
             // We have fuel and materials. Get to our container and smelt!
@@ -275,25 +275,25 @@ public class SmeltInSmokerTask extends ResourceTask {
 
             // Fill in input if needed
             // Materials needed in slot = (mat_target - out_in_inventory - out_in_furnace)
-            ItemTarget materialTarget = _allMaterials;
+            ItemTarget materialTarget = allMaterials;
 
             int neededMaterialsInSlot = materialTarget.getTargetCount()
-                    - mod.getItemStorage().getItemCountInventoryOnly(_target.getItem().getMatches())
-                    - (_target.getItem().matches(output.getItem()) ? output.getCount() : 0);
+                    - mod.getItemStorage().getItemCountInventoryOnly(target.getItem().getMatches())
+                    - (target.getItem().matches(output.getItem()) ? output.getCount() : 0);
             // We don't have the right material or we need more
-            if (!_allMaterials.matches(material.getItem()) || neededMaterialsInSlot > material.getCount()) {
+            if (!allMaterials.matches(material.getItem()) || neededMaterialsInSlot > material.getCount()) {
                 int materialsAlreadyIn = (materialTarget.matches(material.getItem()) ? material.getCount() : 0);
                 setDebugState("Moving Materials");
                 return new MoveItemToSlotFromInventoryTask(new ItemTarget(materialTarget, neededMaterialsInSlot - materialsAlreadyIn), SmokerSlot.INPUT_SLOT_MATERIALS);
             }
 
             /*
-            double currentFuel = _ignoreMaterials
-                    ? (Math.min(materialTarget.matches(_furnaceCache.materialSlot.getItem()) ? _furnaceCache.materialSlot.getCount() : 0, materialTarget.getTargetCount())
+            double currentFuel = ignoreMaterials
+                    ? (Math.min(materialTarget.matches(furnaceCache.materialSlot.getItem()) ? furnaceCache.materialSlot.getCount() : 0, materialTarget.getTargetCount())
                     : materialTarget.getTargetCount()
                     - mod.getItemStorage().getItemCountInventoryOnly(materialTarget.getMatches())
                     - mod.getItemStorage().getItemCountInventoryOnly(outputTarget.getMatches())
-                    - (outputTarget.matches(_furnaceCache.outputSlot.getItem()) ? _furnaceCache.outputSlot.getCount() : 0)
+                    - (outputTarget.matches(furnaceCache.outputSlot.getItem()) ? furnaceCache.outputSlot.getCount() : 0)
                     - totalFuelInFurnace;
              */
             // Fill in fuel if needed
@@ -333,9 +333,9 @@ public class SmeltInSmokerTask extends ResourceTask {
 
         @Override
         protected double getCostToMakeNew(AltoClef mod) {
-            if (_smokerCache.burnPercentage > 0 || _smokerCache.burningFuelCount > 0 ||
-                    _smokerCache.fuelSlot != null || _smokerCache.materialSlot != null ||
-                    _smokerCache.outputSlot != null) {
+            if (smokerCache.burnPercentage > 0 || smokerCache.burningFuelCount > 0 ||
+                    smokerCache.fuelSlot != null || smokerCache.materialSlot != null ||
+                    smokerCache.outputSlot != null) {
                 return 9999999.0;
             }
             if (mod.getItemStorage().getItemCount(Items.COBBLESTONE) > 8 &&
@@ -356,11 +356,11 @@ public class SmeltInSmokerTask extends ResourceTask {
         private void tryUpdateOpenSmoker(AltoClef mod) {
             if (isContainerOpen(mod)) {
                 // Update current furnace cache
-                _smokerCache.burnPercentage = StorageHelper.getSmokerCookPercent();
-                _smokerCache.burningFuelCount = StorageHelper.getSmokerFuel();
-                _smokerCache.fuelSlot = StorageHelper.getItemStackInSlot(SmokerSlot.INPUT_SLOT_FUEL);
-                _smokerCache.materialSlot = StorageHelper.getItemStackInSlot(SmokerSlot.INPUT_SLOT_MATERIALS);
-                _smokerCache.outputSlot = StorageHelper.getItemStackInSlot(SmokerSlot.OUTPUT_SLOT);
+                smokerCache.burnPercentage = StorageHelper.getSmokerCookPercent();
+                smokerCache.burningFuelCount = StorageHelper.getSmokerFuel();
+                smokerCache.fuelSlot = StorageHelper.getItemStackInSlot(SmokerSlot.INPUT_SLOT_FUEL);
+                smokerCache.materialSlot = StorageHelper.getItemStackInSlot(SmokerSlot.INPUT_SLOT_MATERIALS);
+                smokerCache.outputSlot = StorageHelper.getItemStackInSlot(SmokerSlot.OUTPUT_SLOT);
             }
         }
     }

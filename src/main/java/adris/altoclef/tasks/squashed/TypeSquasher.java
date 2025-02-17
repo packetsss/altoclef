@@ -8,18 +8,18 @@ import java.util.List;
 
 public abstract class TypeSquasher<T extends ResourceTask> {
 
-    private final List<T> _tasks = new ArrayList<>();
+    private final List<T> tasks = new ArrayList<>();
 
     void add(T task) {
-        _tasks.add(task);
+        tasks.add(task);
     }
 
     public List<ResourceTask> getSquashed() {
-        if (_tasks.isEmpty()) {
+        if (tasks.isEmpty()) {
             // We're empty, don't run any logic.
             return Collections.emptyList();
         }
-        return getSquashed(_tasks);
+        return getSquashed(tasks);
     }
 
     protected abstract List<ResourceTask> getSquashed(List<T> tasks);

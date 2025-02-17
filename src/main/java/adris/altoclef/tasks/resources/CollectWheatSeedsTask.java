@@ -10,11 +10,11 @@ import net.minecraft.item.Items;
 
 public class CollectWheatSeedsTask extends ResourceTask {
 
-    private final int _count;
+    private final int count;
 
     public CollectWheatSeedsTask(int count) {
         super(Items.WHEAT_SEEDS, count);
-        _count = count;
+        this.count = count;
     }
 
     @Override
@@ -33,7 +33,7 @@ public class CollectWheatSeedsTask extends ResourceTask {
             return new CollectCropTask(Items.AIR, 999, Blocks.WHEAT, Items.WHEAT_SEEDS);
         }
         // Otherwise, break grass blocks.
-        return new MineAndCollectTask(Items.WHEAT_SEEDS, _count, new Block[]{Blocks.GRASS, Blocks.TALL_GRASS}, MiningRequirement.HAND);
+        return new MineAndCollectTask(Items.WHEAT_SEEDS, count, new Block[]{Blocks.GRASS, Blocks.TALL_GRASS}, MiningRequirement.HAND);
     }
 
     @Override
@@ -48,6 +48,6 @@ public class CollectWheatSeedsTask extends ResourceTask {
 
     @Override
     protected String toDebugStringName() {
-        return "Collecting " + _count + " wheat seeds.";
+        return "Collecting " + count + " wheat seeds.";
     }
 }

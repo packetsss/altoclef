@@ -12,15 +12,15 @@ import net.minecraft.util.math.BlockPos;
 
 public class GoToStrongholdPortalTask extends Task {
 
-    private LocateStrongholdCoordinatesTask _locateCoordsTask;
-    private final int _targetEyes;
+    private LocateStrongholdCoordinatesTask locateCoordsTask;
+    private final int targetEyes;
     private final int MINIMUM_EYES = 12;
-    private BlockPos _strongholdCoordinates;
+    private BlockPos strongholdCoordinates;
 
     public GoToStrongholdPortalTask(int targetEyes) {
-        _targetEyes = targetEyes;
-        _strongholdCoordinates = null;
-        _locateCoordsTask = new LocateStrongholdCoordinatesTask(targetEyes);
+        this.targetEyes = targetEyes;
+        strongholdCoordinates = null;
+        locateCoordsTask = new LocateStrongholdCoordinatesTask(targetEyes);
     }
 
     @Override
@@ -35,26 +35,26 @@ public class GoToStrongholdPortalTask extends Task {
             If we do know where stronghold is, fast travel there
             If there search it
          */
-        if (_strongholdCoordinates == null) {
+        if (strongholdCoordinates == null) {
             // in case any screen is open, prevents from getting stuck
             StorageHelper.closeScreen();
 
-            _strongholdCoordinates = _locateCoordsTask.getStrongholdCoordinates().orElse(null);
-            if (_strongholdCoordinates == null) {
+            strongholdCoordinates = locateCoordsTask.getStrongholdCoordinates().orElse(null);
+            if (strongholdCoordinates == null) {
                 if (mod.getItemStorage().getItemCount(Items.ENDER_EYE) < MINIMUM_EYES && mod.getEntityTracker().itemDropped(Items.ENDER_EYE)) {
                     setDebugState("Picking up dropped eye");
                     return new PickupDroppedItemTask(Items.ENDER_EYE, MINIMUM_EYES);
                 }
                 setDebugState("Triangulating stronghold...");
-                return _locateCoordsTask;
+                return locateCoordsTask;
             }
         }
 
-        if (mod.getPlayer().getPos().distanceTo(WorldHelper.toVec3d(_strongholdCoordinates)) < 10 && !mod.getBlockScanner().anyFound(Blocks.END_PORTAL_FRAME)) {
+        if (mod.getPlayer().getPos().distanceTo(WorldHelper.toVec3d(strongholdCoordinates)) < 10 && !mod.getBlockScanner().anyFound(Blocks.END_PORTAL_FRAME)) {
             mod.log("Something went wrong whilst triangulating the stronghold... either the action got disrupted or the second eye went to a different stronghold");
             mod.log("We will try to triangulate again now...");
-            _strongholdCoordinates = null;
-            _locateCoordsTask = new LocateStrongholdCoordinatesTask(_targetEyes);
+            strongholdCoordinates = null;
+            locateCoordsTask = new LocateStrongholdCoordinatesTask(targetEyes);
             return null;
         }
         // Search stone brick chunks, but while we're wandering, go to the nether
@@ -70,10 +70,10 @@ public class GoToStrongholdPortalTask extends Task {
 
             @Override
             protected Task getWanderTask(AltoClef mod) {
-                return new FastTravelTask(_strongholdCoordinates, 300, true);
+                return new FastTravelTask(strongholdCoordinates, 300, true);
             }
         };*/
-        return new FastTravelTask(_strongholdCoordinates, 300, true);
+        return new FastTravelTask(strongholdCoordinates, 300, true);
     }
 
     @Override

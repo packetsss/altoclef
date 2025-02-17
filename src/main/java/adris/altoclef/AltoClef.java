@@ -47,7 +47,7 @@ import java.util.function.Consumer;
 public class AltoClef implements ModInitializer {
 
     // Static access to altoclef
-    private static final Queue<Consumer<AltoClef>> _postInitQueue = new ArrayDeque<>();
+    private static final Queue<Consumer<AltoClef>> postInitQueue = new ArrayDeque<>();
 
     // Central Managers
     private static CommandExecutor commandExecutor;
@@ -505,9 +505,9 @@ public class AltoClef implements ModInitializer {
     }
 
     private void runEnqueuedPostInits() {
-        synchronized (_postInitQueue) {
-            while (!_postInitQueue.isEmpty()) {
-                _postInitQueue.poll().accept(this);
+        synchronized (postInitQueue) {
+            while (!postInitQueue.isEmpty()) {
+                postInitQueue.poll().accept(this);
             }
         }
     }

@@ -8,10 +8,10 @@ import net.minecraft.item.Items;
 public enum MiningRequirement implements Comparable<MiningRequirement> {
     HAND(Items.AIR), WOOD(Items.WOODEN_PICKAXE), STONE(Items.STONE_PICKAXE), IRON(Items.IRON_PICKAXE), DIAMOND(Items.DIAMOND_PICKAXE);
 
-    private final Item _minPickaxe;
+    private final Item minPickaxe;
 
     MiningRequirement(Item minPickaxe) {
-        _minPickaxe = minPickaxe;
+        this.minPickaxe = minPickaxe;
     }
 
     // FIXME this doesnt work for cobwebs because they are broken with shears...
@@ -31,7 +31,7 @@ public enum MiningRequirement implements Comparable<MiningRequirement> {
     }
 
     public Item getMinimumPickaxe() {
-        return _minPickaxe;
+        return minPickaxe;
     }
 
 }

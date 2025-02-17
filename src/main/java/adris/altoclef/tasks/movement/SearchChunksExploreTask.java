@@ -21,11 +21,11 @@ import java.util.Set;
  */
 public abstract class SearchChunksExploreTask extends Task {
 
-    private final Object _searcherMutex = new Object();
-    private final Set<ChunkPos> _alreadyExplored = new HashSet<>();
-    private ChunkSearchTask _searcher;
-    private AltoClef _mod;
-    private Subscription<ChunkLoadEvent> _chunkLoadedSubscription;
+    private final Object searcherMutex = new Object();
+    private final Set<ChunkPos> alreadyExplored = new HashSet<>();
+    private ChunkSearchTask searcher;
+    private AltoClef mod;
+    private Subscription<ChunkLoadEvent> chunkLoadedSubscription;
 
     // Virtual
     protected ChunkPos getBestChunkOverride(AltoClef mod, List<ChunkPos> chunks) {
@@ -34,53 +34,53 @@ public abstract class SearchChunksExploreTask extends Task {
 
     @Override
     protected void onStart(AltoClef mod) {
-        _mod = mod;
+        mod = mod;
 
         // Listen for chunk loading
-        _chunkLoadedSubscription = EventBus.subscribe(ChunkLoadEvent.class, evt -> onChunkLoad(evt.chunk.getPos()));
+        chunkLoadedSubscription = EventBus.subscribe(ChunkLoadEvent.class, evt -> onChunkLoad(evt.chunk.getPos()));
 
         resetSearch(mod);
     }
 
     @Override
     protected Task onTick(AltoClef mod) {
-        synchronized (_searcherMutex) {
-            if (_searcher == null) {
+        synchronized (searcherMutex) {
+            if (searcher == null) {
                 setDebugState("Exploring/Searching for valid chunk");
                 // Explore
                 return getWanderTask(mod);
             }
 
-            if (_searcher.isActive() && _searcher.isFinished(mod)) {
+            if (searcher.isActive() && searcher.isFinished(mod)) {
                 Debug.logWarning("Target object search failed.");
-                _alreadyExplored.addAll(_searcher.getSearchedChunks());
-                _searcher = null;
-            } else if (_searcher.finished()) {
+                alreadyExplored.addAll(searcher.getSearchedChunks());
+                searcher = null;
+            } else if (searcher.finished()) {
                 setDebugState("Searching for target object...");
                 Debug.logMessage("Search finished.");
-                _alreadyExplored.addAll(_searcher.getSearchedChunks());
-                _searcher = null;
+                alreadyExplored.addAll(searcher.getSearchedChunks());
+                searcher = null;
             }
-            //Debug.logMessage("wtf: " + (_searcher == null? "(null)" :_searcher.finished()));
+            //Debug.logMessage("wtf: " + (searcher == null? "(null)" :_searcher.finished()));
             setDebugState("Searching within chunks...");
-            return _searcher;
+            return searcher;
         }
     }
 
     @Override
     protected void onStop(AltoClef mod, Task interruptTask) {
-        EventBus.unsubscribe(_chunkLoadedSubscription);
+        EventBus.unsubscribe(chunkLoadedSubscription);
     }
 
     // When we find a valid chunk, start our search there.
     private void onChunkLoad(ChunkPos pos) {
-        if (_searcher != null) return;
+        if (searcher != null) return;
         if (!this.isActive()) return;
-        if (isChunkWithinSearchSpace(_mod, pos)) {
-            synchronized (_searcherMutex) {
-                if (!_alreadyExplored.contains(pos)) {
+        if (isChunkWithinSearchSpace(mod, pos)) {
+            synchronized (searcherMutex) {
+                if (!alreadyExplored.contains(pos)) {
                     Debug.logMessage("New searcher: " + pos);
-                    _searcher = new SearchSubTask(pos);
+                    searcher = new SearchSubTask(pos);
                 }
             }
         }
@@ -93,13 +93,13 @@ public abstract class SearchChunksExploreTask extends Task {
     protected abstract boolean isChunkWithinSearchSpace(AltoClef mod, ChunkPos pos);
 
     public boolean failedSearch() {
-        return _searcher == null;
+        return searcher == null;
     }
 
     public void resetSearch(AltoClef mod) {
         //Debug.logMessage("Search reset");
-        _searcher = null;
-        _alreadyExplored.clear();
+        searcher = null;
+        alreadyExplored.clear();
         // We want to search the currently loaded chunks too!!!
         for (ChunkPos start : mod.getChunkTracker().getLoadedChunks()) {
             onChunkLoad(start);

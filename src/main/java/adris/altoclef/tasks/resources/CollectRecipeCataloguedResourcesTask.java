@@ -17,18 +17,18 @@ import java.util.HashMap;
 // Collects everything that's catalogued for a recipe.
 public class CollectRecipeCataloguedResourcesTask extends Task {
 
-    private final RecipeTarget[] _targets;
-    private final boolean _ignoreUncataloguedSlots;
-    private boolean _finished = false;
+    private final RecipeTarget[] targets;
+    private final boolean ignoreUncataloguedSlots;
+    private boolean finished = false;
 
     public CollectRecipeCataloguedResourcesTask(boolean ignoreUncataloguedSlots, RecipeTarget... targets) {
-        _targets = targets;
-        _ignoreUncataloguedSlots = ignoreUncataloguedSlots;
+        this.targets = targets;
+        this.ignoreUncataloguedSlots = ignoreUncataloguedSlots;
     }
 
     @Override
     protected void onStart(AltoClef mod) {
-        _finished = false;
+        finished = false;
     }
 
     @Override
@@ -39,7 +39,7 @@ public class CollectRecipeCataloguedResourcesTask extends Task {
         HashMap<String, Integer> catalogueCount = new HashMap<>();
         HashMap<Item, Integer> itemCount = new HashMap<>();
 
-        for (RecipeTarget target : _targets) {
+        for (RecipeTarget target : targets) {
             // Ignore this recipe if we have its item.
             //if (mod.getItemStorage().targetMet(target.getItem())) continue;
 
@@ -57,7 +57,7 @@ public class CollectRecipeCataloguedResourcesTask extends Task {
                     int numberOfRepeats = (int) Math.floor(-0.1 + (double) weNeed / target.getRecipe().outputCount()) + 1;
                     if (!slot.isCatalogueItem()) {
                         if (slot.getMatches().length != 1) {
-                            if (!_ignoreUncataloguedSlots) {
+                            if (!ignoreUncataloguedSlots) {
                                 Debug.logWarning("Recipe collection for recipe " + recipe + " slot " + i
                                         + " is not catalogued. Please define an explicit"
                                         + " collectRecipeSubTask() function for this item target:" + slot
@@ -98,7 +98,7 @@ public class CollectRecipeCataloguedResourcesTask extends Task {
                 }
             }
         }
-        _finished = true;
+        finished = true;
 
         return null;
     }
@@ -112,24 +112,24 @@ public class CollectRecipeCataloguedResourcesTask extends Task {
     @Override
     protected boolean isEqual(Task other) {
         if (other instanceof CollectRecipeCataloguedResourcesTask task) {
-            return Arrays.equals(task._targets, _targets);
+            return Arrays.equals(task.targets, targets);
         }
         return false;
     }
 
     @Override
     protected String toDebugString() {
-        return "Collect Recipe Resources: " + ArrayUtils.toString(_targets);
+        return "Collect Recipe Resources: " + ArrayUtils.toString(targets);
     }
 
     @Override
     public boolean isFinished(AltoClef mod) {
-        if (_finished) {
-            if (!StorageHelper.hasRecipeMaterialsOrTarget(mod, this._targets)) {
-                _finished = false;
+        if (finished) {
+            if (!StorageHelper.hasRecipeMaterialsOrTarget(mod, this.targets)) {
+                finished = false;
                 Debug.logMessage("Invalid collect recipe \"finished\" state, resetting.");
             }
         }
-        return _finished;
+        return finished;
     }
 }

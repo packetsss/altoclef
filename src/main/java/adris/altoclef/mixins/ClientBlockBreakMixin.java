@@ -19,7 +19,7 @@ public final class ClientBlockBreakMixin {
 
     // for SOME REASON baritone triggers a block cancel breaking every other frame, so we have a 2 frame requirement for that?
     @Unique
-    private static int _breakCancelFrames;
+    private static int breakCancelFrames;
 
     @Inject(
             method = "updateBlockBreakingProgress",
@@ -28,7 +28,7 @@ public final class ClientBlockBreakMixin {
     private void onBreakUpdate(BlockPos pos, Direction direction, CallbackInfoReturnable<Boolean> ci) {
         ClientBlockBreakAccessor breakAccessor = (ClientBlockBreakAccessor) (MinecraftClient.getInstance().interactionManager);
         if (breakAccessor != null) {
-            _breakCancelFrames = 2;
+            breakCancelFrames = 2;
             EventBus.publish(new BlockBreakingEvent(pos, breakAccessor.getCurrentBreakingProgress()));
         }
     }
@@ -38,7 +38,7 @@ public final class ClientBlockBreakMixin {
             at = @At("HEAD")
     )
     private void cancelBlockBreaking(CallbackInfo ci) {
-        if (_breakCancelFrames-- == 0) {
+        if (breakCancelFrames-- == 0) {
             EventBus.publish(new BlockBreakingCancelEvent());
         }
     }

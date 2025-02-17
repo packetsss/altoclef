@@ -57,7 +57,7 @@ public class WaitForDragonAndPearlTask extends Task {
     // To avoid dragons breath
     private Task pillarUpFurther;
 
-    private boolean _hasPillar = false;
+    private boolean hasPillar = false;
 
     public void setExitPortalTop(BlockPos top) {
         BlockPos actualTarget = top.down();
@@ -191,7 +191,7 @@ public class WaitForDragonAndPearlTask extends Task {
             }
             return null;
         }
-        if (!WorldHelper.inRangeXZ(mod.getPlayer(), targetToPearl, XZ_RADIUS_TOO_FAR) && mod.getPlayer().getPos().getY() < minHeight && !_hasPillar) {
+        if (!WorldHelper.inRangeXZ(mod.getPlayer(), targetToPearl, XZ_RADIUS_TOO_FAR) && mod.getPlayer().getPos().getY() < minHeight && !hasPillar) {
             if (mod.getEntityTracker().entityFound(entity ->
                     mod.getPlayer().getPos().isInRange(entity.getPos(), 4), AreaEffectCloudEntity.class)) {
                 if (mod.getEntityTracker().getClosestEntity(EnderDragonEntity.class).isPresent() &&
@@ -204,8 +204,8 @@ public class WaitForDragonAndPearlTask extends Task {
             return new GetToXZTask(0, 0);
         }
         // We're far enough, pillar up!
-        if (!_hasPillar) {
-            _hasPillar = true;
+        if (!hasPillar) {
+            hasPillar = true;
         }
         heightPillarTask = new GetToBlockTask(new BlockPos(0, minHeight, Y_COORDINATE));
         return heightPillarTask;

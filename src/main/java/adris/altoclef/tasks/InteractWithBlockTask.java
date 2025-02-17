@@ -344,7 +344,7 @@ public class InteractWithBlockTask extends Task {
     @Override
     public boolean isFinished(AltoClef mod) {
         return false;
-        //return _trying && !proc(mod).isActive();
+        //return trying && !proc(mod).isActive();
     }
 
     @Override
@@ -418,7 +418,7 @@ public class InteractWithBlockTask extends Task {
                     }
                     return ClickResponse.CLICK_ATTEMPTED;
                 }
-                //mod.getClientBaritone().getInputOverrideHandler().setInputForceState(_interactInput, true);
+                //mod.getClientBaritone().getInputOverrideHandler().setInputForceState(interactInput, true);
             } else {
                 LookHelper.lookAt(mod, reachable.get());
             }

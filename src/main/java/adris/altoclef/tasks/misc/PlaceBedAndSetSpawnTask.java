@@ -106,9 +106,9 @@ public class PlaceBedAndSetSpawnTask extends Task {
         // Log method call
         Debug.logInternal("Stay in bed method called");
 
-        // Set _stayInBed flag to true
+        // Set stayInBed flag to true
         this.stayInBed = true;
-        Debug.logInternal("Setting _stayInBed to true");
+        Debug.logInternal("Setting stayInBed to true");
 
         // Return current instance
         return this;
@@ -504,7 +504,7 @@ public class PlaceBedAndSetSpawnTask extends Task {
         // Log internal message for debugging
         Debug.logInternal("Checking if spawn is set");
 
-        // Return the value of the _spawnSet variable
+        // Return the value of the spawnSet variable
         return spawnSet;
     }
 

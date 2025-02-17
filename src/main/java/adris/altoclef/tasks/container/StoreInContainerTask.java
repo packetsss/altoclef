@@ -20,42 +20,42 @@ import java.util.Optional;
  */
 public class StoreInContainerTask extends AbstractDoToStorageContainerTask {
 
-    private final BlockPos _targetContainer;
-    private final boolean _getIfNotPresent;
-    private final ItemTarget[] _toStore;
+    private final BlockPos targetContainer;
+    private final boolean getIfNotPresent;
+    private final ItemTarget[] toStore;
 
-    private ContainerStoredTracker _storedItems;
+    private ContainerStoredTracker storedItems;
 
     public StoreInContainerTask(BlockPos targetContainer, boolean getIfNotPresent, ItemTarget... toStore) {
-        _targetContainer = targetContainer;
-        _getIfNotPresent = getIfNotPresent;
-        _toStore = toStore;
+        this.targetContainer = targetContainer;
+        this.getIfNotPresent = getIfNotPresent;
+        this.toStore = toStore;
     }
 
     @Override
     protected Optional<BlockPos> getContainerTarget() {
-        return Optional.of(_targetContainer);
+        return Optional.of(targetContainer);
     }
 
     @Override
     protected void onStart(AltoClef mod) {
         super.onStart(mod);
-        if (_storedItems == null) {
+        if (storedItems == null) {
             // Only consider transfers to the container we wish
-            _storedItems = new ContainerStoredTracker(slot -> {
+            storedItems = new ContainerStoredTracker(slot -> {
                 Optional<BlockPos> openContainer = mod.getItemStorage().getLastBlockPosInteraction();
-                return openContainer.isPresent() && openContainer.get().equals(_targetContainer);
+                return openContainer.isPresent() && openContainer.get().equals(targetContainer);
             });
         }
-        _storedItems.startTracking();
+        storedItems.startTracking();
     }
 
     @Override
     protected Task onTick(AltoClef mod) {
         // Get more if we don't have & "get if not present" is true.
-        if (_getIfNotPresent) {
-            for (ItemTarget target : _toStore) {
-                int inventoryNeed = target.getTargetCount() - _storedItems.getStoredCount(target.getMatches());
+        if (getIfNotPresent) {
+            for (ItemTarget target : toStore) {
+                int inventoryNeed = target.getTargetCount() - storedItems.getStoredCount(target.getMatches());
                 if (inventoryNeed > mod.getItemStorage().getItemCount(target)) {
                     return TaskCatalogue.getItemTask(new ItemTarget(target, inventoryNeed));
                 }
@@ -67,13 +67,13 @@ public class StoreInContainerTask extends AbstractDoToStorageContainerTask {
     @Override
     protected void onStop(AltoClef mod, Task interruptTask) {
         super.onStop(mod, interruptTask);
-        _storedItems.stopTracking();
+        storedItems.stopTracking();
     }
 
     @Override
     protected Task onContainerOpenSubtask(AltoClef mod, ContainerCache containerCache) {
         // Move all items that aren't in the container
-        for (ItemTarget target : _storedItems.getUnstoredItemTargetsYouCanStore(mod, _toStore)) {
+        for (ItemTarget target : storedItems.getUnstoredItemTargetsYouCanStore(mod, toStore)) {
             setDebugState("Dumping " + target);
             // Grab the item from the current chest that most closely matches our requirements
             List<Slot> potentials = mod.getItemStorage().getSlotsWithItemPlayerInventory(false, target.getMatches());
@@ -104,19 +104,19 @@ public class StoreInContainerTask extends AbstractDoToStorageContainerTask {
     @Override
     public boolean isFinished(AltoClef mod) {
         // We've stored all items
-        return _storedItems != null && _storedItems.getUnstoredItemTargetsYouCanStore(mod, _toStore).length == 0;
+        return storedItems != null && storedItems.getUnstoredItemTargetsYouCanStore(mod, toStore).length == 0;
     }
 
     @Override
     protected boolean isEqual(Task other) {
         if (other instanceof StoreInContainerTask task) {
-            return task._targetContainer.equals(_targetContainer) && task._getIfNotPresent == _getIfNotPresent && Arrays.equals(task._toStore, _toStore);
+            return task.targetContainer.equals(targetContainer) && task.getIfNotPresent == getIfNotPresent && Arrays.equals(task.toStore, toStore);
         }
         return false;
     }
 
     @Override
     protected String toDebugString() {
-        return "Storing in container[" + _targetContainer.toShortString() + "] " + Arrays.toString(_toStore);
+        return "Storing in container[" + targetContainer.toShortString() + "] " + Arrays.toString(toStore);
     }
 }

@@ -31,7 +31,7 @@ public class InventorySubTracker extends Tracker {
     private final HashMap<Item, Integer> itemCountsPlayer = new HashMap<>();
     private final HashMap<Item, Integer> itemCountsContainer = new HashMap<>();
 
-    private ScreenHandler _prevScreenHandler;
+    private ScreenHandler prevScreenHandler;
 
     public InventorySubTracker(TrackerManager manager) {
         super(manager);
@@ -188,7 +188,7 @@ public class InventorySubTracker extends Tracker {
 
     @Override
     protected void updateState() {
-        _prevScreenHandler = MinecraftClient.getInstance().player != null ? MinecraftClient.getInstance().player.currentScreenHandler : null;
+        prevScreenHandler = MinecraftClient.getInstance().player != null ? MinecraftClient.getInstance().player.currentScreenHandler : null;
 
         itemToSlotPlayer.clear();
         itemToSlotContainer.clear();
@@ -223,6 +223,6 @@ public class InventorySubTracker extends Tracker {
     @Override
     protected boolean isDirty() {
         ScreenHandler handler = MinecraftClient.getInstance().player != null ? MinecraftClient.getInstance().player.currentScreenHandler : null;
-        return super.isDirty() || handler != _prevScreenHandler;
+        return super.isDirty() || handler != prevScreenHandler;
     }
 }

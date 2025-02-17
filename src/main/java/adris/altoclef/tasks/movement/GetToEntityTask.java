@@ -13,10 +13,10 @@ import net.minecraft.util.math.BlockPos;
 
 public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
     private final MovementProgressChecker stuckCheck = new MovementProgressChecker();
-    private final MovementProgressChecker _progress = new MovementProgressChecker();
-    private final TimeoutWanderTask _wanderTask = new TimeoutWanderTask(5);
-    private final Entity _entity;
-    private final double _closeEnoughDistance;
+    private final MovementProgressChecker progress = new MovementProgressChecker();
+    private final TimeoutWanderTask wanderTask = new TimeoutWanderTask(5);
+    private final Entity entity;
+    private final double closeEnoughDistance;
     Block[] annoyingBlocks = new Block[]{
             Blocks.VINE,
             Blocks.NETHER_SPROUTS,
@@ -28,11 +28,11 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
             Blocks.GRASS,
             Blocks.SWEET_BERRY_BUSH
     };
-    private Task _unstuckTask = null;
+    private Task unstuckTask = null;
 
     public GetToEntityTask(Entity entity, double closeEnoughDistance) {
-        _entity = entity;
-        _closeEnoughDistance = closeEnoughDistance;
+        this.entity = entity;
+        this.closeEnoughDistance = closeEnoughDistance;
     }
 
     public GetToEntityTask(Entity entity) {
@@ -92,15 +92,15 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
     @Override
     protected void onStart(AltoClef mod) {
         mod.getClientBaritone().getPathingBehavior().forceCancel();
-        _progress.reset();
+        progress.reset();
         stuckCheck.reset();
-        _wanderTask.resetWander();
+        wanderTask.resetWander();
     }
 
     @Override
     protected Task onTick(AltoClef mod) {
         if (mod.getClientBaritone().getPathingBehavior().isPathing()) {
-            _progress.reset();
+            progress.reset();
         }
         if (WorldHelper.isInNetherPortal(mod)) {
             if (!mod.getClientBaritone().getPathingBehavior().isPathing()) {
@@ -120,38 +120,38 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
                 mod.getInputControls().release(Input.MOVE_FORWARD);
             }
         }
-        if (_unstuckTask != null && _unstuckTask.isActive() && !_unstuckTask.isFinished(mod) && stuckInBlock(mod) != null) {
+        if (unstuckTask != null && unstuckTask.isActive() && !unstuckTask.isFinished(mod) && stuckInBlock(mod) != null) {
             setDebugState("Getting unstuck from block.");
             stuckCheck.reset();
             // Stop other tasks, we are JUST shimmying
             mod.getClientBaritone().getCustomGoalProcess().onLostControl();
             mod.getClientBaritone().getExploreProcess().onLostControl();
-            return _unstuckTask;
+            return unstuckTask;
         }
-        if (!_progress.check(mod) || !stuckCheck.check(mod)) {
+        if (!progress.check(mod) || !stuckCheck.check(mod)) {
             BlockPos blockStuck = stuckInBlock(mod);
             if (blockStuck != null) {
-                _unstuckTask = getFenceUnstuckTask();
-                return _unstuckTask;
+                unstuckTask = getFenceUnstuckTask();
+                return unstuckTask;
             }
             stuckCheck.reset();
         }
-        if (_wanderTask.isActive() && !_wanderTask.isFinished(mod)) {
-            _progress.reset();
+        if (wanderTask.isActive() && !wanderTask.isFinished(mod)) {
+            progress.reset();
             setDebugState("Failed to get to target, wandering for a bit.");
-            return _wanderTask;
+            return wanderTask;
         }
 
         if (!mod.getClientBaritone().getCustomGoalProcess().isActive()) {
-            mod.getClientBaritone().getCustomGoalProcess().setGoalAndPath(new GoalFollowEntity(_entity, _closeEnoughDistance));
+            mod.getClientBaritone().getCustomGoalProcess().setGoalAndPath(new GoalFollowEntity(entity, closeEnoughDistance));
         }
 
-        if (mod.getPlayer().isInRange(_entity, _closeEnoughDistance)) {
-            _progress.reset();
+        if (mod.getPlayer().isInRange(entity, closeEnoughDistance)) {
+            progress.reset();
         }
 
-        if (!_progress.check(mod)) {
-            return _wanderTask;
+        if (!progress.check(mod)) {
+            return wanderTask;
         }
 
         setDebugState("Going to entity");
@@ -166,13 +166,13 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
     @Override
     protected boolean isEqual(Task other) {
         if (other instanceof GetToEntityTask task) {
-            return task._entity.equals(_entity) && Math.abs(task._closeEnoughDistance - _closeEnoughDistance) < 0.1;
+            return task.entity.equals(entity) && Math.abs(task.closeEnoughDistance - closeEnoughDistance) < 0.1;
         }
         return false;
     }
 
     @Override
     protected String toDebugString() {
-        return "Approach entity " + _entity.getType().getTranslationKey();
+        return "Approach entity " + entity.getType().getTranslationKey();
     }
 }

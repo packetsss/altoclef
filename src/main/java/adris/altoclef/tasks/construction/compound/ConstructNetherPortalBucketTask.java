@@ -78,7 +78,7 @@ public class ConstructNetherPortalBucketTask extends Task {
     };
 
     // The "portalable" region includes the portal (1 x 6 x 4 structure) and an outer buffer for its construction and water bullshit.
-    // The "portal origin relative to region" corresponds to the portal origin with respect to the "portalable" region (see _portalOrigin).
+    // The "portal origin relative to region" corresponds to the portal origin with respect to the "portalable" region (see portalOrigin).
     // This can only really be explained visually, sorry!
     private static final Vec3i PORTALABLE_REGION_SIZE = new Vec3i(4, 6, 6);
     private static final Vec3i PORTAL_ORIGIN_RELATIVE_TO_REGION = new Vec3i(1, 0, 2);

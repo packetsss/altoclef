@@ -224,7 +224,7 @@ public class Arg<T> extends ArgBase {
     @Override
     public boolean isArbitrarilyLong() {
         // Some arguments don't fit into individual "units".
-        // I should _really_ rewrite this system...
+        // I should really_ rewrite this system...
         return isInstanceOf(tType, ItemList.class) || isInstanceOf(tType, GotoTarget.class);
     }
 }

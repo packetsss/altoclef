@@ -199,59 +199,59 @@ public class KillEnderDragonTask extends Task {
 
     private class PunkEnderDragonTask extends Task {
 
-        private final HashMap<BlockPos, Double> _breathCostMap = new HashMap<>();
-        private final TimerGame _hitHoldTimer = new TimerGame(0.1);
-        private final TimerGame _hitResetTimer = new TimerGame(0.4);
-        private final TimerGame _randomWanderChangeTimeout = new TimerGame(20);
-        private Mode _mode = Mode.WAITING_FOR_PERCH;
+        private final HashMap<BlockPos, Double> breathCostMap = new HashMap<>();
+        private final TimerGame hitHoldTimer = new TimerGame(0.1);
+        private final TimerGame hitResetTimer = new TimerGame(0.4);
+        private final TimerGame randomWanderChangeTimeout = new TimerGame(20);
+        private Mode mode = Mode.WAITING_FOR_PERCH;
 
-        private BlockPos _randomWanderPos;
-        private boolean _wasHitting;
-        private boolean _wasReleased;
+        private BlockPos randomWanderPos;
+        private boolean wasHitting;
+        private boolean wasReleased;
 
         private PunkEnderDragonTask() {
         }
 
         public Mode getMode() {
-            return _mode;
+            return mode;
         }
 
         private void hit(AltoClef mod) {
             mod.getExtraBaritoneSettings().setInteractionPaused(true);
-            if (!_wasHitting) {
-                _wasHitting = true;
-                _wasReleased = false;
-                _hitHoldTimer.reset();
-                _hitResetTimer.reset();
+            if (!wasHitting) {
+                wasHitting = true;
+                wasReleased = false;
+                hitHoldTimer.reset();
+                hitResetTimer.reset();
                 Debug.logInternal("HIT");
                 mod.getInputControls().tryPress(Input.CLICK_LEFT);
                 //mod.getPlayer().swingHand(Hand.MAIN_HAND);
             }
-            if (_hitHoldTimer.elapsed()) {
-                if (!_wasReleased) {
+            if (hitHoldTimer.elapsed()) {
+                if (!wasReleased) {
                     Debug.logInternal("    up");
                     //mod.getControllerExtras().mouseClickOverride(0, false);
-                    _wasReleased = true;
+                    wasReleased = true;
                 }
             }
-            if (_wasHitting && _hitResetTimer.elapsed() && mod.getPlayer().getAttackCooldownProgress(0) > 0.99) {
-                _wasHitting = false;
+            if (wasHitting && hitResetTimer.elapsed() && mod.getPlayer().getAttackCooldownProgress(0) > 0.99) {
+                wasHitting = false;
                 // Code duplication maybe?
                 //mod.getControllerExtras().mouseClickOverride(0, false);
                 mod.getExtraBaritoneSettings().setInteractionPaused(false);
-                _hitResetTimer.reset();
+                hitResetTimer.reset();
             }
         }
 
         private void stopHitting(AltoClef mod) {
-            if (_wasHitting) {
+            if (wasHitting) {
                 //MinecraftClient.getInstance().options.keyAttack.setPressed(false);
-                if (!_wasReleased) {
+                if (!wasReleased) {
                     //mod.getControllerExtras().mouseClickOverride(0, false);
                     mod.getExtraBaritoneSettings().setInteractionPaused(false);
-                    _wasReleased = true;
+                    wasReleased = true;
                 }
-                _wasHitting = false;
+                wasHitting = false;
             }
         }
 
@@ -273,12 +273,12 @@ public class KillEnderDragonTask extends Task {
                     Phase dragonPhase = dragon.getPhaseManager().getCurrent();
                     //Debug.logInternal("PHASE: " + dragonPhase);
                     boolean perchingOrGettingReady = dragonPhase.getType() == PhaseType.LANDING || dragonPhase.isSittingOrHovering();
-                    switch (_mode) {
+                    switch (mode) {
                         case RAILING -> {
                             if (!perchingOrGettingReady) {
                                 Debug.logMessage("Dragon no longer perching.");
                                 mod.getClientBaritone().getCustomGoalProcess().onLostControl();
-                                _mode = Mode.WAITING_FOR_PERCH;
+                                mode = Mode.WAITING_FOR_PERCH;
                                 break;
                             }
                             //DamageSource.DRAGON_BREATH
@@ -331,25 +331,25 @@ public class KillEnderDragonTask extends Task {
                                 // We're perching!!
                                 mod.getClientBaritone().getCustomGoalProcess().onLostControl();
                                 Debug.logMessage("Dragon perching detected. Dabar duosiu į snuki.");
-                                _mode = Mode.RAILING;
+                                mode = Mode.RAILING;
                                 break;
                             }
                             // Run around aimlessly, dodging dragon fire
-                            if (_randomWanderPos != null && WorldHelper.inRangeXZ(mod.getPlayer(), _randomWanderPos, 2)) {
-                                _randomWanderPos = null;
+                            if (randomWanderPos != null && WorldHelper.inRangeXZ(mod.getPlayer(), randomWanderPos, 2)) {
+                                randomWanderPos = null;
                             }
-                            if (_randomWanderPos != null && _randomWanderChangeTimeout.elapsed()) {
-                                _randomWanderPos = null;
+                            if (randomWanderPos != null && randomWanderChangeTimeout.elapsed()) {
+                                randomWanderPos = null;
                                 Debug.logMessage("Reset wander pos after timeout, oof");
                             }
-                            if (_randomWanderPos == null) {
-                                _randomWanderPos = getRandomWanderPos(mod);
-                                _randomWanderChangeTimeout.reset();
+                            if (randomWanderPos == null) {
+                                randomWanderPos = getRandomWanderPos(mod);
+                                randomWanderChangeTimeout.reset();
                                 mod.getClientBaritone().getCustomGoalProcess().onLostControl();
                             }
                             if (!mod.getClientBaritone().getCustomGoalProcess().isActive()) {
                                 mod.getClientBaritone().getCustomGoalProcess().setGoalAndPath(
-                                        new GoalGetToBlock(_randomWanderPos)
+                                        new GoalGetToBlock(randomWanderPos)
                                 );
                             }
                             setDebugState("Waiting for perch");

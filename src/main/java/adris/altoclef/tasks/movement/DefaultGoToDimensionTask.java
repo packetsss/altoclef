@@ -19,12 +19,12 @@ import java.util.Optional;
  */
 public class DefaultGoToDimensionTask extends Task {
 
-    private final Dimension _target;
+    private final Dimension target;
     // Cached to keep build properties alive if this task pauses/resumes.
-    private final Task _cachedNetherBucketConstructionTask = new ConstructNetherPortalBucketTask();
+    private final Task cachedNetherBucketConstructionTask = new ConstructNetherPortalBucketTask();
 
     public DefaultGoToDimensionTask(Dimension target) {
-        _target = target;
+        this.target = target;
     }
 
     @Override
@@ -34,9 +34,9 @@ public class DefaultGoToDimensionTask extends Task {
 
     @Override
     protected Task onTick(AltoClef mod) {
-        if (WorldHelper.getCurrentDimension() == _target) return null;
+        if (WorldHelper.getCurrentDimension() == target) return null;
 
-        switch (_target) {
+        switch (target) {
             case OVERWORLD:
                 switch (WorldHelper.getCurrentDimension()) {
                     case NETHER:
@@ -65,7 +65,7 @@ public class DefaultGoToDimensionTask extends Task {
                 break;
         }
 
-        setDebugState(WorldHelper.getCurrentDimension() + " -> " + _target + " is NOT IMPLEMENTED YET!");
+        setDebugState(WorldHelper.getCurrentDimension() + " -> " + target + " is NOT IMPLEMENTED YET!");
         return null;
     }
 
@@ -77,19 +77,19 @@ public class DefaultGoToDimensionTask extends Task {
     @Override
     protected boolean isEqual(Task other) {
         if (other instanceof DefaultGoToDimensionTask task) {
-            return task._target == _target;
+            return task.target == target;
         }
         return false;
     }
 
     @Override
     protected String toDebugString() {
-        return "Going to dimension: " + _target + " (default version)";
+        return "Going to dimension: " + target + " (default version)";
     }
 
     @Override
     public boolean isFinished(AltoClef mod) {
-        return WorldHelper.getCurrentDimension() == _target;
+        return WorldHelper.getCurrentDimension() == target;
     }
 
     private Task goToOverworldFromNetherTask(AltoClef mod) {
@@ -119,7 +119,7 @@ public class DefaultGoToDimensionTask extends Task {
             return new EnterNetherPortalTask(Dimension.NETHER);
         }
         return switch (mod.getModSettings().getOverworldToNetherBehaviour()) {
-            case BUILD_PORTAL_VANILLA -> _cachedNetherBucketConstructionTask;
+            case BUILD_PORTAL_VANILLA -> cachedNetherBucketConstructionTask;
             case GO_TO_HOME_BASE -> new GetToBlockTask(mod.getModSettings().getHomeBasePosition());
         };
     }

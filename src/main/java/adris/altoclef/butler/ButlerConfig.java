@@ -4,10 +4,10 @@ import adris.altoclef.util.helpers.ConfigHelper;
 
 public class ButlerConfig {
 
-    private static ButlerConfig _instance = new ButlerConfig();
+    private static ButlerConfig instance = new ButlerConfig();
 
     static {
-        ConfigHelper.loadConfig("configs/butler.json", ButlerConfig::new, ButlerConfig.class, newConfig -> _instance = newConfig);
+        ConfigHelper.loadConfig("configs/butler.json", ButlerConfig::new, ButlerConfig.class, newConfig -> instance = newConfig);
     }
 
     /**
@@ -63,6 +63,6 @@ public class ButlerConfig {
     public boolean requirePrefixMsg = false;
 
     public static ButlerConfig getInstance() {
-        return _instance;
+        return instance;
     }
 }

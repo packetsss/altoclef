@@ -56,7 +56,7 @@ public class GoalDodgeProjectiles implements Goal {
                         /// ????? No clue why a nullptrexception happens here.
                     }
                     //double sqFromMob = creepuh.squaredDistanceTo(x, y, z);
-                    //if (sqFromMob < _distance*_distance) return false;
+                    //if (sqFromMob < distance*_distance) return false;
                 }
             }
         }

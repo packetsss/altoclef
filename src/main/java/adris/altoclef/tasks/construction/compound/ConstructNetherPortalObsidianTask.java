@@ -80,11 +80,11 @@ public class ConstructNetherPortalObsidianTask extends Task {
 
     private static final Vec3i PORTALABLE_REGION_SIZE = new Vec3i(3, 6, 6);
 
-    private final TimerGame _areaSearchTimer = new TimerGame(5);
+    private final TimerGame areaSearchTimer = new TimerGame(5);
 
-    private BlockPos _origin;
+    private BlockPos origin;
 
-    private BlockPos _destroyTarget;
+    private BlockPos destroyTarget;
 
     private static BlockPos getBuildableAreaNearby(AltoClef mod) {
         BlockPos checkOrigin = mod.getPlayer().getBlockPos();
@@ -107,10 +107,10 @@ public class ConstructNetherPortalObsidianTask extends Task {
 
         // Avoid breaking portal frame if we're obsidian.
         mod.getBehaviour().avoidBlockBreaking(block -> {
-            if (_origin != null) {
+            if (origin != null) {
                 // Don't break frame
                 for (Vec3i framePosRelative : PORTAL_FRAME) {
-                    BlockPos framePos = _origin.add(framePosRelative);
+                    BlockPos framePos = origin.add(framePosRelative);
                     if (block.equals(framePos)) {
                         return mod.getWorld().getBlockState(framePos).getBlock() == Blocks.OBSIDIAN;
                     }
@@ -123,18 +123,18 @@ public class ConstructNetherPortalObsidianTask extends Task {
 
     @Override
     protected Task onTick(AltoClef mod) {
-        if (_origin != null) {
-            if (mod.getWorld().getBlockState(_origin.up()).getBlock() == Blocks.NETHER_PORTAL) {
+        if (origin != null) {
+            if (mod.getWorld().getBlockState(origin.up()).getBlock() == Blocks.NETHER_PORTAL) {
                 setDebugState("Done constructing nether portal.");
-                mod.getBlockScanner().addBlock(Blocks.NETHER_PORTAL, _origin.up());
+                mod.getBlockScanner().addBlock(Blocks.NETHER_PORTAL, origin.up());
                 return null;
             }
         }
         int neededObsidian = 10;
         BlockPos placeTarget = null;
-        if (_origin != null) {
+        if (origin != null) {
             for (Vec3i frameOffs : PORTAL_FRAME) {
-                BlockPos framePos = _origin.add(frameOffs);
+                BlockPos framePos = origin.add(frameOffs);
                 if (!mod.getBlockScanner().isBlockAtPosition(framePos, Blocks.OBSIDIAN)) {
                     placeTarget = framePos;
                     break;
@@ -150,11 +150,11 @@ public class ConstructNetherPortalObsidianTask extends Task {
         }
 
         // Find spot
-        if (_origin == null) {
-            if (_areaSearchTimer.elapsed()) {
-                _areaSearchTimer.reset();
+        if (origin == null) {
+            if (areaSearchTimer.elapsed()) {
+                areaSearchTimer.reset();
                 Debug.logMessage("(Searching for area to build portal nearby...)");
-                _origin = getBuildableAreaNearby(mod);
+                origin = getBuildableAreaNearby(mod);
             }
             setDebugState("Looking for portalable area...");
             return new TimeoutWanderTask();
@@ -199,18 +199,18 @@ public class ConstructNetherPortalObsidianTask extends Task {
         }
 
         // Clear middle
-        if (_destroyTarget != null && !WorldHelper.isAir(mod, _destroyTarget)) {
-            return new DestroyBlockTask(_destroyTarget);
+        if (destroyTarget != null && !WorldHelper.isAir(mod, destroyTarget)) {
+            return new DestroyBlockTask(destroyTarget);
         }
         for (Vec3i middleOffs : PORTAL_INTERIOR) {
-            BlockPos middlePos = _origin.add(middleOffs);
+            BlockPos middlePos = origin.add(middleOffs);
             if (!WorldHelper.isAir(mod, middlePos)) {
-                _destroyTarget = middlePos;
-                return new DestroyBlockTask(_destroyTarget);
+                destroyTarget = middlePos;
+                return new DestroyBlockTask(destroyTarget);
             }
         }
         // Flint and steel
-        return new InteractWithBlockTask(new ItemTarget(Items.FLINT_AND_STEEL, 1), Direction.UP, _origin.down(), true);
+        return new InteractWithBlockTask(new ItemTarget(Items.FLINT_AND_STEEL, 1), Direction.UP, origin.down(), true);
     }
 
     private boolean surroundedByAir(World world, BlockPos pos) {

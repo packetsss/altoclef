@@ -28,17 +28,17 @@ public class LocateStrongholdCoordinatesTask extends Task {
 
     private static final int SECOND_EYE_THROW_DISTANCE = 30; // target distance between first throw and second throw
 
-    private final int _targetEyes;
-    private final int _minimumEyes;
-    private final TimerGame _throwTimer = new TimerGame(5);
-    private LocateStrongholdCoordinatesTask.EyeDirection _cachedEyeDirection = null;
-    private LocateStrongholdCoordinatesTask.EyeDirection _cachedEyeDirection2 = null;
-    private Entity _currentThrownEye = null;
-    private Vec3i _strongholdEstimatePos = null;
+    private final int targetEyes;
+    private final int minimumEyes;
+    private final TimerGame throwTimer = new TimerGame(5);
+    private LocateStrongholdCoordinatesTask.EyeDirection cachedEyeDirection = null;
+    private LocateStrongholdCoordinatesTask.EyeDirection cachedEyeDirection2 = null;
+    private Entity currentThrownEye = null;
+    private Vec3i strongholdEstimatePos = null;
 
     public LocateStrongholdCoordinatesTask(int targetEyes, int minimumEyes) {
-        _targetEyes = targetEyes;
-        _minimumEyes = minimumEyes;
+        this.targetEyes = targetEyes;
+        this.minimumEyes = minimumEyes;
     }
 
     public LocateStrongholdCoordinatesTask(int targetEyes) {
@@ -64,7 +64,7 @@ public class LocateStrongholdCoordinatesTask extends Task {
     }
 
     public boolean isSearching() {
-        return _cachedEyeDirection != null;
+        return cachedEyeDirection != null;
     }
 
     @Override
@@ -75,36 +75,36 @@ public class LocateStrongholdCoordinatesTask extends Task {
         }
 
         // Pick up eye if we need to/want to.
-        if (mod.getItemStorage().getItemCount(Items.ENDER_EYE) < _minimumEyes && mod.getEntityTracker().itemDropped(Items.ENDER_EYE) &&
+        if (mod.getItemStorage().getItemCount(Items.ENDER_EYE) < minimumEyes && mod.getEntityTracker().itemDropped(Items.ENDER_EYE) &&
                 !mod.getEntityTracker().entityFound(EyeOfEnderEntity.class)) {
             setDebugState("Picking up dropped ender eye.");
-            return new PickupDroppedItemTask(Items.ENDER_EYE, _targetEyes);
+            return new PickupDroppedItemTask(Items.ENDER_EYE, targetEyes);
         }
 
         // Handle thrown eye
         if (mod.getEntityTracker().entityFound(EyeOfEnderEntity.class)) {
-            if (_currentThrownEye == null || !_currentThrownEye.isAlive()) {
+            if (currentThrownEye == null || !currentThrownEye.isAlive()) {
                 Debug.logMessage("New eye direction");
-                Debug.logMessage(_currentThrownEye==null?"null":"is not alive");
+                Debug.logMessage(currentThrownEye==null?"null":"is not alive");
                 List<EyeOfEnderEntity> enderEyes = mod.getEntityTracker().getTrackedEntities(EyeOfEnderEntity.class);
                 if (!enderEyes.isEmpty()) {
                     for (EyeOfEnderEntity enderEye : enderEyes) {
-                        _currentThrownEye = enderEye;
+                        currentThrownEye = enderEye;
                     }
                 }
-                if (_cachedEyeDirection2 != null) {
-                    _cachedEyeDirection = null;
-                    _cachedEyeDirection2 = null;
-                } else if (_cachedEyeDirection == null) {
-                    _cachedEyeDirection = new LocateStrongholdCoordinatesTask.EyeDirection(_currentThrownEye.getPos());
+                if (cachedEyeDirection2 != null) {
+                    cachedEyeDirection = null;
+                    cachedEyeDirection2 = null;
+                } else if (cachedEyeDirection == null) {
+                    cachedEyeDirection = new LocateStrongholdCoordinatesTask.EyeDirection(currentThrownEye.getPos());
                 } else {
-                    _cachedEyeDirection2 = new LocateStrongholdCoordinatesTask.EyeDirection(_currentThrownEye.getPos());
+                    cachedEyeDirection2 = new LocateStrongholdCoordinatesTask.EyeDirection(currentThrownEye.getPos());
                 }
             }
-            if (_cachedEyeDirection2 != null) {
-                _cachedEyeDirection2.updateEyePos(_currentThrownEye.getPos());
-            } else if (_cachedEyeDirection != null) {
-                _cachedEyeDirection.updateEyePos(_currentThrownEye.getPos());
+            if (cachedEyeDirection2 != null) {
+                cachedEyeDirection2.updateEyePos(currentThrownEye.getPos());
+            } else if (cachedEyeDirection != null) {
+                cachedEyeDirection.updateEyePos(currentThrownEye.getPos());
             }
 
             if (mod.getEntityTracker().getClosestEntity(EyeOfEnderEntity.class).isPresent() &&
@@ -118,36 +118,36 @@ public class LocateStrongholdCoordinatesTask extends Task {
         }
 
         // Calculate stronghold position
-        if (_cachedEyeDirection2 != null && !mod.getEntityTracker().entityFound(EyeOfEnderEntity.class) && _strongholdEstimatePos == null) {
-            if (_cachedEyeDirection2.getAngle() >= _cachedEyeDirection.getAngle()) {
+        if (cachedEyeDirection2 != null && !mod.getEntityTracker().entityFound(EyeOfEnderEntity.class) && strongholdEstimatePos == null) {
+            if (cachedEyeDirection2.getAngle() >= cachedEyeDirection.getAngle()) {
                 Debug.logMessage("2nd eye thrown at wrong position, or points to different stronghold. Rethrowing");
-                _cachedEyeDirection = _cachedEyeDirection2;
-                _cachedEyeDirection2 = null;
+                cachedEyeDirection = cachedEyeDirection2;
+                cachedEyeDirection2 = null;
             } else {
-                Vec3d throwOrigin = _cachedEyeDirection.getOrigin();
-                Vec3d throwOrigin2 = _cachedEyeDirection2.getOrigin();
-                Vec3d throwDelta = _cachedEyeDirection.getDelta();
-                Vec3d throwDelta2 = _cachedEyeDirection2.getDelta();
+                Vec3d throwOrigin = cachedEyeDirection.getOrigin();
+                Vec3d throwOrigin2 = cachedEyeDirection2.getOrigin();
+                Vec3d throwDelta = cachedEyeDirection.getDelta();
+                Vec3d throwDelta2 = cachedEyeDirection2.getDelta();
 
 
-                _strongholdEstimatePos = calculateIntersection(throwOrigin, throwDelta, throwOrigin2, throwDelta2); // stronghold estimate
-                Debug.logMessage("Stronghold is at " + (int) _strongholdEstimatePos.getX() + ", " + (int) _strongholdEstimatePos.getZ() + " (" + (int) mod.getPlayer().getPos().distanceTo(Vec3d.of(_strongholdEstimatePos)) + " blocks away)");
+                strongholdEstimatePos = calculateIntersection(throwOrigin, throwDelta, throwOrigin2, throwDelta2); // stronghold estimate
+                Debug.logMessage("Stronghold is at " + (int) strongholdEstimatePos.getX() + ", " + (int) strongholdEstimatePos.getZ() + " (" + (int) mod.getPlayer().getPos().distanceTo(Vec3d.of(strongholdEstimatePos)) + " blocks away)");
             }
         }
 
 
         // Re-throw the eyes after reaching the estimation to get a more accurate estimate of where the stronghold is.
-        if (_strongholdEstimatePos != null) {
-            if (((mod.getPlayer().getPos().distanceTo(Vec3d.of(_strongholdEstimatePos)) < EYE_RETHROW_DISTANCE) && WorldHelper.getCurrentDimension() == Dimension.OVERWORLD)) {
-                _strongholdEstimatePos = null;
-                _cachedEyeDirection = null;
-                _cachedEyeDirection2 = null;
+        if (strongholdEstimatePos != null) {
+            if (((mod.getPlayer().getPos().distanceTo(Vec3d.of(strongholdEstimatePos)) < EYE_RETHROW_DISTANCE) && WorldHelper.getCurrentDimension() == Dimension.OVERWORLD)) {
+                strongholdEstimatePos = null;
+                cachedEyeDirection = null;
+                cachedEyeDirection2 = null;
             }
         }
 
 
         // Throw the eye since we don't have any eye info.
-        if (!mod.getEntityTracker().entityFound(EyeOfEnderEntity.class) && _strongholdEstimatePos == null) {
+        if (!mod.getEntityTracker().entityFound(EyeOfEnderEntity.class) && strongholdEstimatePos == null) {
             if (WorldHelper.getCurrentDimension() == Dimension.NETHER) {
                 setDebugState("Going to overworld.");
                 return new DefaultGoToDimensionTask(Dimension.OVERWORLD);
@@ -158,24 +158,24 @@ public class LocateStrongholdCoordinatesTask extends Task {
             }
 
             // First get to a proper throwing height
-            if (_cachedEyeDirection == null) {
+            if (cachedEyeDirection == null) {
                 setDebugState("Throwing first eye.");
             } else {
                 setDebugState("Throwing second eye.");
-                double sqDist = mod.getPlayer().squaredDistanceTo(_cachedEyeDirection.getOrigin());
+                double sqDist = mod.getPlayer().squaredDistanceTo(cachedEyeDirection.getOrigin());
                 // If first eye thrown, go perpendicular from eye direction until a good distance away
-                if (sqDist < SECOND_EYE_THROW_DISTANCE * SECOND_EYE_THROW_DISTANCE && _cachedEyeDirection != null) {
-                    return new GoInDirectionXZTask(_cachedEyeDirection.getOrigin(), _cachedEyeDirection.getDelta().rotateY((float) (Math.PI / 2)), 1);
+                if (sqDist < SECOND_EYE_THROW_DISTANCE * SECOND_EYE_THROW_DISTANCE && cachedEyeDirection != null) {
+                    return new GoInDirectionXZTask(cachedEyeDirection.getOrigin(), cachedEyeDirection.getDelta().rotateY((float) (Math.PI / 2)), 1);
                 }
             }
             // Throw it
             if (mod.getSlotHandler().forceEquipItem(Items.ENDER_EYE)) {
                 assert MinecraftClient.getInstance().interactionManager != null;
-                if (_throwTimer.elapsed()) {
+                if (throwTimer.elapsed()) {
                     if (LookHelper.tryAvoidingInteractable(mod)) {
                         MinecraftClient.getInstance().interactionManager.interactItem(mod.getPlayer(),MinecraftClient.getInstance().world,Hand.MAIN_HAND);
                         //MinecraftClient.getInstance().options.keyUse.setPressed(true);
-                        _throwTimer.reset();
+                        throwTimer.reset();
                     }
                 } else {
                     MinecraftClient.getInstance().interactionManager.stopUsingItem(mod.getPlayer());
@@ -185,8 +185,8 @@ public class LocateStrongholdCoordinatesTask extends Task {
                 Debug.logWarning("Failed to equip eye of ender to throw.");
             }
             return null;
-        } else if (_cachedEyeDirection != null && !_cachedEyeDirection.hasDelta() ||
-                _cachedEyeDirection2 != null && !_cachedEyeDirection2.hasDelta()) {
+        } else if (cachedEyeDirection != null && !cachedEyeDirection.hasDelta() ||
+                cachedEyeDirection2 != null && !cachedEyeDirection2.hasDelta()) {
             setDebugState("Waiting for thrown eye to appear...");
             return null;
         }
@@ -198,10 +198,10 @@ public class LocateStrongholdCoordinatesTask extends Task {
     }
 
     public Optional<BlockPos> getStrongholdCoordinates() {
-        if (_strongholdEstimatePos == null) {
+        if (strongholdEstimatePos == null) {
             return Optional.empty();
         }
-        return Optional.of(new BlockPos(_strongholdEstimatePos));
+        return Optional.of(new BlockPos(strongholdEstimatePos));
     }
 
     @Override
@@ -216,39 +216,39 @@ public class LocateStrongholdCoordinatesTask extends Task {
 
     @Override
     public boolean isFinished(AltoClef mod) {
-        return _strongholdEstimatePos != null;
+        return strongholdEstimatePos != null;
     }
 
     // Represents the direction we need to travel to get to the stronghold.
     private static class EyeDirection {
-        private final Vec3d _start;
-        private Vec3d _end;
+        private final Vec3d start;
+        private Vec3d end;
 
         public EyeDirection(Vec3d startPos) {
-            _start = startPos;
+            start = startPos;
         }
 
         public void updateEyePos(Vec3d endPos) {
-            _end = endPos;
+            end = endPos;
         }
 
         public Vec3d getOrigin() {
-            return _start;
+            return start;
         }
 
         public Vec3d getDelta() {
-            if (_end == null) return Vec3d.ZERO;
-            return _end.subtract(_start);
+            if (end == null) return Vec3d.ZERO;
+            return end.subtract(start);
         }
 
         public double getAngle() {
-            if (_end == null) return 0;
+            if (end == null) return 0;
             return Math.atan2(getDelta().getX(), getDelta().getZ());
         }
 
         @SuppressWarnings("BooleanMethodIsAlwaysInverted")
         public boolean hasDelta() {
-            return _end != null && getDelta().lengthSquared() > 0.00001;
+            return end != null && getDelta().lengthSquared() > 0.00001;
         }
     }
 }

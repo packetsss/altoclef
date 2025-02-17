@@ -22,13 +22,13 @@ import java.util.function.Predicate;
 
 public class KillEndermanTask extends ResourceTask {
 
-    private final int _count;
+    private final int count;
 
-    private final TimerGame _lookDelay = new TimerGame(0.2);
+    private final TimerGame lookDelay = new TimerGame(0.2);
 
     public KillEndermanTask(int count) {
         super(new ItemTarget(Items.ENDER_PEARL, count));
-        _count = count;
+        this.count = count;
         forceDimension(Dimension.NETHER);
     }
 
@@ -90,13 +90,13 @@ public class KillEndermanTask extends ResourceTask {
     @Override
     protected boolean isEqualResource(ResourceTask other) {
         if (other instanceof KillEndermanTask task) {
-            return task._count == _count;
+            return task.count == count;
         }
         return false;
     }
 
     @Override
     protected String toDebugStringName() {
-        return "Hunting endermen for pearls - " + AltoClef.INSTANCE.getItemStorage().getItemCount(Items.ENDER_PEARL) + "/" + _count;
+        return "Hunting endermen for pearls - " + AltoClef.INSTANCE.getItemStorage().getItemCount(Items.ENDER_PEARL) + "/" + count;
     }
 }

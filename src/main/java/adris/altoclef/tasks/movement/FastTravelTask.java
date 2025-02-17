@@ -31,9 +31,9 @@ public class FastTravelTask extends Task {
     private final BlockPos target;
     private final Integer threshold;
     // If we fail to move to the precise center after we're "close enough" to our threshold, just call it quits and place the portal.
-    private final TimerGame _attemptToMoveToIdealNetherCoordinateTimeout = new TimerGame(15);
-    private boolean _forceOverworldWalking;
-    private Task _goToOverworldTask;
+    private final TimerGame attemptToMoveToIdealNetherCoordinateTimeout = new TimerGame(15);
+    private boolean forceOverworldWalking;
+    private Task goToOverworldTask;
 
     /**
      * Creates fast travel task instance.
@@ -63,7 +63,7 @@ public class FastTravelTask extends Task {
     protected void onStart(AltoClef mod) {
         BlockPos netherTarget = new BlockPos(target.getX() / 8, target.getY(), target.getZ() / 8);
 
-        _goToOverworldTask = new EnterNetherPortalTask(new ConstructNetherPortalObsidianTask(), Dimension.OVERWORLD,
+        goToOverworldTask = new EnterNetherPortalTask(new ConstructNetherPortalObsidianTask(), Dimension.OVERWORLD,
                 checkPos -> WorldHelper.inRangeXZ(checkPos,netherTarget,7));
     }
 
@@ -77,15 +77,15 @@ public class FastTravelTask extends Task {
 
         // EDGE CASE: We die in the nether, stop force walking, we want to start over.
         if (MinecraftClient.getInstance().currentScreen instanceof DeathScreen) {
-            _forceOverworldWalking = false;
+            forceOverworldWalking = false;
         }
 
         switch (WorldHelper.getCurrentDimension()) {
             case OVERWORLD -> {
-                _attemptToMoveToIdealNetherCoordinateTimeout.reset();
+                attemptToMoveToIdealNetherCoordinateTimeout.reset();
                 // WALK
-                if (_forceOverworldWalking || WorldHelper.inRangeXZ(mod.getPlayer(), target, getOverworldThreshold(mod))) {
-                    _forceOverworldWalking = true;
+                if (forceOverworldWalking || WorldHelper.inRangeXZ(mod.getPlayer(), target, getOverworldThreshold(mod))) {
+                    forceOverworldWalking = true;
                     setDebugState("Walking: We're close enough to our target");
 
                     if (mod.getBlockScanner().anyFound(Blocks.END_PORTAL_FRAME)) {
@@ -112,19 +112,19 @@ public class FastTravelTask extends Task {
             }
             case NETHER -> {
 
-                if (!_forceOverworldWalking) {
+                if (!forceOverworldWalking) {
                     // After walking a bit, the moment we go back into the overworld, walk again.
                     Optional<BlockPos> portalEntrance = mod.getMiscBlockTracker().getLastUsedNetherPortal(Dimension.NETHER);
                     if (portalEntrance.isPresent() && !portalEntrance.get().isWithinDistance(mod.getPlayer().getPos(), 3)) {
-                        _forceOverworldWalking = true;
+                        forceOverworldWalking = true;
                     }
                 }
 
                 // If we're going to the overworld, keep going.
-                if (_goToOverworldTask.isActive() && !_goToOverworldTask.isFinished(mod)) {
+                if (goToOverworldTask.isActive() && !goToOverworldTask.isFinished(mod)) {
                     setDebugState("Going back to overworld");
 
-                    return _goToOverworldTask;
+                    return goToOverworldTask;
                 }
 
                 // PICKUP DROPPED STUFF if we need it
@@ -140,12 +140,12 @@ public class FastTravelTask extends Task {
                 if (WorldHelper.inRangeXZ(mod.getPlayer(), netherTarget, IN_NETHER_CLOSE_ENOUGH_THRESHOLD) &&
                         mod.getClientBaritone().getPathingBehavior().isSafeToCancel()) {
                     // If we're precisely at our target XZ or if we've tried long enough
-                    if ((adris.altoclef.multiversion.entity.EntityHelper.getBlockX(mod.getPlayer()) == netherTarget.getX() && adris.altoclef.multiversion.entity.EntityHelper.getBlockZ(mod.getPlayer()) == netherTarget.getZ()) || _attemptToMoveToIdealNetherCoordinateTimeout.elapsed()) {
-                        return _goToOverworldTask;
+                    if ((adris.altoclef.multiversion.entity.EntityHelper.getBlockX(mod.getPlayer()) == netherTarget.getX() && adris.altoclef.multiversion.entity.EntityHelper.getBlockZ(mod.getPlayer()) == netherTarget.getZ()) || attemptToMoveToIdealNetherCoordinateTimeout.elapsed()) {
+                        return goToOverworldTask;
                     }
                 }
 
-                _attemptToMoveToIdealNetherCoordinateTimeout.reset();
+                attemptToMoveToIdealNetherCoordinateTimeout.reset();
                 setDebugState("Traveling to ideal coordinates");
                 return new GetToXZTask(netherTarget.getX(), netherTarget.getZ());
             }

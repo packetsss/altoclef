@@ -23,36 +23,36 @@ import java.util.Optional;
 
 public class GiveItemToPlayerTask extends Task {
 
-    private final String _playerName;
-    private final ItemTarget[] _targets;
+    private final String playerName;
+    private final ItemTarget[] targets;
 
-    private final CataloguedResourceTask _resourceTask;
-    private final List<ItemTarget> _throwTarget = new ArrayList<>();
-    private boolean _droppingItems;
+    private final CataloguedResourceTask resourceTask;
+    private final List<ItemTarget> throwTarget = new ArrayList<>();
+    private boolean droppingItems;
 
-    private Task _throwTask;
+    private Task throwTask;
 
     public GiveItemToPlayerTask(String player, ItemTarget... targets) {
-        _playerName = player;
-        _targets = targets;
-        _resourceTask = TaskCatalogue.getSquashedItemTask(targets);
+        playerName = player;
+        this.targets = targets;
+        resourceTask = TaskCatalogue.getSquashedItemTask(targets);
     }
 
     @Override
     protected void onStart(AltoClef mod) {
-        _droppingItems = false;
-        _throwTarget.clear();
+        droppingItems = false;
+        throwTarget.clear();
     }
 
     @Override
     protected Task onTick(AltoClef mod) {
 
-        if (_throwTask != null && _throwTask.isActive() && !_throwTask.isFinished(mod)) {
+        if (throwTask != null && throwTask.isActive() && !throwTask.isFinished(mod)) {
             setDebugState("Throwing items");
-            return _throwTask;
+            return throwTask;
         }
 
-        Optional<Vec3d> lastPos = mod.getEntityTracker().getPlayerMostRecentPosition(_playerName);
+        Optional<Vec3d> lastPos = mod.getEntityTracker().getPlayerMostRecentPosition(playerName);
 
         if (lastPos.isEmpty()) {
             setDebugState("No player found/detected. Doing nothing until player loads into render distance.");
@@ -60,12 +60,12 @@ public class GiveItemToPlayerTask extends Task {
         }
         Vec3d targetPos = lastPos.get().add(0, 0.2f, 0);
 
-        if (_droppingItems) {
+        if (droppingItems) {
             // THROW ITEMS
             setDebugState("Throwing items");
             LookHelper.lookAt(mod, targetPos);
-            for (int i = 0; i < _throwTarget.size(); ++i) {
-                ItemTarget target = _throwTarget.get(i);
+            for (int i = 0; i < throwTarget.size(); ++i) {
+                ItemTarget target = throwTarget.get(i);
                 if (target.getTargetCount() > 0) {
                     Optional<Slot> has = mod.getItemStorage().getSlotsWithItemPlayerInventory(false, target.getMatches()).stream().findFirst();
                     if (has.isPresent()) {
@@ -74,7 +74,7 @@ public class GiveItemToPlayerTask extends Task {
                             ItemStack stack = StorageHelper.getItemStackInSlot(currentlyPresent);
                             // Update target
                             target = new ItemTarget(target, target.getTargetCount() - stack.getCount());
-                            _throwTarget.set(i, target);
+                            throwTarget.set(i, target);
                             Debug.logMessage("THROWING: " + has.get());
                             mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, SlotActionType.PICKUP);
                         } else {
@@ -93,23 +93,23 @@ public class GiveItemToPlayerTask extends Task {
             return new RunAwayFromPositionTask(6, WorldHelper.toBlockPos(targetPos));
         }
 
-        if (!StorageHelper.itemTargetsMet(mod, _targets)) {
+        if (!StorageHelper.itemTargetsMet(mod, targets)) {
             setDebugState("Collecting resources...");
-            return _resourceTask;
+            return resourceTask;
         }
 
         if (targetPos.isInRange(mod.getPlayer().getPos(), 1.5)) {
-            if (!mod.getEntityTracker().isPlayerLoaded(_playerName)) {
-                mod.logWarning("Failed to get to player \"" + _playerName + "\". We moved to where we last saw them but now have no idea where they are.");
+            if (!mod.getEntityTracker().isPlayerLoaded(playerName)) {
+                mod.logWarning("Failed to get to player \"" + playerName + "\". We moved to where we last saw them but now have no idea where they are.");
                 stop(mod);
                 return null;
             }
-            _droppingItems = true;
-            _throwTarget.addAll(Arrays.asList(_targets));
+            droppingItems = true;
+            throwTarget.addAll(Arrays.asList(targets));
         }
 
         setDebugState("Going to player...");
-        return new FollowPlayerTask(_playerName);
+        return new FollowPlayerTask(playerName);
     }
 
     @Override
@@ -120,14 +120,14 @@ public class GiveItemToPlayerTask extends Task {
     @Override
     protected boolean isEqual(Task other) {
         if (other instanceof GiveItemToPlayerTask task) {
-            if (!task._playerName.equals(_playerName)) return false;
-            return Arrays.equals(task._targets, _targets);
+            if (!task.playerName.equals(playerName)) return false;
+            return Arrays.equals(task.targets, targets);
         }
         return false;
     }
 
     @Override
     protected String toDebugString() {
-        return "Giving items to " + _playerName;
+        return "Giving items to " + playerName;
     }
 }

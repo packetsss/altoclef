@@ -10,7 +10,7 @@ import net.minecraft.world.biome.Biomes;
 
 public class LocateDesertTempleTask extends Task {
 
-    private BlockPos _finalPos;
+    private BlockPos finalPos;
 
     @Override
     protected void onStart(AltoClef mod) {
@@ -20,11 +20,11 @@ public class LocateDesertTempleTask extends Task {
     protected Task onTick(AltoClef mod) {
         BlockPos desertTemplePos = WorldHelper.getADesertTemple(mod);
         if (desertTemplePos != null) {
-            _finalPos = desertTemplePos.up(14);
+            finalPos = desertTemplePos.up(14);
         }
-        if (_finalPos != null) {
+        if (finalPos != null) {
             setDebugState("Going to found desert temple");
-            return new GetToBlockTask(_finalPos, false);
+            return new GetToBlockTask(finalPos, false);
         }
         return new SearchWithinBiomeTask(Biomes.DESERT);
     }
@@ -45,6 +45,6 @@ public class LocateDesertTempleTask extends Task {
 
     @Override
     public boolean isFinished(AltoClef mod) {
-        return mod.getPlayer().getBlockPos().equals(_finalPos);
+        return mod.getPlayer().getBlockPos().equals(finalPos);
     }
 }

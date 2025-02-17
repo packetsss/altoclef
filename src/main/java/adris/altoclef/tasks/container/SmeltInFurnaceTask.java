@@ -37,15 +37,15 @@ import java.util.stream.Stream;
  * Smelt in a furnace, placing a furnace and collecting fuel as needed.
  */
 public class SmeltInFurnaceTask extends ResourceTask {
-    private final SmeltTarget[] _targets;
+    private final SmeltTarget[] targets;
 
-    private final DoSmeltInFurnaceTask _doTask;
+    private final DoSmeltInFurnaceTask doTask;
 
     public SmeltInFurnaceTask(SmeltTarget[] targets) {
         super(extractItemTargets(targets));
-        _targets = targets;
+        this.targets = targets;
         // TODO: Do them in order.
-        _doTask = new DoSmeltInFurnaceTask(targets[0]);
+        doTask = new DoSmeltInFurnaceTask(targets[0]);
     }
 
     public SmeltInFurnaceTask(SmeltTarget target) {
@@ -61,7 +61,7 @@ public class SmeltInFurnaceTask extends ResourceTask {
     }
 
     public void ignoreMaterials() {
-        _doTask.ignoreMaterials();
+        doTask.ignoreMaterials();
     }
 
     @Override
@@ -72,7 +72,7 @@ public class SmeltInFurnaceTask extends ResourceTask {
     @Override
     protected void onResourceStart(AltoClef mod) {
         mod.getBehaviour().push();
-        if (_targets.length != 1) {
+        if (targets.length != 1) {
             Debug.logWarning("Tried smelting multiple targets, only one target is supported at a time!");
         }
     }
@@ -81,7 +81,7 @@ public class SmeltInFurnaceTask extends ResourceTask {
     protected Task onResourceTick(AltoClef mod) {
         Optional<BlockPos> furnacePos = mod.getBlockScanner().getNearestBlock(Blocks.FURNACE);
         furnacePos.ifPresent(blockPos -> mod.getBehaviour().avoidBlockBreaking(blockPos));
-        return _doTask;
+        return doTask;
     }
 
     @Override
@@ -106,24 +106,24 @@ public class SmeltInFurnaceTask extends ResourceTask {
 
     @Override
     public boolean isFinished(AltoClef mod) {
-        return super.isFinished(mod) || _doTask.isFinished(mod);
+        return super.isFinished(mod) || doTask.isFinished(mod);
     }
 
     @Override
     protected boolean isEqualResource(ResourceTask other) {
         if (other instanceof SmeltInFurnaceTask task) {
-            return task._doTask.isEqual(_doTask);
+            return task.doTask.isEqual(doTask);
         }
         return false;
     }
 
     @Override
     protected String toDebugStringName() {
-        return _doTask.toDebugString();
+        return doTask.toDebugString();
     }
 
     public SmeltTarget[] getTargets() {
-        return _targets;
+        return targets;
     }
 
 
@@ -291,12 +291,12 @@ public class SmeltInFurnaceTask extends ResourceTask {
             }
 
             /*
-            double currentFuel = _ignoreMaterials
-                    ? (Math.min(materialTarget.matches(_furnaceCache.materialSlot.getItem()) ? _furnaceCache.materialSlot.getCount() : 0, materialTarget.getTargetCount())
+            double currentFuel = ignoreMaterials
+                    ? (Math.min(materialTarget.matches(furnaceCache.materialSlot.getItem()) ? furnaceCache.materialSlot.getCount() : 0, materialTarget.getTargetCount())
                     : materialTarget.getTargetCount()
                     - mod.getItemStorage().getItemCountInventoryOnly(materialTarget.getMatches())
                     - mod.getItemStorage().getItemCountInventoryOnly(outputTarget.getMatches())
-                    - (outputTarget.matches(_furnaceCache.outputSlot.getItem()) ? _furnaceCache.outputSlot.getCount() : 0)
+                    - (outputTarget.matches(furnaceCache.outputSlot.getItem()) ? furnaceCache.outputSlot.getCount() : 0)
                     - totalFuelInFurnace;
              */
             // Fill in fuel if needed

@@ -10,36 +10,36 @@ import net.minecraft.util.math.BlockPos;
 
 public class GetToXZTask extends CustomBaritoneGoalTask {
 
-    private final int _x, _z;
-    private final Dimension _dimension;
+    private final int x, z;
+    private final Dimension dimension;
 
     public GetToXZTask(int x, int z) {
         this(x, z, null);
     }
 
     public GetToXZTask(int x, int z, Dimension dimension) {
-        _x = x;
-        _z = z;
-        _dimension = dimension;
+        this.x = x;
+        this.z = z;
+        this.dimension = dimension;
     }
 
     @Override
     protected Task onTick(AltoClef mod) {
-        if (_dimension != null && WorldHelper.getCurrentDimension() != _dimension) {
-            return new DefaultGoToDimensionTask(_dimension);
+        if (dimension != null && WorldHelper.getCurrentDimension() != dimension) {
+            return new DefaultGoToDimensionTask(dimension);
         }
         return super.onTick(mod);
     }
 
     @Override
     protected Goal newGoal(AltoClef mod) {
-        return new GoalXZ(_x, _z);
+        return new GoalXZ(x, z);
     }
 
     @Override
     protected boolean isEqual(Task other) {
         if (other instanceof GetToXZTask task) {
-            return task._x == _x && task._z == _z && task._dimension == _dimension;
+            return task.x == x && task.z == z && task.dimension == dimension;
         }
         return false;
     }
@@ -47,11 +47,11 @@ public class GetToXZTask extends CustomBaritoneGoalTask {
     @Override
     public boolean isFinished(AltoClef mod) {
         BlockPos cur = mod.getPlayer().getBlockPos();
-        return (cur.getX() == _x && cur.getZ() == _z && (_dimension == null || _dimension == WorldHelper.getCurrentDimension()));
+        return (cur.getX() == x && cur.getZ() == z && (dimension == null || dimension == WorldHelper.getCurrentDimension()));
     }
 
     @Override
     protected String toDebugString() {
-        return "Getting to (" + _x + "," + _z + ")" + (_dimension != null ? " in dimension " + _dimension : "");
+        return "Getting to (" + x + "," + z + ")" + (dimension != null ? " in dimension " + dimension : "");
     }
 }

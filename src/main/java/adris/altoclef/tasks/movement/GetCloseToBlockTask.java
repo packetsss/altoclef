@@ -15,16 +15,16 @@ import net.minecraft.util.math.BlockPos;
  */
 public class GetCloseToBlockTask extends Task {
 
-    private final BlockPos _toApproach;
-    private int _currentRange;
+    private final BlockPos toApproach;
+    private int currentRange;
 
     public GetCloseToBlockTask(BlockPos toApproach) {
-        _toApproach = toApproach;
+        this.toApproach = toApproach;
     }
 
     @Override
     protected void onStart(AltoClef mod) {
-        _currentRange = Integer.MAX_VALUE;
+        currentRange = Integer.MAX_VALUE;
     }
 
     @Override
@@ -33,9 +33,9 @@ public class GetCloseToBlockTask extends Task {
         // We have a strictly decreasing range, which means we will eventualy get
         // as close as we can.
         if (inRange(mod)) {
-            _currentRange = getCurrentDistance(mod) - 1;
+            currentRange = getCurrentDistance(mod) - 1;
         }
-        return new GetWithinRangeOfBlockTask(_toApproach, _currentRange);
+        return new GetWithinRangeOfBlockTask(toApproach, currentRange);
     }
 
     @Override
@@ -44,24 +44,24 @@ public class GetCloseToBlockTask extends Task {
     }
 
     private int getCurrentDistance(AltoClef mod) {
-        return (int) Math.sqrt(mod.getPlayer().getBlockPos().getSquaredDistance(_toApproach));
+        return (int) Math.sqrt(mod.getPlayer().getBlockPos().getSquaredDistance(toApproach));
     }
 
     private boolean inRange(AltoClef mod) {
-        return mod.getPlayer().getBlockPos().getSquaredDistance(_toApproach) <= _currentRange * _currentRange;
+        return mod.getPlayer().getBlockPos().getSquaredDistance(toApproach) <= currentRange * currentRange;
     }
 
     @Override
     protected boolean isEqual(Task other) {
         if (other instanceof GetCloseToBlockTask task) {
-            return task._toApproach.equals(_toApproach);
+            return task.toApproach.equals(toApproach);
         }
         return false;
     }
 
     @Override
     protected String toDebugString() {
-        return "Approaching " + _toApproach.toShortString();
+        return "Approaching " + toApproach.toShortString();
     }
 
 

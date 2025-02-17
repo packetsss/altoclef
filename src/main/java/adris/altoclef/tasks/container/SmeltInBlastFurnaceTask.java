@@ -38,15 +38,15 @@ import java.util.stream.Stream;
  */
 public class SmeltInBlastFurnaceTask extends ResourceTask {
 
-    private final SmeltTarget[] _targets;
+    private final SmeltTarget[] targets;
 
-    private final DoSmeltInBlastFurnaceTask _doTask;
+    private final DoSmeltInBlastFurnaceTask doTask;
 
     public SmeltInBlastFurnaceTask(SmeltTarget[] targets) {
         super(extractItemTargets(targets));
-        _targets = targets;
+        this.targets = targets;
         // TODO: Do them in order.
-        _doTask = new DoSmeltInBlastFurnaceTask(targets[0]);
+        doTask = new DoSmeltInBlastFurnaceTask(targets[0]);
     }
 
     public SmeltInBlastFurnaceTask(SmeltTarget target) {
@@ -62,7 +62,7 @@ public class SmeltInBlastFurnaceTask extends ResourceTask {
     }
 
     public void ignoreMaterials() {
-        _doTask.ignoreMaterials();
+        doTask.ignoreMaterials();
     }
 
     @Override
@@ -73,7 +73,7 @@ public class SmeltInBlastFurnaceTask extends ResourceTask {
     @Override
     protected void onResourceStart(AltoClef mod) {
         mod.getBehaviour().push();
-        if (_targets.length != 1) {
+        if (targets.length != 1) {
             Debug.logWarning("Tried smelting multiple targets, only one target is supported at a time!");
         }
     }
@@ -82,7 +82,7 @@ public class SmeltInBlastFurnaceTask extends ResourceTask {
     protected Task onResourceTick(AltoClef mod) {
         Optional<BlockPos> blastFurnacePos = mod.getBlockScanner().getNearestBlock(Blocks.BLAST_FURNACE);
         blastFurnacePos.ifPresent(blockPos -> mod.getBehaviour().avoidBlockBreaking(blockPos));
-        return _doTask;
+        return doTask;
     }
 
     @Override
@@ -107,48 +107,48 @@ public class SmeltInBlastFurnaceTask extends ResourceTask {
 
     @Override
     public boolean isFinished(AltoClef mod) {
-        return super.isFinished(mod) || _doTask.isFinished(mod);
+        return super.isFinished(mod) || doTask.isFinished(mod);
     }
 
     @Override
     protected boolean isEqualResource(ResourceTask other) {
         if (other instanceof SmeltInBlastFurnaceTask task) {
-            return task._doTask.isEqual(_doTask);
+            return task.doTask.isEqual(doTask);
         }
         return false;
     }
 
     @Override
     protected String toDebugStringName() {
-        return _doTask.toDebugString();
+        return doTask.toDebugString();
     }
 
     public SmeltTarget[] getTargets() {
-        return _targets;
+        return targets;
     }
 
     @SuppressWarnings("ConditionCoveredByFurtherCondition")
     static class DoSmeltInBlastFurnaceTask extends DoStuffInContainerTask {
 
-        private final SmeltTarget _target;
-        private final BlastFurnaceCache _blastFurnaceCache = new BlastFurnaceCache();
-        private final ItemTarget _allMaterials;
-        private boolean _ignoreMaterials;
+        private final SmeltTarget target;
+        private final BlastFurnaceCache blastFurnaceCache = new BlastFurnaceCache();
+        private final ItemTarget allMaterials;
+        private boolean ignoreMaterials;
 
         public DoSmeltInBlastFurnaceTask(SmeltTarget target) {
             super(Blocks.BLAST_FURNACE, new ItemTarget(Items.BLAST_FURNACE));
-            _target = target;
-            _allMaterials = new ItemTarget(Stream.concat(Arrays.stream(_target.getMaterial().getMatches()), Arrays.stream(_target.getOptionalMaterials())).toArray(Item[]::new), _target.getMaterial().getTargetCount());
+            this.target = target;
+            allMaterials = new ItemTarget(Stream.concat(Arrays.stream(target.getMaterial().getMatches()), Arrays.stream(target.getOptionalMaterials())).toArray(Item[]::new), target.getMaterial().getTargetCount());
         }
 
         public void ignoreMaterials() {
-            _ignoreMaterials = true;
+            ignoreMaterials = true;
         }
 
         @Override
         protected boolean isSubTaskEqual(DoStuffInContainerTask other) {
             if (other instanceof DoSmeltInBlastFurnaceTask task) {
-                return task._target.equals(_target) && task._ignoreMaterials == _ignoreMaterials;
+                return task.target.equals(target) && task.ignoreMaterials == ignoreMaterials;
             }
             return false;
         }
@@ -164,48 +164,48 @@ public class SmeltInBlastFurnaceTask extends ResourceTask {
 
             mod.getBehaviour().addProtectedItems(ItemHelper.PLANKS);
             mod.getBehaviour().addProtectedItems(Items.COAL);
-            mod.getBehaviour().addProtectedItems(_allMaterials.getMatches());
-            mod.getBehaviour().addProtectedItems(_target.getMaterial().getMatches());
+            mod.getBehaviour().addProtectedItems(allMaterials.getMatches());
+            mod.getBehaviour().addProtectedItems(target.getMaterial().getMatches());
         }
 
         @Override
         protected Task onTick(AltoClef mod) {
             tryUpdateOpenBlastFurnace(mod);
             // Include both regular + optional items
-            ItemTarget materialTarget = _allMaterials;
-            ItemTarget outputTarget = _target.getItem();
+            ItemTarget materialTarget = allMaterials;
+            ItemTarget outputTarget = target.getItem();
             // Materials needed = (mat_target (- 0*mat_in_inventory) - out_in_inventory - mat_in_furnace - out_in_furnace)
             // ^ 0 * mat_in_inventory because we always care aobut the TARGET materials, not how many LEFT there are.
             int materialsNeeded = materialTarget.getTargetCount()
                     /*- mod.getItemStorage().getItemCountInventoryOnly(materialTarget.getMatches())*/ // See comment above
                     - mod.getItemStorage().getItemCountInventoryOnly(outputTarget.getMatches())
-                    - (materialTarget.matches(_blastFurnaceCache.materialSlot.getItem()) ? _blastFurnaceCache.materialSlot.getCount() : 0)
-                    - (outputTarget.matches(_blastFurnaceCache.outputSlot.getItem()) ? _blastFurnaceCache.outputSlot.getCount() : 0);
-            double totalFuelInBlastFurnace = ItemHelper.getFuelAmount(_blastFurnaceCache.fuelSlot) + _blastFurnaceCache.burningFuelCount + _blastFurnaceCache.burnPercentage;
+                    - (materialTarget.matches(blastFurnaceCache.materialSlot.getItem()) ? blastFurnaceCache.materialSlot.getCount() : 0)
+                    - (outputTarget.matches(blastFurnaceCache.outputSlot.getItem()) ? blastFurnaceCache.outputSlot.getCount() : 0);
+            double totalFuelInBlastFurnace = ItemHelper.getFuelAmount(blastFurnaceCache.fuelSlot) + blastFurnaceCache.burningFuelCount + blastFurnaceCache.burnPercentage;
             // Fuel needed = (mat_target - out_in_inventory - out_in_furnace - totalFuelInFurnace)
-            double fuelNeeded = _ignoreMaterials
-                    ? Math.min(materialTarget.matches(_blastFurnaceCache.materialSlot.getItem()) ? _blastFurnaceCache.materialSlot.getCount() : 0, materialTarget.getTargetCount())
+            double fuelNeeded = ignoreMaterials
+                    ? Math.min(materialTarget.matches(blastFurnaceCache.materialSlot.getItem()) ? blastFurnaceCache.materialSlot.getCount() : 0, materialTarget.getTargetCount())
                     : materialTarget.getTargetCount()
                     /* - mod.getItemStorage().getItemCountInventoryOnly(materialTarget.getMatches()) */
                     - mod.getItemStorage().getItemCountInventoryOnly(outputTarget.getMatches())
-                    - (outputTarget.matches(_blastFurnaceCache.outputSlot.getItem()) ? _blastFurnaceCache.outputSlot.getCount() : 0)
+                    - (outputTarget.matches(blastFurnaceCache.outputSlot.getItem()) ? blastFurnaceCache.outputSlot.getCount() : 0)
                     - totalFuelInBlastFurnace;
 
             // We don't have enough materials...
             if (mod.getItemStorage().getItemCountInventoryOnly(materialTarget.getMatches()) < materialsNeeded) {
                 setDebugState("Getting Materials");
-                return getMaterialTask(_target.getMaterial());
+                return getMaterialTask(target.getMaterial());
             }
 
             // We don't have enough fuel...
-            if (_blastFurnaceCache.burningFuelCount <= 0 && StorageHelper.calculateInventoryFuelCount(mod) < fuelNeeded) {
+            if (blastFurnaceCache.burningFuelCount <= 0 && StorageHelper.calculateInventoryFuelCount(mod) < fuelNeeded) {
                 setDebugState("Getting Fuel");
                 return new CollectFuelTask(fuelNeeded + 1);
             }
 
             // Make sure our materials are accessible in our inventory
-            if (StorageHelper.isItemInaccessibleToContainer(mod, _allMaterials)) {
-                return new MoveInaccessibleItemToInventoryTask(_allMaterials);
+            if (StorageHelper.isItemInaccessibleToContainer(mod, allMaterials)) {
+                return new MoveInaccessibleItemToInventoryTask(allMaterials);
             }
 
             // We have fuel and materials. Get to our container and smelt!
@@ -279,25 +279,25 @@ public class SmeltInBlastFurnaceTask extends ResourceTask {
 
             // Fill in input if needed
             // Materials needed in slot = (mat_target - out_in_inventory - out_in_furnace)
-            ItemTarget materialTarget = _allMaterials;
+            ItemTarget materialTarget = allMaterials;
 
             int neededMaterialsInSlot = materialTarget.getTargetCount()
-                    - mod.getItemStorage().getItemCountInventoryOnly(_target.getItem().getMatches())
-                    - (_target.getItem().matches(output.getItem()) ? output.getCount() : 0);
+                    - mod.getItemStorage().getItemCountInventoryOnly(target.getItem().getMatches())
+                    - (target.getItem().matches(output.getItem()) ? output.getCount() : 0);
             // We don't have the right material or we need more
-            if (!_allMaterials.matches(material.getItem()) || neededMaterialsInSlot > material.getCount()) {
+            if (!allMaterials.matches(material.getItem()) || neededMaterialsInSlot > material.getCount()) {
                 int materialsAlreadyIn = (materialTarget.matches(material.getItem()) ? material.getCount() : 0);
                 setDebugState("Moving Materials");
                 return new MoveItemToSlotFromInventoryTask(new ItemTarget(materialTarget, neededMaterialsInSlot - materialsAlreadyIn), BlastFurnaceSlot.INPUT_SLOT_MATERIALS);
             }
 
             /*
-            double currentFuel = _ignoreMaterials
-                    ? (Math.min(materialTarget.matches(_furnaceCache.materialSlot.getItem()) ? _furnaceCache.materialSlot.getCount() : 0, materialTarget.getTargetCount())
+            double currentFuel = ignoreMaterials
+                    ? (Math.min(materialTarget.matches(furnaceCache.materialSlot.getItem()) ? furnaceCache.materialSlot.getCount() : 0, materialTarget.getTargetCount())
                     : materialTarget.getTargetCount()
                     - mod.getItemStorage().getItemCountInventoryOnly(materialTarget.getMatches())
                     - mod.getItemStorage().getItemCountInventoryOnly(outputTarget.getMatches())
-                    - (outputTarget.matches(_furnaceCache.outputSlot.getItem()) ? _furnaceCache.outputSlot.getCount() : 0)
+                    - (outputTarget.matches(furnaceCache.outputSlot.getItem()) ? furnaceCache.outputSlot.getCount() : 0)
                     - totalFuelInFurnace;
              */
             // Fill in fuel if needed
@@ -337,9 +337,9 @@ public class SmeltInBlastFurnaceTask extends ResourceTask {
 
         @Override
         protected double getCostToMakeNew(AltoClef mod) {
-            if (_blastFurnaceCache.burnPercentage > 0 || _blastFurnaceCache.burningFuelCount > 0 ||
-                    _blastFurnaceCache.fuelSlot != null || _blastFurnaceCache.materialSlot != null ||
-                    _blastFurnaceCache.outputSlot != null) {
+            if (blastFurnaceCache.burnPercentage > 0 || blastFurnaceCache.burningFuelCount > 0 ||
+                    blastFurnaceCache.fuelSlot != null || blastFurnaceCache.materialSlot != null ||
+                    blastFurnaceCache.outputSlot != null) {
                 return 9999999.0;
             }
             if (mod.getItemStorage().getItemCount(Items.COBBLESTONE) > 11 &&
@@ -360,11 +360,11 @@ public class SmeltInBlastFurnaceTask extends ResourceTask {
         private void tryUpdateOpenBlastFurnace(AltoClef mod) {
             if (isContainerOpen(mod)) {
                 // Update current furnace cache
-                _blastFurnaceCache.burnPercentage = StorageHelper.getBlastFurnaceCookPercent();
-                _blastFurnaceCache.burningFuelCount = StorageHelper.getBlastFurnaceFuel();
-                _blastFurnaceCache.fuelSlot = StorageHelper.getItemStackInSlot(BlastFurnaceSlot.INPUT_SLOT_FUEL);
-                _blastFurnaceCache.materialSlot = StorageHelper.getItemStackInSlot(BlastFurnaceSlot.INPUT_SLOT_MATERIALS);
-                _blastFurnaceCache.outputSlot = StorageHelper.getItemStackInSlot(BlastFurnaceSlot.OUTPUT_SLOT);
+                blastFurnaceCache.burnPercentage = StorageHelper.getBlastFurnaceCookPercent();
+                blastFurnaceCache.burningFuelCount = StorageHelper.getBlastFurnaceFuel();
+                blastFurnaceCache.fuelSlot = StorageHelper.getItemStackInSlot(BlastFurnaceSlot.INPUT_SLOT_FUEL);
+                blastFurnaceCache.materialSlot = StorageHelper.getItemStackInSlot(BlastFurnaceSlot.INPUT_SLOT_MATERIALS);
+                blastFurnaceCache.outputSlot = StorageHelper.getItemStackInSlot(BlastFurnaceSlot.OUTPUT_SLOT);
             }
         }
     }

@@ -14,10 +14,10 @@ import net.minecraft.util.math.BlockPos;
  */
 public class PutOutFireTask extends Task {
 
-    private final BlockPos _firePosition;
+    private final BlockPos firePosition;
 
     public PutOutFireTask(BlockPos firePosition) {
-        _firePosition = firePosition;
+        this.firePosition = firePosition;
     }
 
     @Override
@@ -27,7 +27,7 @@ public class PutOutFireTask extends Task {
 
     @Override
     protected Task onTick(AltoClef mod) {
-        return new InteractWithBlockTask(ItemTarget.EMPTY, null, _firePosition, Input.CLICK_LEFT, false, false);
+        return new InteractWithBlockTask(ItemTarget.EMPTY, null, firePosition, Input.CLICK_LEFT, false, false);
     }
 
     @Override
@@ -37,20 +37,20 @@ public class PutOutFireTask extends Task {
 
     @Override
     public boolean isFinished(AltoClef mod) {
-        BlockState s = mod.getWorld().getBlockState(_firePosition);
+        BlockState s = mod.getWorld().getBlockState(firePosition);
         return (s.getBlock() != Blocks.FIRE && s.getBlock() != Blocks.SOUL_FIRE);
     }
 
     @Override
     protected boolean isEqual(Task other) {
         if (other instanceof PutOutFireTask task) {
-            return (task._firePosition.equals(_firePosition));
+            return (task.firePosition.equals(firePosition));
         }
         return false;
     }
 
     @Override
     protected String toDebugString() {
-        return "Putting out fire at " + _firePosition;
+        return "Putting out fire at " + firePosition;
     }
 }

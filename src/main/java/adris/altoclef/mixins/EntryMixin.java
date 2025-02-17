@@ -14,12 +14,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class EntryMixin {
 
     @Unique
-    private static boolean _initialized = false;
+    private static boolean initialized = false;
 
     @Inject(at = @At("HEAD"), method = "init()V")
     private void init(CallbackInfo info) {
-        if (!_initialized) {
-            _initialized = true;
+        if (!initialized) {
+            initialized = true;
             Debug.logMessage("Global Init");
             EventBus.publish(new TitleScreenEntryEvent());
         }

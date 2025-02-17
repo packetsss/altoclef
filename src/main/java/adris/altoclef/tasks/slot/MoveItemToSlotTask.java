@@ -48,7 +48,7 @@ public class MoveItemToSlotTask extends Task {
             ItemStack atTarget = StorageHelper.getItemStackInSlot(destination);
 
             // Items that CAN be moved to that slot.
-            Item[] validItems = toMove.getMatches();//Arrays.stream(_toMove.getMatches()).filter(item -> mod.getItemStorage().getItemCount(item) >= _toMove.getTargetCount()).toArray(Item[]::new);
+            Item[] validItems = toMove.getMatches();//Arrays.stream(toMove.getMatches()).filter(item -> mod.getItemStorage().getItemCount(item) >= toMove.getTargetCount()).toArray(Item[]::new);
 
             // We need to deal with our cursor stack OR put an item there (to move).
             boolean wrongItemHeld = !Arrays.asList(validItems).contains(currentHeld.getItem());

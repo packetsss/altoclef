@@ -12,10 +12,10 @@ import net.minecraft.item.Items;
  */
 public class SatisfyMiningRequirementTask extends Task {
 
-    private final MiningRequirement _requirement;
+    private final MiningRequirement requirement;
 
     public SatisfyMiningRequirementTask(MiningRequirement requirement) {
-        _requirement = requirement;
+        this.requirement = requirement;
     }
 
     @Override
@@ -25,7 +25,7 @@ public class SatisfyMiningRequirementTask extends Task {
 
     @Override
     protected Task onTick(AltoClef mod) {
-        switch (_requirement) {
+        switch (requirement) {
             case HAND:
                 // Will never happen if you program this right
                 break;
@@ -49,18 +49,18 @@ public class SatisfyMiningRequirementTask extends Task {
     @Override
     protected boolean isEqual(Task other) {
         if (other instanceof SatisfyMiningRequirementTask task) {
-            return task._requirement == _requirement;
+            return task.requirement == requirement;
         }
         return false;
     }
 
     @Override
     protected String toDebugString() {
-        return "Satisfy Mining Req: " + _requirement;
+        return "Satisfy Mining Req: " + requirement;
     }
 
     @Override
     public boolean isFinished(AltoClef mod) {
-        return StorageHelper.miningRequirementMetInventory(mod, _requirement);
+        return StorageHelper.miningRequirementMetInventory(mod, requirement);
     }
 }

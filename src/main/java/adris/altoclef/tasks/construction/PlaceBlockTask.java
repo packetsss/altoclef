@@ -186,11 +186,11 @@ public class PlaceBlockTask extends Task implements ITaskRequiresGrounded {
 
     private class PlaceStructureSchematic extends AbstractSchematic {
 
-        private final AltoClef _mod;
+        private final AltoClef mod;
 
         public PlaceStructureSchematic(AltoClef mod) {
             super(1, 1, 1);
-            _mod = mod;
+            this.mod = mod;
         }
 
         @Override
@@ -200,7 +200,7 @@ public class PlaceBlockTask extends Task implements ITaskRequiresGrounded {
                 if (!available.isEmpty()) {
                     for (BlockState possible : available) {
                         if (possible == null) continue;
-                        if (useThrowaways && _mod.getClientBaritoneSettings().acceptableThrowawayItems.value.contains(possible.getBlock().asItem())) {
+                        if (useThrowaways && mod.getClientBaritoneSettings().acceptableThrowawayItems.value.contains(possible.getBlock().asItem())) {
                             return possible;
                         }
                         if (Arrays.asList(toPlace).contains(possible.getBlock())) {

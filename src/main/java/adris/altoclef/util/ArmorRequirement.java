@@ -11,13 +11,13 @@ public enum ArmorRequirement {
     DIAMOND(Items.DIAMOND_HELMET, Items.DIAMOND_CHESTPLATE, Items.DIAMOND_LEGGINGS, Items.DIAMOND_BOOTS),
     NETHERITE(Items.NETHERITE_HELMET, Items.NETHERITE_CHESTPLATE, Items.NETHERITE_LEGGINGS, Items.NETHERITE_BOOTS);
 
-    private final Item[] _armors;
+    private final Item[] armors;
 
     ArmorRequirement(Item... armors) {
-        _armors = armors;
+        this.armors = armors;
     }
 
     public Item[] getArmors() {
-        return _armors;
+        return armors;
     }
 }

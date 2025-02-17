@@ -33,7 +33,7 @@ import java.util.HashSet;
 public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem.Task {
 
     // The "portalable" region includes the portal (1 x 6 x 4 structure) and an outer buffer for its construction and water bullshit.
-    // The "portal origin relative to region" corresponds to the portal origin with respect to the "portalable" region (see _portalOrigin).
+    // The "portal origin relative to region" corresponds to the portal origin with respect to the "portalable" region (see portalOrigin).
     // This can only really be explained visually, sorry!
     private static final Vec3i PORTALABLE_REGION_SIZE = new Vec3i(4, 6, 6);
     // Destroy these blocks too.
@@ -96,34 +96,34 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
             new Vec3i(0, 2, 1)
     };
     private static final Vec3i WATER_SOURCE_ORIGIN = new Vec3i(1, 3, 0);
-    private final TimerGame _lavaSearchTimer = new TimerGame(5);
-    private final adris.altoclef.tasksystem.Task _collectLavaTask = TaskCatalogue.getItemTask(Items.LAVA_BUCKET, 1);
-    private final TimerGame _placeLavaWeCanBreakAgainTimer = new TimerGame(5);
-    private final TimerGame _specialBottomCaseCloserTimer = new TimerGame(10);
-    private final TimerGame _specialBottomCaseCloserTimerForcePlace = new TimerGame(5);
+    private final TimerGame lavaSearchTimer = new TimerGame(5);
+    private final adris.altoclef.tasksystem.Task collectLavaTask = TaskCatalogue.getItemTask(Items.LAVA_BUCKET, 1);
+    private final TimerGame placeLavaWeCanBreakAgainTimer = new TimerGame(5);
+    private final TimerGame specialBottomCaseCloserTimer = new TimerGame(10);
+    private final TimerGame specialBottomCaseCloserTimerForcePlace = new TimerGame(5);
     // Corresponds to the LEFT most side of where the player will stand on the portal.
-    private BlockPos _portalOrigin = null;
-    private boolean _isPlacingLiquid;
-    private boolean _portalFrameBuilt;
-    private BlockPos _destroyTarget = null;
-    private boolean _firstSearch = false;
+    private BlockPos portalOrigin = null;
+    private boolean isPlacingLiquid;
+    private boolean portalFrameBuilt;
+    private BlockPos destroyTarget = null;
+    private boolean firstSearch = false;
 
     @Override
     protected void onStart(AltoClef mod) {
-        _isPlacingLiquid = false;
-        _portalFrameBuilt = false;
+        isPlacingLiquid = false;
+        portalFrameBuilt = false;
         mod.getBehaviour().push();
         //mod.getConfigState().setAllowWalkThroughFlowingWater(true);
         // Avoid breaking frame.
         mod.getBehaviour().avoidBlockBreaking((block) -> {
-            if (_portalOrigin != null) {
+            if (portalOrigin != null) {
 
                 for (Vec3i framePosRelative : PORTAL_CONSTRUCTION_FRAME) {
-                    BlockPos framePos = _portalOrigin.add(framePosRelative);
+                    BlockPos framePos = portalOrigin.add(framePosRelative);
                     if (block.equals(framePos)) return true;
                 }
                 // If we're the water source block...
-                if (block.equals(_portalOrigin.add(WATER_SOURCE_ORIGIN))) {
+                if (block.equals(portalOrigin.add(WATER_SOURCE_ORIGIN))) {
                     if (MinecraftClient.getInstance().world.getBlockState(block).getBlock() == Blocks.WATER)
                         return true;
                 }
@@ -131,8 +131,8 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
             return false;
         });
 
-        _lavaSearchTimer.reset();
-        _firstSearch = true;
+        lavaSearchTimer.reset();
+        firstSearch = true;
 
     }
 
@@ -154,7 +154,7 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
             return TaskCatalogue.getItemTask(Items.FLINT_AND_STEEL, 1);
         }
 
-        boolean needsToLookForPortal = _portalOrigin == null;
+        boolean needsToLookForPortal = portalOrigin == null;
         if (needsToLookForPortal) {
             if (!mod.getItemStorage().hasItem(Items.WATER_BUCKET)) {
                 setDebugState("Getting water");
@@ -163,9 +163,9 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
 
             boolean foundSpot = false;
 
-            if (_firstSearch || _lavaSearchTimer.elapsed()) {
-                _firstSearch = false;
-                _lavaSearchTimer.reset();
+            if (firstSearch || lavaSearchTimer.elapsed()) {
+                firstSearch = false;
+                lavaSearchTimer.reset();
                 Debug.logMessage("(Searching for lava lake with portalable spot nearby...)");
                 BlockPos lavaPos = findLavaLake(mod, mod.getPlayer().getBlockPos());
                 if (lavaPos != null) {
@@ -174,7 +174,7 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
                     if (foundPortalRegion == null) {
                         Debug.logWarning("Failed to find portalable region nearby. Consider increasing the search timeout range");
                     } else {
-                        _portalOrigin = foundPortalRegion.add(PORTAL_ORIGIN_RELATIVE_TO_REGION);
+                        portalOrigin = foundPortalRegion.add(PORTAL_ORIGIN_RELATIVE_TO_REGION);
                         foundSpot = true;
                     }
                 } else {
@@ -190,7 +190,7 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
 
         // Now... Build the foundation
 
-        if (!_portalFrameBuilt) {
+        if (!portalFrameBuilt) {
             BlockPos requiredFrame = getRequiredFrameLeft();
             if (requiredFrame != null) {
                 setDebugState("Creating construction frame");
@@ -199,26 +199,26 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
         }
 
         // Clear the spot
-        if (!_portalFrameBuilt && !_isPlacingLiquid) {
+        if (!portalFrameBuilt && !isPlacingLiquid) {
             BlockPos toDestroy = getPortalRegionUnclearedBlock();
             if (toDestroy != null) {
                 setDebugState("Clearing Portal Region");
-                _placeLavaWeCanBreakAgainTimer.reset();
-                _destroyTarget = toDestroy;
+                placeLavaWeCanBreakAgainTimer.reset();
+                destroyTarget = toDestroy;
                 return new DestroyBlockTask(toDestroy);//new ClearRegionTask(getPortalRegionCorner(), getPortalRegionCorner().add(PORTALABLE_REGION_SIZE));
             }
         }
 
         // Place our water source
-        if (!_portalFrameBuilt) {
-            BlockPos waterSourcePos = _portalOrigin.add(WATER_SOURCE_ORIGIN);
+        if (!portalFrameBuilt) {
+            BlockPos waterSourcePos = portalOrigin.add(WATER_SOURCE_ORIGIN);
             if (MinecraftClient.getInstance().world.getBlockState(waterSourcePos).getBlock() != Blocks.WATER) {
                 if (!mod.getItemStorage().hasItem(Items.WATER_BUCKET)) {
                     setDebugState("Getting water");
                     return TaskCatalogue.getItemTask(Items.WATER_BUCKET, 1);
                 }
                 setDebugState("Placing water: " + waterSourcePos);
-                _isPlacingLiquid = true;
+                isPlacingLiquid = true;
                 // Place water
                 // south corresponds to +z
                 Direction placeWaterFrom = Direction.SOUTH;
@@ -231,51 +231,51 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
         // Place lava
         for (LavaTarget lavaTarget : PORTAL_FRAME_LAVA) {
             //mod.getConfigState().setAllowWalkThroughFlowingWater(true);
-            if (!lavaTarget.isSatisfied(_portalOrigin)) {
+            if (!lavaTarget.isSatisfied(portalOrigin)) {
 
                 // Get lava if we don't have it.
                 if (!mod.getItemStorage().hasItem(Items.LAVA_BUCKET)) {
                     setDebugState("Getting Lava");
-                    _isPlacingLiquid = true;
-                    return _collectLavaTask;
+                    isPlacingLiquid = true;
+                    return collectLavaTask;
                 }
 
-                if (_placeLavaWeCanBreakAgainTimer.elapsed()) {
-                    _isPlacingLiquid = false;
-                    _placeLavaWeCanBreakAgainTimer.reset();
+                if (placeLavaWeCanBreakAgainTimer.elapsed()) {
+                    isPlacingLiquid = false;
+                    placeLavaWeCanBreakAgainTimer.reset();
                 }
-                _portalFrameBuilt = false;
+                portalFrameBuilt = false;
                 // Walk through water to get to the bottom, we have to get there to further guarantee placement.
                 mod.getBehaviour().setAllowWalkThroughFlowingWater(lavaTarget.isBelow());
 
                 // Special case: Get close enough to our base if we're placing in the bad zone
                 if (lavaTarget.isBelow()) {
-                    BlockPos posClose = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(_portalOrigin.add(lavaTarget.where),-1,1,0);
+                    BlockPos posClose = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(portalOrigin.add(lavaTarget.where),-1,1,0);
                     // If we're not right at that point and we're registered to keep fighting for it, go for it.
                     if (!mod.getPlayer().getBlockPos().equals(posClose)) {
-                        if (!_specialBottomCaseCloserTimer.elapsed()) {
+                        if (!specialBottomCaseCloserTimer.elapsed()) {
                             setDebugState("Special Case: Getting near bottom lava to place it.");
-                            _specialBottomCaseCloserTimerForcePlace.reset();
+                            specialBottomCaseCloserTimerForcePlace.reset();
                             return new GetToBlockTask(posClose, false);
                         } else {
-                            if (_specialBottomCaseCloserTimerForcePlace.elapsed()) {
-                                _specialBottomCaseCloserTimer.reset();
+                            if (specialBottomCaseCloserTimerForcePlace.elapsed()) {
+                                specialBottomCaseCloserTimer.reset();
                             }
                         }
                     }
                 }
 
-                _isPlacingLiquid = true;
+                isPlacingLiquid = true;
                 setDebugState("Placing Obsidian");
-                return lavaTarget.placeTask(_portalOrigin, lavaTarget.isBelow());
+                return lavaTarget.placeTask(portalOrigin, lavaTarget.isBelow());
             }
         }
         mod.getBehaviour().setAllowWalkThroughFlowingWater(false);
 
-        _portalFrameBuilt = true;
+        portalFrameBuilt = true;
 
         // Delete water source
-        BlockPos waterSourcePos = _portalOrigin.add(WATER_SOURCE_ORIGIN);
+        BlockPos waterSourcePos = portalOrigin.add(WATER_SOURCE_ORIGIN);
         BlockState waterSource = MinecraftClient.getInstance().world.getBlockState(waterSourcePos);
         if (waterSource.getBlock() == Blocks.WATER) {
             setDebugState("Removing water source");
@@ -285,7 +285,7 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
 
         // Clear inside of portal
         for (Vec3i offs : PORTAL_INTERIOR) {
-            BlockPos p = _portalOrigin.add(offs);
+            BlockPos p = portalOrigin.add(offs);
             if (!MinecraftClient.getInstance().world.getBlockState(p).isAir()) {
                 setDebugState("Clearing inside of portal");
                 return new DestroyBlockTask(p);
@@ -294,7 +294,7 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
         setDebugState("Flinting and Steeling");
 
         // Flint and steel it baby
-        return new InteractWithBlockTask(new ItemTarget(Items.FLINT_AND_STEEL, 1), Direction.UP, _portalOrigin.down(), true);
+        return new InteractWithBlockTask(new ItemTarget(Items.FLINT_AND_STEEL, 1), Direction.UP, portalOrigin.down(), true);
 
         // Pick up water
         // Clear inner portal area
@@ -432,14 +432,14 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
     }
 
     private BlockPos getPortalRegionUnclearedBlock() {
-        if (_destroyTarget != null) {
-            BlockState state = MinecraftClient.getInstance().world.getBlockState(_destroyTarget);
+        if (destroyTarget != null) {
+            BlockState state = MinecraftClient.getInstance().world.getBlockState(destroyTarget);
             Block block = state.getBlock();
             if (state.isAir() || block == Blocks.WATER) {
-                _destroyTarget = null;
+                destroyTarget = null;
             }
         }
-        if (_destroyTarget != null) return _destroyTarget;
+        if (destroyTarget != null) return destroyTarget;
         // Region
         for (int dx = 0; dx < PORTALABLE_REGION_SIZE.getX(); ++dx) {
             for (int dz = 0; dz < PORTALABLE_REGION_SIZE.getZ(); ++dz) {
@@ -451,7 +451,7 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
         }
         // Extra places
         for (Vec3i relativeToOrigin : PORTALABLE_REGION_EXTRA) {
-            BlockPos toCheck = _portalOrigin.add(relativeToOrigin);
+            BlockPos toCheck = portalOrigin.add(relativeToOrigin);
             if (shouldBeDestroyed(toCheck)) return toCheck;
         }
 
@@ -471,7 +471,7 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
         if (block == Blocks.WATER) return false;
 
         // If we're supposed to have structures here, ignore.
-        Vec3i relativeToOrigin = toCheck.subtract(_portalOrigin);//new Vec3i(dx - PORTAL_ORIGIN_RELATIVE_TO_REGION.getX(), dy  - PORTAL_ORIGIN_RELATIVE_TO_REGION.getY(), dz - PORTAL_ORIGIN_RELATIVE_TO_REGION.getZ());
+        Vec3i relativeToOrigin = toCheck.subtract(portalOrigin);//new Vec3i(dx - PORTAL_ORIGIN_RELATIVE_TO_REGION.getX(), dy  - PORTAL_ORIGIN_RELATIVE_TO_REGION.getY(), dz - PORTAL_ORIGIN_RELATIVE_TO_REGION.getZ());
         boolean foundFrame = false;
         for (Vec3i framePos : PORTAL_CONSTRUCTION_FRAME) {
             if (framePos.equals(relativeToOrigin)) {
@@ -488,7 +488,7 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
 
     private BlockPos getRequiredFrameLeft() {
         for (Vec3i framePos : PORTAL_CONSTRUCTION_FRAME) {
-            BlockPos worldPos = _portalOrigin.add(framePos);
+            BlockPos worldPos = portalOrigin.add(framePos);
             if (!MinecraftClient.getInstance().world.getBlockState(worldPos).isSolidBlock(MinecraftClient.getInstance().world, worldPos)) {
                 return worldPos;
             }
@@ -497,8 +497,8 @@ public class ConstructNetherPortalSpeedrunTask extends adris.altoclef.tasksystem
     }
 
     private BlockPos getPortalRegionCorner() {
-        if (_portalOrigin == null) return null;
-        return _portalOrigin.subtract(PORTAL_ORIGIN_RELATIVE_TO_REGION);
+        if (portalOrigin == null) return null;
+        return portalOrigin.subtract(PORTAL_ORIGIN_RELATIVE_TO_REGION);
     }
 
     private static class LavaTarget {

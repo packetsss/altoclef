@@ -18,16 +18,16 @@ import java.util.HashSet;
 
 public class CollectWoolTask extends ResourceTask {
 
-    private final int _count;
+    private final int count;
 
-    private final HashSet<DyeColor> _colors;
-    private final Item[] _wools;
+    private final HashSet<DyeColor> colors;
+    private final Item[] wools;
 
     public CollectWoolTask(DyeColor[] colors, int count) {
         super(new ItemTarget(ItemHelper.WOOL, count));
-        _colors = new HashSet<>(Arrays.asList(colors));
-        _count = count;
-        _wools = getWoolColorItems(colors);
+        this.colors = new HashSet<>(Arrays.asList(colors));
+        this.count = count;
+        wools = getWoolColorItems(colors);
     }
 
     public CollectWoolTask(DyeColor color, int count) {
@@ -64,9 +64,9 @@ public class CollectWoolTask extends ResourceTask {
         // USE DYES + REGULAR WOOL TO CRAFT THE WOOL COLOR!!
 
         // If we find a wool block, break it.
-        Block[] woolBlocks = ItemHelper.itemsToBlocks(_wools);
+        Block[] woolBlocks = ItemHelper.itemsToBlocks(wools);
         if (mod.getBlockScanner().anyFound(woolBlocks)) {
-            return new MineAndCollectTask(new ItemTarget(_wools), woolBlocks, MiningRequirement.HAND);
+            return new MineAndCollectTask(new ItemTarget(wools), woolBlocks, MiningRequirement.HAND);
         }
 
         // If we have shears, right click nearest sheep
@@ -86,10 +86,10 @@ public class CollectWoolTask extends ResourceTask {
         return new KillAndLootTask(SheepEntity.class, entity -> {
             if (entity instanceof SheepEntity sheep) {
                 // Hunt sheep of the same color.
-                return _colors.contains(sheep.getColor()) && !sheep.isSheared();
+                return colors.contains(sheep.getColor()) && !sheep.isSheared();
             }
             return false;
-        }, new ItemTarget(_wools, _count));
+        }, new ItemTarget(wools, count));
     }
 
     @Override
@@ -99,12 +99,12 @@ public class CollectWoolTask extends ResourceTask {
 
     @Override
     protected boolean isEqualResource(ResourceTask other) {
-        return other instanceof CollectWoolTask && ((CollectWoolTask) other)._count == _count;
+        return other instanceof CollectWoolTask && ((CollectWoolTask) other).count == count;
     }
 
     @Override
     protected String toDebugStringName() {
-        return "Collect " + _count + " wool.";
+        return "Collect " + count + " wool.";
     }
 
 }

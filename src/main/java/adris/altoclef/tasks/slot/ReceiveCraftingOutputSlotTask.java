@@ -13,12 +13,12 @@ import net.minecraft.screen.slot.SlotActionType;
 
 public class ReceiveCraftingOutputSlotTask extends Task implements ITaskUsesCraftingGrid {
 
-    private final int _toTake;
-    private final Slot _slot;
+    private final int toTake;
+    private final Slot slot;
 
     public ReceiveCraftingOutputSlotTask(Slot slot, int toTake) {
-        _slot = slot;
-        _toTake = toTake;
+        this.slot = slot;
+        this.toTake = toTake;
     }
 
     public ReceiveCraftingOutputSlotTask(Slot slot, boolean all) {
@@ -48,22 +48,22 @@ public class ReceiveCraftingOutputSlotTask extends Task implements ITaskUsesCraf
 
     @Override
     protected Task onTick(AltoClef mod) {
-        ItemStack inOutput = StorageHelper.getItemStackInSlot(_slot);
+        ItemStack inOutput = StorageHelper.getItemStackInSlot(slot);
         ItemStack cursor = StorageHelper.getItemStackInCursorSlot();
         boolean cursorSlotFree = cursor.isEmpty();
         if (!cursorSlotFree && !ItemHelper.canStackTogether(inOutput, cursor)) {
             return new EnsureFreeCursorSlotTask();
         }
         int craftCount = inOutput.getCount() * getCraftMultipleCount(mod);
-        int weWantToAddToInventory = _toTake - mod.getItemStorage().getItemCountInventoryOnly(inOutput.getItem());
+        int weWantToAddToInventory = toTake - mod.getItemStorage().getItemCountInventoryOnly(inOutput.getItem());
         boolean takeAll = weWantToAddToInventory >= craftCount;
         if (takeAll && mod.getItemStorage().getSlotThatCanFitInPlayerInventory(inOutput, true).isPresent()) {
             setDebugState("Quick moving output");
-            mod.getSlotHandler().clickSlot(_slot, 0, SlotActionType.QUICK_MOVE);
+            mod.getSlotHandler().clickSlot(slot, 0, SlotActionType.QUICK_MOVE);
             return null;
         }
         setDebugState("Picking up output");
-        mod.getSlotHandler().clickSlot(_slot, 0, SlotActionType.PICKUP);
+        mod.getSlotHandler().clickSlot(slot, 0, SlotActionType.PICKUP);
         return null;
     }
 
@@ -74,7 +74,7 @@ public class ReceiveCraftingOutputSlotTask extends Task implements ITaskUsesCraf
     @Override
     protected boolean isEqual(Task other) {
         if (other instanceof ReceiveCraftingOutputSlotTask task) {
-            return task._slot.equals(_slot) && task._toTake == _toTake;
+            return task.slot.equals(slot) && task.toTake == toTake;
         }
         return false;
     }

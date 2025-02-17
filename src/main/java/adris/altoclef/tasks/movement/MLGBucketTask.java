@@ -37,14 +37,14 @@ import java.util.Optional;
 
 public class MLGBucketTask extends Task {
 
-    private static MLGClutchConfig _config;
+    private static MLGClutchConfig config;
 
     static {
-        ConfigHelper.loadConfig("configs/mlg_clutch_settings.json", MLGClutchConfig::new, MLGClutchConfig.class, newConfig -> _config = newConfig);
+        ConfigHelper.loadConfig("configs/mlg_clutch_settings.json", MLGClutchConfig::new, MLGClutchConfig.class, newConfig -> config = newConfig);
     }
 
-    private BlockPos _placedPos;
-    private BlockPos _movingTorwards;
+    private BlockPos placedPos;
+    private BlockPos movingTorwards;
 
     private static boolean isLava(BlockPos pos) {
         assert MinecraftClient.getInstance().world != null;
@@ -56,7 +56,7 @@ public class MLGBucketTask extends Task {
         BlockState state = MinecraftClient.getInstance().world.getBlockState(pos);
         if (state.getBlock() == Blocks.LAVA) {
             int level = state.getFluidState().getLevel();
-            return level == 0 || level >= _config.lavaLevelOrGreaterWillCancelFallDamage;
+            return level == 0 || level >= config.lavaLevelOrGreaterWillCancelFallDamage;
         }
         return false;
     }
@@ -75,7 +75,7 @@ public class MLGBucketTask extends Task {
         double verticalDist = player.getPos().getY() - pos.getY() - 1;
         double verticalVelocity = -1 * player.getVelocity().y;
         double grav = EntityHelper.ENTITY_GRAVITY;
-        double movementSpeedPerTick = _config.averageHorizontalMovementSpeedPerTick; // Calculated, but also somewhat conservative
+        double movementSpeedPerTick = config.averageHorizontalMovementSpeedPerTick; // Calculated, but also somewhat conservative
         // 1d projectile motion
         double ticksToTravelSq = (-verticalVelocity + Math.sqrt(verticalVelocity * verticalVelocity + 2 * grav * verticalDist)) / grav;
         double maxMoveDistanceSq = movementSpeedPerTick * movementSpeedPerTick * ticksToTravelSq * ticksToTravelSq;
@@ -96,7 +96,7 @@ public class MLGBucketTask extends Task {
         }
         assert player != null;
         double resultingHealth = player.getHealth() - (float) damage;
-        return resultingHealth < _config.preferLavaWhenFallDropsHealthBelowThreshold;
+        return resultingHealth < config.preferLavaWhenFallDropsHealthBelowThreshold;
     }
 
     private static double calculateFallDamageToLandOn(BlockPos pos) {
@@ -142,12 +142,12 @@ public class MLGBucketTask extends Task {
         Optional<BlockPos> bestClutchPos = getBestConeClutchBlock(mod, oldMovingTorwards);
         // Move torwards our best "clutch" position
         if (bestClutchPos.isPresent()) {
-            _movingTorwards = bestClutchPos.get().mutableCopy();
-            if (!_movingTorwards.equals(oldMovingTorwards)) {
+            movingTorwards = bestClutchPos.get().mutableCopy();
+            if (!movingTorwards.equals(oldMovingTorwards)) {
                 if (oldMovingTorwards == null)
-                    Debug.logMessage("(NEW clutch target: " + _movingTorwards + ")");
+                    Debug.logMessage("(NEW clutch target: " + movingTorwards + ")");
                 else
-                    Debug.logMessage("(changed clutch target: " + _movingTorwards + ")");
+                    Debug.logMessage("(changed clutch target: " + movingTorwards + ")");
             }
         } else if (oldMovingTorwards != null) {
             Debug.logMessage("(LOST clutch position!)");
@@ -191,8 +191,8 @@ public class MLGBucketTask extends Task {
             boolean hasClutch = (!mod.getWorld().getDimension().isUltrawarm() && mod.getSlotHandler().forceEquipItem(Items.WATER_BUCKET));
             if (!hasClutch) {
                 // Go through our "clutch" items and see if any fit
-                if (!_config.clutchItems.isEmpty()) {
-                    for (Item tryEquip : _config.clutchItems) {
+                if (!config.clutchItems.isEmpty()) {
+                    for (Item tryEquip : config.clutchItems) {
                         if (mod.getSlotHandler().forceEquipItem(tryEquip)) {
                             hasClutch = true;
                             break;
@@ -204,7 +204,7 @@ public class MLGBucketTask extends Task {
             BlockPos[] toCheckLook = new BlockPos[]{toPlaceOn, toPlaceOn.up(), toPlaceOn.up(2)};
             if (hasClutch && Arrays.stream(toCheckLook).anyMatch(check -> mod.getClientBaritone().getPlayerContext().isLookingAt(check))) {
                 Debug.logMessage("HIT: " + willLandIn);
-                _placedPos = willLandIn;
+                placedPos = willLandIn;
                 mod.getInputControls().tryPress(Input.CLICK_RIGHT);
                 //mod.getClientBaritone().getInputOverrideHandler().setInputForceState(Input.CLICK_RIGHT, true);
             } else {
@@ -222,30 +222,30 @@ public class MLGBucketTask extends Task {
         mod.getInputControls().hold(Input.SPRINT);
         // Check AROUND player instead of directly under.
         // We may crop the edge of a block or wall.
-        BlockPos oldMovingTorwards = _movingTorwards != null ? _movingTorwards.mutableCopy() : null;
-        _movingTorwards = null;
+        BlockPos oldMovingTorwards = movingTorwards != null ? movingTorwards.mutableCopy() : null;
+        movingTorwards = null;
         Task result = onTickInternal(mod, oldMovingTorwards);
 
-        handleForwardVelocity(mod, !Objects.equals(oldMovingTorwards, _movingTorwards));
+        handleForwardVelocity(mod, !Objects.equals(oldMovingTorwards, movingTorwards));
         handleCancellingSidewaysVelocity(mod);
 
         return result;
     }
 
     private void handleForwardVelocity(AltoClef mod, boolean newForwardTarget) {
-        if (mod.getPlayer().isOnGround() || _movingTorwards == null || WorldHelper.inRangeXZ(mod.getPlayer(), _movingTorwards, 0.05f)) {
+        if (mod.getPlayer().isOnGround() || movingTorwards == null || WorldHelper.inRangeXZ(mod.getPlayer(), movingTorwards, 0.05f)) {
             moveForwardBack(mod, 0);
             return;
         }
         Rotation look = LookHelper.getLookRotation();
         look = new Rotation(look.getYaw(), 0);
         Vec3d forwardFacing = LookHelper.toVec3d(look).multiply(1, 0, 1).normalize();
-        Vec3d delta = WorldHelper.toVec3d(_movingTorwards).subtract(mod.getPlayer().getPos()).multiply(1, 0, 1);
+        Vec3d delta = WorldHelper.toVec3d(movingTorwards).subtract(mod.getPlayer().getPos()).multiply(1, 0, 1);
         Vec3d velocity = mod.getPlayer().getVelocity().multiply(1, 0, 1);
         Vec3d pd = delta.subtract(velocity.multiply(3f));
         double forwardStrength = pd.dotProduct(forwardFacing);
         if (newForwardTarget) {
-            LookHelper.lookAt(mod, _movingTorwards);
+            LookHelper.lookAt(mod, movingTorwards);
         }
         Debug.logInternal("F:" + forwardStrength);
         moveForwardBack(mod, (int) Math.signum(forwardStrength));
@@ -254,7 +254,7 @@ public class MLGBucketTask extends Task {
     @Override
     protected void onStart(AltoClef mod) {
         mod.getClientBaritone().getPathingBehavior().forceCancel();
-        _placedPos = null;
+        placedPos = null;
         // hold shift while falling.
         // Look down at first, might help
         mod.getPlayer().pitch = 90;
@@ -327,13 +327,13 @@ public class MLGBucketTask extends Task {
      * This will nudge the bot left/right so we're no longer "slipping" to the side.
      */
     private void handleCancellingSidewaysVelocity(AltoClef mod) {
-        if (_movingTorwards == null) {
+        if (movingTorwards == null) {
             moveLeftRight(mod, 0);
             return;
         }
         // Cancel our left/right velocity with respect to block
         Vec3d velocity = mod.getPlayer().getVelocity();
-        Vec3d deltaTarget = WorldHelper.toVec3d(_movingTorwards).subtract(mod.getPlayer().getPos());
+        Vec3d deltaTarget = WorldHelper.toVec3d(movingTorwards).subtract(mod.getPlayer().getPos());
         // "right" velocity relative to delta
         Rotation look = LookHelper.getLookRotation();
         Vec3d forwardFacing = LookHelper.toVec3d(look).multiply(1, 0, 1).normalize();
@@ -353,8 +353,8 @@ public class MLGBucketTask extends Task {
     }
 
     private Optional<BlockPos> getBestConeClutchBlock(AltoClef mod, BlockPos oldClutchTarget) {
-        double pitchHalfWidth = _config.epicClutchConePitchAngle;
-        double dpitchStart = pitchHalfWidth / _config.epicClutchConePitchResolution;
+        double pitchHalfWidth = config.epicClutchConePitchAngle;
+        double dpitchStart = pitchHalfWidth / config.epicClutchConePitchResolution;
 
         // Our priority is:
         // - Safe to land (water)
@@ -369,9 +369,9 @@ public class MLGBucketTask extends Task {
             cctx.checkBlock(mod, oldClutchTarget);
 
         // Perform cone
-        for (double pitch = dpitchStart; pitch <= pitchHalfWidth; pitch += pitchHalfWidth / _config.epicClutchConePitchResolution) {
+        for (double pitch = dpitchStart; pitch <= pitchHalfWidth; pitch += pitchHalfWidth / config.epicClutchConePitchResolution) {
             double pitchProgress = (pitch - dpitchStart) / (pitchHalfWidth - dpitchStart);
-            double yawResolution = _config.epicClutchConeYawDivisionStart + pitchProgress * (_config.epicClutchConeYawDivisionEnd - _config.epicClutchConeYawDivisionStart); // lerp from start to end
+            double yawResolution = config.epicClutchConeYawDivisionStart + pitchProgress * (config.epicClutchConeYawDivisionEnd - config.epicClutchConeYawDivisionStart); // lerp from start to end
             for (double yaw = 0; yaw < 360; yaw += 360.0 / yawResolution) {
                 RayTraceContext rctx = castCone(yaw, pitch);
                 cctx.checkRay(mod, rctx);
@@ -394,14 +394,14 @@ public class MLGBucketTask extends Task {
     private RayTraceContext castDown(Vec3d origin) {
         Entity player = MinecraftClient.getInstance().player;
         assert player != null;
-        return new RayTraceContext(origin, origin.add(0, -1 * _config.castDownDistance, 0), RayTraceContext.ShapeType.COLLIDER, RayTraceContext.FluidHandling.ANY, player);
+        return new RayTraceContext(origin, origin.add(0, -1 * config.castDownDistance, 0), RayTraceContext.ShapeType.COLLIDER, RayTraceContext.FluidHandling.ANY, player);
     }
 
     private RayTraceContext castCone(double yaw, double pitch) {
         Entity player = MinecraftClient.getInstance().player;
         assert player != null;
         Vec3d origin = player.getPos();
-        double dy = _config.epicClutchConeCastHeight;
+        double dy = config.epicClutchConeCastHeight;
         double dH = dy * Math.sin(Math.toRadians(pitch)); // horizontal distance
         double yawRad = Math.toRadians(yaw);
         double dx = dH * Math.cos(yawRad);
@@ -413,7 +413,7 @@ public class MLGBucketTask extends Task {
     @Override
     protected void onStop(AltoClef mod, Task interruptTask) {
         mod.getClientBaritone().getPathingBehavior().forceCancel();
-        _movingTorwards = null;
+        movingTorwards = null;
         mod.getClientBaritone().getInputOverrideHandler().setInputForceState(Input.CLICK_RIGHT, false);
         moveLeftRight(mod, 0);
         moveForwardBack(mod, 0);
@@ -425,7 +425,7 @@ public class MLGBucketTask extends Task {
         if (!mod.getWorld().getDimension().isUltrawarm() && mod.getItemStorage().hasItem(Items.WATER_BUCKET)) {
             return true;
         }
-        return _config.clutchItems.stream().anyMatch(item -> mod.getItemStorage().hasItem(item));
+        return config.clutchItems.stream().anyMatch(item -> mod.getItemStorage().hasItem(item));
     }
 
     @Override
@@ -441,14 +441,14 @@ public class MLGBucketTask extends Task {
     @Override
     protected String toDebugString() {
         String result = "Epic gaemer moment";
-        if (_movingTorwards != null) {
-            result += " (CLUTCH AT: " + _movingTorwards + ")";
+        if (movingTorwards != null) {
+            result += " (CLUTCH AT: " + movingTorwards + ")";
         }
         return result;
     }
 
     public BlockPos getWaterPlacedPos() {
-        return _placedPos;
+        return placedPos;
     }
 
     private static class MLGClutchConfig {

@@ -10,9 +10,9 @@ import java.util.regex.Pattern;
 
 public class WhisperChecker {
 
-    private static final TimerGame _repeatTimer = new TimerGame(0.1);
+    private static final TimerGame repeatTimer = new TimerGame(0.1);
 
-    private static String _lastMessage = null;
+    private static String lastMessage = null;
 
     // this didn't work correctly, so I rewrote it without fancy regex stuff -miran
     public static MessageResult tryParse(String ourUsername, String whisperFormat, String message) {
@@ -59,14 +59,14 @@ public class WhisperChecker {
         String foundMiddlePart = "";
         int index = -1;
 
-        boolean duplicate = (msg.equals(_lastMessage));
-        if (duplicate && !_repeatTimer.elapsed()) {
-            _repeatTimer.reset();
+        boolean duplicate = (msg.equals(lastMessage));
+        if (duplicate && !repeatTimer.elapsed()) {
+            repeatTimer.reset();
             // It's probably an actual duplicate. IDK why we get those but yeah.
             return null;
         }
 
-        _lastMessage = msg;
+        lastMessage = msg;
 
         for (String format : ButlerConfig.getInstance().whisperFormats) {
             MessageResult check = tryParse(ourUsername, format, msg);

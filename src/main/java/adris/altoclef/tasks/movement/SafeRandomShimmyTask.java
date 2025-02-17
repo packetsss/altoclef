@@ -13,10 +13,10 @@ import baritone.api.utils.input.Input;
  */
 public class SafeRandomShimmyTask extends Task {
 
-    private final TimerGame _lookTimer;
+    private final TimerGame lookTimer;
 
     public SafeRandomShimmyTask(float randomLookInterval) {
-        _lookTimer = new TimerGame(randomLookInterval);
+        lookTimer = new TimerGame(randomLookInterval);
     }
 
     public SafeRandomShimmyTask() {
@@ -25,15 +25,15 @@ public class SafeRandomShimmyTask extends Task {
 
     @Override
     protected void onStart(AltoClef mod) {
-        _lookTimer.reset();
+        lookTimer.reset();
     }
 
     @Override
     protected Task onTick(AltoClef mod) {
 
-        if (_lookTimer.elapsed()) {
+        if (lookTimer.elapsed()) {
             Debug.logMessage("Random Orientation");
-            _lookTimer.reset();
+            lookTimer.reset();
             LookHelper.randomOrientation(mod);
         }
 

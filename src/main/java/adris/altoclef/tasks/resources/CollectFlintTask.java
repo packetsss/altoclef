@@ -17,11 +17,11 @@ import java.util.Optional;
 public class CollectFlintTask extends ResourceTask {
     private static final float CLOSE_ENOUGH_FLINT = 10;
 
-    private final int _count;
+    private final int count;
 
     public CollectFlintTask(int targetCount) {
         super(Items.FLINT, targetCount);
-        _count = targetCount;
+        count = targetCount;
     }
 
     @Override
@@ -59,14 +59,14 @@ public class CollectFlintTask extends ResourceTask {
     @Override
     protected boolean isEqualResource(ResourceTask other) {
         if (other instanceof CollectFlintTask task) {
-            return task._count == _count;
+            return task.count == count;
         }
         return false;
     }
 
     @Override
     protected String toDebugStringName() {
-        return "Collect " + _count + " flint";
+        return "Collect " + count + " flint";
     }
 
 

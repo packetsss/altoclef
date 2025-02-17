@@ -128,8 +128,8 @@ public class DeathMenuChain extends TaskChain {
                     ServerAddress address = ServerAddress.parse(prevServerEntry.address);
 
                     new ConnectScreen(screen,client, address.getAddress(), address.getPort());
-                    //ConnectScreen.connect(screen, client, ServerAddress.parse(_prevServerEntry.address), _prevServerEntry);
-                    //client.setScreen(new ConnectScreen(screen, client, _prevServerEntry));
+                    //ConnectScreen.connect(screen, client, ServerAddress.parse(prevServerEntry.address), prevServerEntry);
+                    //client.setScreen(new ConnectScreen(screen, client, prevServerEntry));
                 }
             }
         }

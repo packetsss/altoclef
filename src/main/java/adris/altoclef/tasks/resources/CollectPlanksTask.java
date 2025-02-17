@@ -15,17 +15,17 @@ import java.util.Arrays;
 
 public class CollectPlanksTask extends ResourceTask {
 
-    private final Item[] _planks;
-    private final Item[] _logs;
-    private final int _targetCount;
-    private boolean _logsInNether;
+    private final Item[] planks;
+    private final Item[] logs;
+    private final int targetCount;
+    private boolean logsInNether;
 
     public CollectPlanksTask(Item[] planks, Item[] logs, int count, boolean logsInNether) {
         super(new ItemTarget(planks, count));
-        _planks = planks;
-        _logs = logs;
-        _targetCount = count;
-        _logsInNether = logsInNether;
+        this.planks = planks;
+        this.logs = logs;
+        this.targetCount = count;
+        this.logsInNether = logsInNether;
     }
 
     public CollectPlanksTask(int count) {
@@ -54,7 +54,7 @@ public class CollectPlanksTask extends ResourceTask {
     @Override
     protected double getPickupRange(AltoClef mod) {
         ItemStorageTracker storage = mod.getItemStorage();
-        if (storage.getItemCount(ItemHelper.LOG)*4>_targetCount) return 10;
+        if (storage.getItemCount(ItemHelper.LOG)*4>targetCount) return 10;
 
         return 50;
     }
@@ -73,10 +73,10 @@ public class CollectPlanksTask extends ResourceTask {
     protected Task onResourceTick(AltoClef mod) {
 
         // Craft when we can
-        int totalInventoryPlankCount = mod.getItemStorage().getItemCount(_planks);
-        int potentialPlanks = totalInventoryPlankCount + mod.getItemStorage().getItemCount(_logs) * 4;
-        if (potentialPlanks >= _targetCount) {
-            for (Item logCheck : _logs) {
+        int totalInventoryPlankCount = mod.getItemStorage().getItemCount(planks);
+        int potentialPlanks = totalInventoryPlankCount + mod.getItemStorage().getItemCount(logs) * 4;
+        if (potentialPlanks >= targetCount) {
+            for (Item logCheck : logs) {
                 int count = mod.getItemStorage().getItemCount(logCheck);
                 if (count > 0) {
                     Item plankCheck = ItemHelper.logToPlanks(logCheck);
@@ -85,16 +85,16 @@ public class CollectPlanksTask extends ResourceTask {
                     }
                     int plankCount = mod.getItemStorage().getItemCount(plankCheck);
                     int otherPlankCount = totalInventoryPlankCount - plankCount;
-                    int targetTotalPlanks = Math.min(count * 4 + plankCount, _targetCount - otherPlankCount);
+                    int targetTotalPlanks = Math.min(count * 4 + plankCount, targetCount - otherPlankCount);
                     setDebugState("We have " + logCheck + ", crafting " + targetTotalPlanks + " planks.");
-                    return new CraftInInventoryTask(new RecipeTarget(plankCheck, targetTotalPlanks, generatePlankRecipe(_logs)));
+                    return new CraftInInventoryTask(new RecipeTarget(plankCheck, targetTotalPlanks, generatePlankRecipe(logs)));
                 }
             }
         }
 
         // Collect planks and logs
         ArrayList<ItemTarget> blocksTomine = new ArrayList<>(2);
-        blocksTomine.add(new ItemTarget(_logs));
+        blocksTomine.add(new ItemTarget(logs));
         // Ignore planks if we're told to.
         if (!mod.getBehaviour().exclusivelyMineLogs()) {
             // TODO: Add planks back in, but with a heuristic check (so we don't go for abandoned mineshafts)
@@ -103,7 +103,7 @@ public class CollectPlanksTask extends ResourceTask {
 
         ResourceTask mineTask = new MineAndCollectTask(blocksTomine.toArray(ItemTarget[]::new), MiningRequirement.HAND);
         // Kinda jank
-        if (_logsInNether) {
+        if (logsInNether) {
             mineTask.forceDimension(Dimension.NETHER);
         }
         return mineTask;
@@ -121,11 +121,11 @@ public class CollectPlanksTask extends ResourceTask {
 
     @Override
     protected String toDebugStringName() {
-        return "Crafting " + _targetCount + " planks " + Arrays.toString(_planks);
+        return "Crafting " + targetCount + " planks " + Arrays.toString(planks);
     }
 
     public CollectPlanksTask logsInNether() {
-        _logsInNether = true;
+        logsInNether = true;
         return this;
     }
 }

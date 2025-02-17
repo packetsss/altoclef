@@ -10,35 +10,35 @@ import java.util.Arrays;
 
 public class RunAwayFromPositionTask extends CustomBaritoneGoalTask {
 
-    private final BlockPos[] _dangerBlocks;
-    private final double _distance;
-    private final Integer _maintainY;
+    private final BlockPos[] dangerBlocks;
+    private final double distance;
+    private final Integer maintainY;
 
     public RunAwayFromPositionTask(double distance, BlockPos... toRunAwayFrom) {
         this(distance, null, toRunAwayFrom);
     }
 
     public RunAwayFromPositionTask(double distance, Integer maintainY, BlockPos... toRunAwayFrom) {
-        _distance = distance;
-        _dangerBlocks = toRunAwayFrom;
-        _maintainY = maintainY;
+        this.distance = distance;
+        this.dangerBlocks = toRunAwayFrom;
+        this.maintainY = maintainY;
     }
 
     @Override
     protected Goal newGoal(AltoClef mod) {
-        return new GoalRunAway(_distance, _maintainY, _dangerBlocks);
+        return new GoalRunAway(distance, maintainY, dangerBlocks);
     }
 
     @Override
     protected boolean isEqual(Task other) {
         if (other instanceof RunAwayFromPositionTask task) {
-            return Arrays.equals(task._dangerBlocks, _dangerBlocks);
+            return Arrays.equals(task.dangerBlocks, dangerBlocks);
         }
         return false;
     }
 
     @Override
     protected String toDebugString() {
-        return "Running away from " + Arrays.toString(_dangerBlocks);
+        return "Running away from " + Arrays.toString(dangerBlocks);
     }
 }

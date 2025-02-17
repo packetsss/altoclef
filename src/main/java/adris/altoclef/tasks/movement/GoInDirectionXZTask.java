@@ -9,14 +9,14 @@ import net.minecraft.util.math.Vec3d;
 
 public class GoInDirectionXZTask extends CustomBaritoneGoalTask {
 
-    private final Vec3d _origin;
-    private final Vec3d _delta;
-    private final double _sidePenalty;
+    private final Vec3d origin;
+    private final Vec3d delta;
+    private final double sidePenalty;
 
     public GoInDirectionXZTask(Vec3d origin, Vec3d delta, double sidePenalty) {
-        _origin = origin;
-        _delta = delta;
-        _sidePenalty = sidePenalty;
+        this.origin = origin;
+        this.delta = delta;
+        this.sidePenalty = sidePenalty;
     }
 
     private static boolean closeEnough(Vec3d a, Vec3d b) {
@@ -26,7 +26,7 @@ public class GoInDirectionXZTask extends CustomBaritoneGoalTask {
     @Override
     protected Goal newGoal(AltoClef mod) {
         try {
-            return new GoalDirectionXZ(_origin, _delta, _sidePenalty);
+            return new GoalDirectionXZ(origin, delta, sidePenalty);
         } catch (Exception e) {
             Debug.logMessage("Invalid goal direction XZ (probably zero distance)");
             return null;
@@ -37,13 +37,13 @@ public class GoInDirectionXZTask extends CustomBaritoneGoalTask {
     protected boolean isEqual(Task other) {
         if (other instanceof GoInDirectionXZTask) {
             GoInDirectionXZTask task = (GoInDirectionXZTask) other;
-            return (closeEnough(task._origin, _origin) && closeEnough(task._delta, _delta));
+            return (closeEnough(task.origin, origin) && closeEnough(task.delta, delta));
         }
         return false;
     }
 
     @Override
     protected String toDebugString() {
-        return "Going in direction: <" + _origin.x + "," + _origin.z + "> direction: <" + _delta.x + "," + _delta.z + ">";
+        return "Going in direction: <" + origin.x + "," + origin.z + "> direction: <" + delta.x + "," + delta.z + ">";
     }
 }

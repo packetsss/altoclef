@@ -14,13 +14,13 @@ import java.util.function.Function;
 
 public class CraftWithMatchingStrippedLogsTask extends CraftWithMatchingMaterialsTask {
 
-    private final ItemTarget _visualTarget;
-    private final Function<ItemHelper.WoodItems, Item> _getTargetItem;
+    private final ItemTarget visualTarget;
+    private final Function<ItemHelper.WoodItems, Item> getTargetItem;
 
     public CraftWithMatchingStrippedLogsTask(Item[] validTargets, Function<ItemHelper.WoodItems, Item> getTargetItem, CraftingRecipe recipe, boolean[] sameMask, int count) {
         super(new ItemTarget(validTargets, count), recipe, sameMask);
-        _getTargetItem = getTargetItem;
-        _visualTarget = new ItemTarget(validTargets, count);
+        this.getTargetItem = getTargetItem;
+        visualTarget = new ItemTarget(validTargets, count);
     }
 
 
@@ -41,7 +41,7 @@ public class CraftWithMatchingStrippedLogsTask extends CraftWithMatchingMaterial
     protected Item getSpecificItemCorrespondingToMajorityResource(Item majority) {
         for (ItemHelper.WoodItems woodItems : ItemHelper.getWoodItems()) {
             if (woodItems.strippedLog == majority) {
-                return _getTargetItem.apply(woodItems);
+                return getTargetItem.apply(woodItems);
             }
         }
         return null;
@@ -51,14 +51,14 @@ public class CraftWithMatchingStrippedLogsTask extends CraftWithMatchingMaterial
     @Override
     protected boolean isEqualResource(ResourceTask other) {
         if (other instanceof CraftWithMatchingStrippedLogsTask task) {
-            return task._visualTarget.equals(_visualTarget);
+            return task.visualTarget.equals(visualTarget);
         }
         return false;
     }
 
     @Override
     protected String toDebugStringName() {
-        return "Getting: " + _visualTarget;
+        return "Getting: " + visualTarget;
     }
 
 

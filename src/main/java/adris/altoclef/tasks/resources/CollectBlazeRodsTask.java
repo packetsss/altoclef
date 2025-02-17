@@ -30,16 +30,16 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private static final double SPAWNER_BLAZE_RADIUS = 32;
     private static final double TOO_LITTLE_HEALTH_BLAZE = 10;
     private static final int TOO_MANY_BLAZES = 5;
-    private final int _count;
-    private final Task _searcher = new SearchChunkForBlockTask(Blocks.NETHER_BRICKS);
+    private final int count;
+    private final Task searcher = new SearchChunkForBlockTask(Blocks.NETHER_BRICKS);
 
     // Why was this here???
-    //private Entity _toKill;
-    private BlockPos _foundBlazeSpawner = null;
+    //private Entity toKill;
+    private BlockPos foundBlazeSpawner = null;
 
     public CollectBlazeRodsTask(int count) {
         super(Items.BLAZE_ROD, count);
-        _count = count;
+        this.count = count;
     }
 
     private static boolean isHoveringAboveLavaOrTooHigh(AltoClef mod, Entity entity) {
@@ -76,11 +76,11 @@ public class CollectBlazeRodsTask extends ResourceTask {
                 }
             }
 
-            if (_foundBlazeSpawner != null && toKill.isPresent()) {
+            if (foundBlazeSpawner != null && toKill.isPresent()) {
                 Entity kill = toKill.get();
                 Vec3d nearest = kill.getPos();
 
-                double sqDistanceToPlayer = nearest.squaredDistanceTo(mod.getPlayer().getPos());//_foundBlazeSpawner.getX(), _foundBlazeSpawner.getY(), _foundBlazeSpawner.getZ());
+                double sqDistanceToPlayer = nearest.squaredDistanceTo(mod.getPlayer().getPos());//_foundBlazeSpawner.getX(), foundBlazeSpawner.getY(), foundBlazeSpawner.getZ());
                 // Ignore if the blaze is too far away.
                 if (sqDistanceToPlayer > SPAWNER_BLAZE_RADIUS * SPAWNER_BLAZE_RADIUS) {
                     // If the blaze can see us it needs to go lol
@@ -99,20 +99,20 @@ public class CollectBlazeRodsTask extends ResourceTask {
 
 
         // If the blaze spawner somehow isn't valid
-        if (_foundBlazeSpawner != null && mod.getChunkTracker().isChunkLoaded(_foundBlazeSpawner) && !isValidBlazeSpawner(mod, _foundBlazeSpawner)) {
-            Debug.logMessage("Blaze spawner at " + _foundBlazeSpawner + " too far away or invalid. Re-searching.");
-            _foundBlazeSpawner = null;
+        if (foundBlazeSpawner != null && mod.getChunkTracker().isChunkLoaded(foundBlazeSpawner) && !isValidBlazeSpawner(mod, foundBlazeSpawner)) {
+            Debug.logMessage("Blaze spawner at " + foundBlazeSpawner + " too far away or invalid. Re-searching.");
+            foundBlazeSpawner = null;
         }
 
         // If we have a blaze spawner, go near it.
-        if (_foundBlazeSpawner != null) {
-            if (!_foundBlazeSpawner.isWithinDistance(mod.getPlayer().getPos(), 4)) {
+        if (foundBlazeSpawner != null) {
+            if (!foundBlazeSpawner.isWithinDistance(mod.getPlayer().getPos(), 4)) {
                 setDebugState("Going to blaze spawner");
-                return new GetToBlockTask(_foundBlazeSpawner.up(), false);
+                return new GetToBlockTask(foundBlazeSpawner.up(), false);
             } else {
 
                 // Put out fire that might mess with us.
-                Optional<BlockPos> nearestFire = mod.getBlockScanner().getNearestWithinRange(_foundBlazeSpawner, 5, Blocks.FIRE);
+                Optional<BlockPos> nearestFire = mod.getBlockScanner().getNearestWithinRange(foundBlazeSpawner, 5, Blocks.FIRE);
                 if (nearestFire.isPresent()) {
                     setDebugState("Clearing fire around spawner to prevent loss of blaze rods.");
                     return new PutOutFireTask(nearestFire.get());
@@ -125,12 +125,12 @@ public class CollectBlazeRodsTask extends ResourceTask {
             // Search for blaze
             Optional<BlockPos> pos = mod.getBlockScanner().getNearestBlock(blockPos->isValidBlazeSpawner(mod, blockPos),Blocks.SPAWNER);
 
-            pos.ifPresent(blockPos -> _foundBlazeSpawner = blockPos);
+            pos.ifPresent(blockPos -> foundBlazeSpawner = blockPos);
         }
 
         // We need to find our fortress.
         setDebugState("Searching for fortress/Traveling around fortress");
-        return _searcher;
+        return searcher;
     }
 
     private boolean isValidBlazeSpawner(AltoClef mod, BlockPos pos) {
@@ -154,7 +154,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
 
     @Override
     protected String toDebugStringName() {
-        return "Collect blaze rods - "+AltoClef.INSTANCE.getItemStorage().getItemCount(Items.BLAZE_ROD)+"/"+_count;
+        return "Collect blaze rods - "+AltoClef.INSTANCE.getItemStorage().getItemCount(Items.BLAZE_ROD)+"/"+count;
     }
 
     @Override

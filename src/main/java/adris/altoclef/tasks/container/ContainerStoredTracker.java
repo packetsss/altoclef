@@ -14,23 +14,23 @@ import java.util.HashMap;
 import java.util.function.Predicate;
 
 public class ContainerStoredTracker {
-    private final HashMap<Item, Integer> _totalDeposited = new HashMap<>();
-    private final Predicate<Slot> _acceptDeposit;
+    private final HashMap<Item, Integer> totalDeposited = new HashMap<>();
+    private final Predicate<Slot> acceptDeposit;
 
-    private Subscription<SlotClickChangedEvent> _slotClickChangedSubscription;
+    private Subscription<SlotClickChangedEvent> slotClickChangedSubscription;
 
     public ContainerStoredTracker(Predicate<Slot> acceptDeposit) {
-        _acceptDeposit = acceptDeposit;
+        this.acceptDeposit = acceptDeposit;
     }
 
     private void trackChange(Item item, int delta) {
-        _totalDeposited.put(item, _totalDeposited.getOrDefault(item, 0) + delta);
+        totalDeposited.put(item, totalDeposited.getOrDefault(item, 0) + delta);
     }
 
     public void startTracking() {
-        _slotClickChangedSubscription = EventBus.subscribe(SlotClickChangedEvent.class, evt -> {
+        slotClickChangedSubscription = EventBus.subscribe(SlotClickChangedEvent.class, evt -> {
             Slot slot = evt.slot;
-            if (!slot.isSlotInPlayerInventory() && _acceptDeposit.test(slot)) {
+            if (!slot.isSlotInPlayerInventory() && acceptDeposit.test(slot)) {
                 ItemStack before = evt.before;
                 ItemStack after = evt.after;
                 if (before.getItem() != after.getItem()) {
@@ -48,7 +48,7 @@ public class ContainerStoredTracker {
     }
 
     public void stopTracking() {
-        EventBus.unsubscribe(_slotClickChangedSubscription);
+        EventBus.unsubscribe(slotClickChangedSubscription);
     }
 
     /**
@@ -57,7 +57,7 @@ public class ContainerStoredTracker {
     public int getStoredCount(Item... items) {
         int result = 0;
         for (Item item : items) {
-            result += _totalDeposited.getOrDefault(item, 0);
+            result += totalDeposited.getOrDefault(item, 0);
         }
         return result;
     }

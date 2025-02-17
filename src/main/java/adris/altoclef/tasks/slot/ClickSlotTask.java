@@ -11,7 +11,7 @@ public class ClickSlotTask extends Task {
     private final int mouseButton;
     private final SlotActionType type;
 
-    private boolean _clicked = false;
+    private boolean clicked = false;
 
     public ClickSlotTask(Slot slot, int mouseButton, SlotActionType type) {
         this.slot = slot;
@@ -33,7 +33,7 @@ public class ClickSlotTask extends Task {
 
     @Override
     protected void onStart(AltoClef mod) {
-        _clicked = false;
+        clicked = false;
     }
 
     @Override
@@ -41,7 +41,7 @@ public class ClickSlotTask extends Task {
         if (mod.getSlotHandler().canDoSlotAction()) {
             mod.getSlotHandler().clickSlot(slot, mouseButton, type);
             mod.getSlotHandler().registerSlotAction();
-            _clicked = true;
+            clicked = true;
         }
         return null;
     }
@@ -66,6 +66,6 @@ public class ClickSlotTask extends Task {
 
     @Override
     public boolean isFinished(AltoClef mod) {
-        return _clicked;
+        return clicked;
     }
 }

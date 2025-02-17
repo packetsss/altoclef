@@ -13,10 +13,10 @@ import net.minecraft.world.RayTraceContext;
  */
 public class ClearLiquidTask extends Task {
 
-    private final BlockPos _liquidPos;
+    private final BlockPos liquidPos;
 
     public ClearLiquidTask(BlockPos liquidPos) {
-        this._liquidPos = liquidPos;
+        this.liquidPos = liquidPos;
     }
 
     @Override
@@ -28,10 +28,10 @@ public class ClearLiquidTask extends Task {
     protected Task onTick(AltoClef mod) {
         if (mod.getItemStorage().hasItem(Items.BUCKET)) {
             mod.getBehaviour().setRayTracingFluidHandling(RayTraceContext.FluidHandling.SOURCE_ONLY);
-            return new InteractWithBlockTask(new ItemTarget(Items.BUCKET, 1), _liquidPos, false);
+            return new InteractWithBlockTask(new ItemTarget(Items.BUCKET, 1), liquidPos, false);
         }
 
-        return new PlaceStructureBlockTask(_liquidPos);
+        return new PlaceStructureBlockTask(liquidPos);
     }
 
     @Override
@@ -41,8 +41,8 @@ public class ClearLiquidTask extends Task {
 
     @Override
     public boolean isFinished(AltoClef mod) {
-        if (mod.getChunkTracker().isChunkLoaded(_liquidPos)) {
-            return mod.getWorld().getBlockState(_liquidPos).getFluidState().isEmpty();
+        if (mod.getChunkTracker().isChunkLoaded(liquidPos)) {
+            return mod.getWorld().getBlockState(liquidPos).getFluidState().isEmpty();
         }
         return false;
     }
@@ -50,13 +50,13 @@ public class ClearLiquidTask extends Task {
     @Override
     protected boolean isEqual(Task other) {
         if (other instanceof ClearLiquidTask task) {
-            return task._liquidPos.equals(_liquidPos);
+            return task.liquidPos.equals(liquidPos);
         }
         return false;
     }
 
     @Override
     protected String toDebugString() {
-        return "Clear liquid at " + _liquidPos;
+        return "Clear liquid at " + liquidPos;
     }
 }

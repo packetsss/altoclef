@@ -23,14 +23,14 @@ import java.util.function.Function;
 
 public class PickupFromContainerTask extends AbstractDoToStorageContainerTask {
 
-    private final BlockPos _targetContainer;
-    private final ItemTarget[] _targets;
+    private final BlockPos targetContainer;
+    private final ItemTarget[] targets;
 
-    private final EnsureFreeInventorySlotTask _freeInventoryTask = new EnsureFreeInventorySlotTask();
+    private final EnsureFreeInventorySlotTask freeInventoryTask = new EnsureFreeInventorySlotTask();
 
     public PickupFromContainerTask(BlockPos targetContainer, ItemTarget... targets) {
-        _targets = targets;
-        _targetContainer = targetContainer;
+        this.targets = targets;
+        this.targetContainer = targetContainer;
     }
 
     public static Optional<Slot> getBestSlotToTransfer(AltoClef mod, ItemTarget itemToMove, int currentItemQuantity, List<Slot> grabPotentials, Function<ItemStack, Boolean> canStackFit) {
@@ -71,39 +71,39 @@ public class PickupFromContainerTask extends AbstractDoToStorageContainerTask {
     @Override
     protected boolean isEqual(Task other) {
         if (other instanceof PickupFromContainerTask task) {
-            return Objects.equals(_targetContainer, task._targetContainer) && Arrays.equals(_targets, task._targets);
+            return Objects.equals(targetContainer, task.targetContainer) && Arrays.equals(targets, task.targets);
         }
         return false;
     }
 
     @Override
     protected String toDebugString() {
-        return "Picking up from container at (" + _targetContainer.toShortString() + "): " + Arrays.toString(_targets);
+        return "Picking up from container at (" + targetContainer.toShortString() + "): " + Arrays.toString(targets);
     }
 
     @Override
     protected Optional<BlockPos> getContainerTarget() {
-        return Optional.of(_targetContainer);
+        return Optional.of(targetContainer);
     }
 
     @Override
     protected Task onTick(AltoClef mod) {
         // Free inventory while we're doing it.
-        if (_freeInventoryTask.isActive() && !_freeInventoryTask.isFinished(mod) && !mod.getItemStorage().hasEmptyInventorySlot()) {
+        if (freeInventoryTask.isActive() && !freeInventoryTask.isFinished(mod) && !mod.getItemStorage().hasEmptyInventorySlot()) {
             setDebugState("Freeing inventory.");
-            return _freeInventoryTask;
+            return freeInventoryTask;
         }
         return super.onTick(mod);
     }
 
     @Override
     public boolean isFinished(AltoClef mod) {
-        return Arrays.stream(_targets).allMatch(target -> mod.getItemStorage().getItemCountInventoryOnly(target.getMatches()) >= target.getTargetCount());
+        return Arrays.stream(targets).allMatch(target -> mod.getItemStorage().getItemCountInventoryOnly(target.getMatches()) >= target.getTargetCount());
     }
 
     @Override
     protected Task onContainerOpenSubtask(AltoClef mod, ContainerCache containerCache) {
-        for (ItemTarget target : _targets) {
+        for (ItemTarget target : targets) {
             // Go through each item
             int count = mod.getItemStorage().getItemCountInventoryOnly(target.getMatches());
             if (target.matches(StorageHelper.getItemStackInCursorSlot().getItem()))

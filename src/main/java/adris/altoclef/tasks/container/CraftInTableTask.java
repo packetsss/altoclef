@@ -181,19 +181,19 @@ class DoCraftInTableTask extends DoStuffInContainerTask {
 
     private final float CRAFT_RESET_TIMER_BONUS_SECONDS = 10;
 
-    private final RecipeTarget[] _targets;
+    private final RecipeTarget[] targets;
 
-    private final boolean _collect;
+    private final boolean collect;
 
-    private final CollectRecipeCataloguedResourcesTask _collectTask;
-    private final TimerGame _craftResetTimer = new TimerGame(CRAFT_RESET_TIMER_BONUS_SECONDS);
-    private int _craftCount;
+    private final CollectRecipeCataloguedResourcesTask collectTask;
+    private final TimerGame craftResetTimer = new TimerGame(CRAFT_RESET_TIMER_BONUS_SECONDS);
+    private int craftCount;
 
     public DoCraftInTableTask(RecipeTarget[] targets, boolean collect, boolean ignoreUncataloguedSlots) {
         super(Blocks.CRAFTING_TABLE, new ItemTarget("crafting_table"));
-        _collectTask = new CollectRecipeCataloguedResourcesTask(false, targets);
-        _targets = targets;
-        _collect = collect;
+        collectTask = new CollectRecipeCataloguedResourcesTask(false, targets);
+        this.targets = targets;
+        this.collect = collect;
     }
 
     public DoCraftInTableTask(RecipeTarget[] targets) {
@@ -213,7 +213,7 @@ class DoCraftInTableTask extends DoStuffInContainerTask {
 
         // Save the current behaviour and craft count
         mod.getBehaviour().push();
-        _craftCount = 0;
+        craftCount = 0;
 
         // Check if there is an item in the cursor slot
         ItemStack cursorStack = StorageHelper.getItemStackInCursorSlot();
@@ -240,7 +240,7 @@ class DoCraftInTableTask extends DoStuffInContainerTask {
         }
 
         // Reset the collect task
-        _collectTask.reset();
+        collectTask.reset();
 
         // Add protected items to the behaviour
         mod.getBehaviour().addProtectedItems(getMaterialsArray());
@@ -309,7 +309,7 @@ class DoCraftInTableTask extends DoStuffInContainerTask {
             // Get the item in the craft output slot
             Item outputItem = StorageHelper.getItemStackInSlot(PlayerSlot.CRAFT_OUTPUT_SLOT).getItem();
             // Check if the output item matches any of the targets and the target count is not reached
-            for (RecipeTarget target : _targets) {
+            for (RecipeTarget target : targets) {
                 if (target.getOutputItem() == outputItem && mod.getItemStorage().getItemCount(target.getOutputItem()) < target.getTargetCount()) {
                     return new ReceiveCraftingOutputSlotTask(PlayerSlot.CRAFT_OUTPUT_SLOT, target.getTargetCount());
                 }
@@ -317,18 +317,18 @@ class DoCraftInTableTask extends DoStuffInContainerTask {
         }
 
         // Check if we need to collect items and the collect task is not finished
-        if (_collect && !_collectTask.isFinished(mod) && !StorageHelper.hasRecipeMaterialsOrTarget(mod, _targets)) {
-            return _collectTask;
+        if (collect && !collectTask.isFinished(mod) && !StorageHelper.hasRecipeMaterialsOrTarget(mod, targets)) {
+            return collectTask;
         }
 
         // Reset the craft reset timer if the container is not open
         if (!isContainerOpen(mod)) {
-            _craftResetTimer.reset();
+            craftResetTimer.reset();
         }
 
         // Check if there is any inaccessible item in the recipes and move it to the inventory
         if (!thisOrChildSatisfies(task -> task instanceof CraftInInventoryTask)) {
-            for (RecipeTarget target : _targets) {
+            for (RecipeTarget target : targets) {
                 for (int slot = 0; slot < target.getRecipe().getSlotCount(); ++slot) {
                     ItemTarget toCheck = target.getRecipe().getSlot(slot);
                     if (StorageHelper.isItemInaccessibleToContainer(mod, toCheck)) {
@@ -353,7 +353,7 @@ class DoCraftInTableTask extends DoStuffInContainerTask {
         // Check if the other task is an instance of DoCraftInTableTask
         if (other instanceof DoCraftInTableTask task) {
             // Compare the targets arrays of the two tasks
-            return Arrays.equals(task._targets, _targets);
+            return Arrays.equals(task.targets, targets);
         }
         // The other task is not an instance of DoCraftInTableTask, so they are not equal
         return false;
@@ -380,15 +380,15 @@ class DoCraftInTableTask extends DoStuffInContainerTask {
     protected Task containerSubTask(AltoClef mod) {
         // Calculate the interval based on the container item move delay and a bonus duration
         float interval = mod.getModSettings().getContainerItemMoveDelay() * 10 + CRAFT_RESET_TIMER_BONUS_SECONDS;
-        _craftResetTimer.setInterval(interval);
+        craftResetTimer.setInterval(interval);
 
         // If the craft reset timer has elapsed, return a TimeoutWanderTask
-        if (_craftResetTimer.elapsed()) {
+        if (craftResetTimer.elapsed()) {
             return new TimeoutWanderTask(5);
         }
 
         // Iterate through each target recipe
-        for (RecipeTarget target : _targets) {
+        for (RecipeTarget target : targets) {
             // Check if the output item count meets the target count
             if (mod.getItemStorage().getItemCount(target.getOutputItem()) >= target.getTargetCount()) {
                 continue;
@@ -424,7 +424,7 @@ class DoCraftInTableTask extends DoStuffInContainerTask {
     @Override
     public boolean isFinished(AltoClef mod) {
         // Check if the craft count is greater than or equal to the number of targets
-        return _craftCount >= _targets.length;
+        return craftCount >= targets.length;
     }
 
     /**
@@ -461,7 +461,7 @@ class DoCraftInTableTask extends DoStuffInContainerTask {
         List<Item> result = new ArrayList<>();
 
         // Iterate over each target
-        for (RecipeTarget target : _targets) {
+        for (RecipeTarget target : targets) {
             // Iterate over each slot in the recipe
             for (int i = 0; i < target.getRecipe().getSlotCount(); ++i) {
                 ItemTarget materialTarget = target.getRecipe().getSlot(i);

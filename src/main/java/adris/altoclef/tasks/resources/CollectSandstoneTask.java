@@ -12,11 +12,11 @@ import net.minecraft.item.Items;
 
 public class CollectSandstoneTask extends ResourceTask {
 
-    private final int _count;
+    private final int count;
 
     public CollectSandstoneTask(int targetCount) {
         super(Items.SANDSTONE, targetCount);
-        _count = targetCount;
+        count = targetCount;
     }
 
     @Override
@@ -51,6 +51,6 @@ public class CollectSandstoneTask extends ResourceTask {
 
     @Override
     protected String toDebugStringName() {
-        return "Collecting " + _count + " sandstone.";
+        return "Collecting " + count + " sandstone.";
     }
 }

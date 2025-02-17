@@ -25,18 +25,18 @@ import java.util.function.Predicate;
 
 public class CollectObsidianTask extends ResourceTask {
 
-    private final TimerGame _placeWaterTimeout = new TimerGame(6);
-    private final MovementProgressChecker _lavaTimeout = new MovementProgressChecker();
-    private final Set<BlockPos> _lavaBlacklist = new HashSet<>();
-    private final int _count;
-    private Task _forceCompleteTask = null;
-    private BlockPos _lavaWaitCurrentPos;
+    private final TimerGame placeWaterTimeout = new TimerGame(6);
+    private final MovementProgressChecker lavaTimeout = new MovementProgressChecker();
+    private final Set<BlockPos> lavaBlacklist = new HashSet<>();
+    private final int count;
+    private Task forceCompleteTask = null;
+    private BlockPos lavaWaitCurrentPos;
 
-    private PlaceObsidianBucketTask _placeObsidianTask;
+    private PlaceObsidianBucketTask placeObsidianTask;
 
     public CollectObsidianTask(int count) {
         super(Items.OBSIDIAN, count);
-        _count = count;
+        this.count = count;
     }
 
     private static BlockPos getLavaStructurePos(BlockPos lavaPos) {
@@ -71,14 +71,14 @@ public class CollectObsidianTask extends ResourceTask {
 
         // Avoid placing on the lava block we're trying to mine.
         mod.getBehaviour().avoidBlockPlacing(pos -> {
-            if (_lavaWaitCurrentPos != null) {
-                return pos.equals(_lavaWaitCurrentPos) || pos.equals(getLavaWaterPos(_lavaWaitCurrentPos));
+            if (lavaWaitCurrentPos != null) {
+                return pos.equals(lavaWaitCurrentPos) || pos.equals(getLavaWaterPos(lavaWaitCurrentPos));
             }
             return false;
         });
         mod.getBehaviour().avoidBlockBreaking(pos -> {
-            if (_lavaWaitCurrentPos != null) {
-                return pos.equals(getLavaStructurePos(_lavaWaitCurrentPos));
+            if (lavaWaitCurrentPos != null) {
+                return pos.equals(getLavaStructurePos(lavaWaitCurrentPos));
             }
             return false;
         });
@@ -88,8 +88,8 @@ public class CollectObsidianTask extends ResourceTask {
     protected adris.altoclef.tasksystem.Task onResourceTick(AltoClef mod) {
 
         // Clear the current waiting lava pos if it's no longer lava.
-        if (_lavaWaitCurrentPos != null && mod.getChunkTracker().isChunkLoaded(_lavaWaitCurrentPos) && mod.getWorld().getBlockState(_lavaWaitCurrentPos).getBlock() != Blocks.LAVA) {
-            _lavaWaitCurrentPos = null;
+        if (lavaWaitCurrentPos != null && mod.getChunkTracker().isChunkLoaded(lavaWaitCurrentPos) && mod.getWorld().getBlockState(lavaWaitCurrentPos).getBlock() != Blocks.LAVA) {
+            lavaWaitCurrentPos = null;
         }
 
         // Get a diamond pickaxe FIRST
@@ -98,8 +98,8 @@ public class CollectObsidianTask extends ResourceTask {
             return new SatisfyMiningRequirementTask(MiningRequirement.DIAMOND);
         }
 
-        if (_forceCompleteTask != null && _forceCompleteTask.isActive() && !_forceCompleteTask.isFinished(mod)) {
-            return _forceCompleteTask;
+        if (forceCompleteTask != null && forceCompleteTask.isActive() && !forceCompleteTask.isFinished(mod)) {
+            return forceCompleteTask;
         }
 
         Predicate<BlockPos> goodObsidian = (blockPos ->
@@ -129,29 +129,29 @@ public class CollectObsidianTask extends ResourceTask {
                 BlockPos nearestWater = mod.getBlockTracker().getNearestTracking(WorldWorldHelper.toVec3d(nearestObby), blockPos -> !WorldUtil.isSourceBlock(mod, blockPos, true), Blocks.WATER);
 
                 if (nearestWater != null && nearestWater.getSquaredDistance(nearestObby) < 5 * 5) {
-                    _forceCompleteTask = new ClearLiquidTask(nearestWater);
+                    forceCompleteTask = new ClearLiquidTask(nearestWater);
                     setDebugState("Clearing water nearby obsidian");
-                    return _forceCompleteTask;
+                    return forceCompleteTask;
                 }
             }
              */
 
             setDebugState("Mining/Collecting obsidian");
-            _placeObsidianTask = null;
-            return new MineAndCollectTask(new ItemTarget(Items.OBSIDIAN, _count), new Block[]{Blocks.OBSIDIAN}, MiningRequirement.DIAMOND);
+            placeObsidianTask = null;
+            return new MineAndCollectTask(new ItemTarget(Items.OBSIDIAN, count), new Block[]{Blocks.OBSIDIAN}, MiningRequirement.DIAMOND);
         }
 
         if (WorldHelper.getCurrentDimension() == Dimension.NETHER) {
             final double AVERAGE_GOLD_PER_OBSIDIAN = 11.475;
-            int gold_buffer = (int) (AVERAGE_GOLD_PER_OBSIDIAN * _count);
+            int gold_buffer = (int) (AVERAGE_GOLD_PER_OBSIDIAN * count);
             setDebugState("We can't place water, so we're trading for obsidian");
-            return new TradeWithPiglinsTask(gold_buffer, Items.OBSIDIAN, _count);
+            return new TradeWithPiglinsTask(gold_buffer, Items.OBSIDIAN, count);
         }
 
-        if (_placeObsidianTask == null) {
+        if (placeObsidianTask == null) {
             BlockPos goodPos = getGoodObsidianPosition(mod);
             if (goodPos != null) {
-                _placeObsidianTask = new PlaceObsidianBucketTask(goodPos);
+                placeObsidianTask = new PlaceObsidianBucketTask(goodPos);
             } else {
                 setDebugState("Walking until we find a spot to place obsidian");
                 return new TimeoutWanderTask();
@@ -159,21 +159,21 @@ public class CollectObsidianTask extends ResourceTask {
         }
         // Try to see if we can nudge the obsidian placer closer to lava.
         //noinspection ConstantConditions
-        if (_placeObsidianTask != null && !mod.getItemStorage().hasItem(Items.LAVA_BUCKET)) {
+        if (placeObsidianTask != null && !mod.getItemStorage().hasItem(Items.LAVA_BUCKET)) {
             // We've moved sort of far away from our post, and this will STOP running when we grab our lava
             // (which is exactly when we want it to run and no more!
-            if (!_placeObsidianTask.getPos().isWithinDistance(mod.getPlayer().getPos(), 4)) {
+            if (!placeObsidianTask.getPos().isWithinDistance(mod.getPlayer().getPos(), 4)) {
                 BlockPos goodPos = getGoodObsidianPosition(mod);
                 if (goodPos != null) {
                     Debug.logMessage("(nudged obsidian target closer)");
-                    _placeObsidianTask = new PlaceObsidianBucketTask(goodPos);
+                    placeObsidianTask = new PlaceObsidianBucketTask(goodPos);
                 }
             }
         }
 
         // lmfao
         setDebugState("Placing Obsidian");
-        return _placeObsidianTask;
+        return placeObsidianTask;
     }
 
     @Override
@@ -184,13 +184,13 @@ public class CollectObsidianTask extends ResourceTask {
     @Override
     protected boolean isEqualResource(ResourceTask other) {
         if (other instanceof CollectObsidianTask task) {
-            return task._count == _count;
+            return task.count == count;
         }
         return false;
     }
 
     @Override
     protected String toDebugStringName() {
-        return "Collect " + _count + " blocks of obsidian";
+        return "Collect " + count + " blocks of obsidian";
     }
 }

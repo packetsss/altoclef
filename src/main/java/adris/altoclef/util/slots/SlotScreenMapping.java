@@ -13,7 +13,7 @@ import java.util.function.Predicate;
 public class SlotScreenMapping {
 
     // Order here matters as whoever returns "true" in the predicate first is picked.
-    private static final List<SlotScreenMappingEntry> _classList = List.of(
+    private static final List<SlotScreenMappingEntry> classList = List.of(
             e(CraftingTableSlot.class, screen -> screen instanceof CraftingScreen, CraftingTableSlot::new),
             e(FurnaceSlot.class, screen -> screen instanceof AbstractFurnaceScreen, FurnaceSlot::new),
             e(SmokerSlot.class, screen -> screen instanceof AbstractFurnaceScreen, SmokerSlot::new),
@@ -28,8 +28,8 @@ public class SlotScreenMapping {
     @SuppressWarnings("unchecked")
     public static boolean isScreenOpen(Class slotType) {
         Screen screen = MinecraftClient.getInstance().currentScreen;
-        if (!_classList.isEmpty()) {
-            for (SlotScreenMappingEntry entry : _classList) {
+        if (!classList.isEmpty()) {
+            for (SlotScreenMappingEntry entry : classList) {
                 if (slotType == entry.type || slotType.isAssignableFrom(entry.type)) {
                     return entry.inScreen.test(screen);
                 }
@@ -40,14 +40,14 @@ public class SlotScreenMapping {
 
     public static Slot getFromScreen(int slot, boolean inventory) {
         Screen screen = MinecraftClient.getInstance().currentScreen;
-        if (!_classList.isEmpty()) {
-            for (SlotScreenMappingEntry entry : _classList) {
+        if (!classList.isEmpty()) {
+            for (SlotScreenMappingEntry entry : classList) {
                 if (entry.inScreen.test(screen)) {
                     return entry.getSlot.apply(slot, inventory);
                 }
             }
         }
-        throw new NotImplementedException("We should never get here, _classList should be filled with a predicate that always returns true at the bottom (for PlayerSlot & CursorSlot)");
+        throw new NotImplementedException("We should never get here, classList should be filled with a predicate that always returns true at the bottom (for PlayerSlot & CursorSlot)");
     }
 
 

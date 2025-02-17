@@ -100,23 +100,23 @@ public class CataloguedResourceTask extends ResourceTask {
     @SuppressWarnings({"unchecked", "rawtypes"})
     static class TaskSquasher {
 
-        private final Map<Class, adris.altoclef.tasks.squashed.TypeSquasher> _squashMap = new HashMap<>();
+        private final Map<Class, adris.altoclef.tasks.squashed.TypeSquasher> squashMap = new HashMap<>();
 
-        private final List<ResourceTask> _unSquashableTasks = new ArrayList<>();
+        private final List<ResourceTask> unSquashableTasks = new ArrayList<>();
 
         public TaskSquasher() {
-            _squashMap.put(CraftInTableTask.class, new CraftSquasher());
-            _squashMap.put(UpgradeInSmithingTableTask.class, new SmithingSquasher());
+            squashMap.put(CraftInTableTask.class, new CraftSquasher());
+            squashMap.put(UpgradeInSmithingTableTask.class, new SmithingSquasher());
             //_squashMap.put(MineAndCollectTask.class)
         }
 
         public void addTask(ResourceTask t) {
             Class type = t.getClass();
-            if (_squashMap.containsKey(type)) {
-                _squashMap.get(type).add(t);
+            if (squashMap.containsKey(type)) {
+                squashMap.get(type).add(t);
             } else {
                 //Debug.logMessage("Unsquashable: " + type + ": " + t);
-                _unSquashableTasks.add(t);
+                unSquashableTasks.add(t);
             }
         }
 
@@ -129,10 +129,10 @@ public class CataloguedResourceTask extends ResourceTask {
         public List<ResourceTask> getSquashed() {
             List<ResourceTask> result = new ArrayList<>();
 
-            for (Class type : _squashMap.keySet()) {
-                result.addAll(_squashMap.get(type).getSquashed());
+            for (Class type : squashMap.keySet()) {
+                result.addAll(squashMap.get(type).getSquashed());
             }
-            result.addAll(_unSquashableTasks);
+            result.addAll(unSquashableTasks);
 
             return result;
         }

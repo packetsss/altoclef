@@ -12,9 +12,9 @@ import net.minecraft.util.math.BlockPos;
 
 public class GetToBlockTask extends CustomBaritoneGoalTask implements ITaskRequiresGrounded {
 
-    private final BlockPos _position;
-    private final boolean _preferStairs;
-    private final Dimension _dimension;
+    private final BlockPos position;
+    private final boolean preferStairs;
+    private final Dimension dimension;
     private int finishedTicks = 0;
     private final TimerGame wanderTimer = new TimerGame(2);
 
@@ -27,9 +27,9 @@ public class GetToBlockTask extends CustomBaritoneGoalTask implements ITaskRequi
     }
 
     public GetToBlockTask(BlockPos position, boolean preferStairs, Dimension dimension) {
-        _dimension = dimension;
-        _position = position;
-        _preferStairs = preferStairs;
+        this.dimension = dimension;
+        this.position = position;
+        this.preferStairs = preferStairs;
     }
 
     public GetToBlockTask(BlockPos position) {
@@ -38,8 +38,8 @@ public class GetToBlockTask extends CustomBaritoneGoalTask implements ITaskRequi
 
     @Override
     protected Task onTick(AltoClef mod) {
-        if (_dimension != null && WorldHelper.getCurrentDimension() != _dimension) {
-            return new DefaultGoToDimensionTask(_dimension);
+        if (dimension != null && WorldHelper.getCurrentDimension() != dimension) {
+            return new DefaultGoToDimensionTask(dimension);
         }
 
         if (isFinished(mod)) {
@@ -63,7 +63,7 @@ public class GetToBlockTask extends CustomBaritoneGoalTask implements ITaskRequi
     @Override
     protected void onStart(AltoClef mod) {
         super.onStart(mod);
-        if (_preferStairs) {
+        if (preferStairs) {
             mod.getBehaviour().push();
             mod.getBehaviour().setPreferredStairs(true);
         }
@@ -73,7 +73,7 @@ public class GetToBlockTask extends CustomBaritoneGoalTask implements ITaskRequi
     @Override
     protected void onStop(AltoClef mod, Task interruptTask) {
         super.onStop(mod, interruptTask);
-        if (_preferStairs) {
+        if (preferStairs) {
             mod.getBehaviour().pop();
         }
     }
@@ -81,30 +81,30 @@ public class GetToBlockTask extends CustomBaritoneGoalTask implements ITaskRequi
     @Override
     protected boolean isEqual(Task other) {
         if (other instanceof GetToBlockTask task) {
-            return task._position.equals(_position) && task._preferStairs == _preferStairs && task._dimension == _dimension;
+            return task.position.equals(position) && task.preferStairs == preferStairs && task.dimension == dimension;
         }
         return false;
     }
 
     @Override
     public boolean isFinished(AltoClef mod) {
-        return super.isFinished(mod) && (_dimension == null || _dimension == WorldHelper.getCurrentDimension());
+        return super.isFinished(mod) && (dimension == null || dimension == WorldHelper.getCurrentDimension());
     }
 
     @Override
     protected String toDebugString() {
-        return "Getting to block " + _position + (_dimension != null ? " in dimension " + _dimension : "");
+        return "Getting to block " + position + (dimension != null ? " in dimension " + dimension : "");
     }
 
 
     @Override
     protected Goal newGoal(AltoClef mod) {
-        return new GoalBlock(_position);
+        return new GoalBlock(position);
     }
 
     @Override
     protected void onWander(AltoClef mod) {
         super.onWander(mod);
-        mod.getBlockScanner().requestBlockUnreachable(_position);
+        mod.getBlockScanner().requestBlockUnreachable(position);
     }
 }

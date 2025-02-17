@@ -23,7 +23,7 @@ public class MessageSender {
             Comparator.comparingInt((BaseMessage msg) -> msg.priority.getImportance())
                     .thenComparingInt(msg -> msg.index)
     );
-    //private final Queue<Whisper> _whisperQueue = new ArrayDeque<>();
+    //private final Queue<Whisper> whisperQueue = new ArrayDeque<>();
 
     private final BaseTimer fastSendTimer = new TimerReal(0.3f);
     private final BaseTimer bigSendTimer = new TimerReal(3.5);

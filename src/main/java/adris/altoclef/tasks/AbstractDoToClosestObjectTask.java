@@ -132,43 +132,43 @@ public abstract class AbstractDoToClosestObjectTask<T> extends Task {
 
     private static class CachedHeuristic {
 
-        private double _closestDistanceSqr;
-        private int _tickAttempted;
-        private double _heuristicValue;
+        private double closestDistanceSqr;
+        private int tickAttempted;
+        private double heuristicValue;
 
         public CachedHeuristic() {
-            _closestDistanceSqr = Double.POSITIVE_INFINITY;
-            _heuristicValue = Double.POSITIVE_INFINITY;
+            closestDistanceSqr = Double.POSITIVE_INFINITY;
+            heuristicValue = Double.POSITIVE_INFINITY;
         }
 
         public CachedHeuristic(double closestDistanceSqr, int tickAttempted, double heuristicValue) {
-            _closestDistanceSqr = closestDistanceSqr;
-            _tickAttempted = tickAttempted;
-            _heuristicValue = heuristicValue;
+            closestDistanceSqr = closestDistanceSqr;
+            tickAttempted = tickAttempted;
+            heuristicValue = heuristicValue;
         }
 
         public double getHeuristicValue() {
-            return _heuristicValue;
+            return heuristicValue;
         }
 
         public void updateHeuristic(double heuristicValue) {
-            _heuristicValue = Math.min(_heuristicValue, heuristicValue);
+            heuristicValue = Math.min(heuristicValue, heuristicValue);
         }
 
         public double getClosestDistanceSqr() {
-            return _closestDistanceSqr;
+            return closestDistanceSqr;
         }
 
         public void updateDistance(double closestDistanceSqr) {
-            _closestDistanceSqr = Math.min(_closestDistanceSqr, closestDistanceSqr);
+            closestDistanceSqr = Math.min(closestDistanceSqr, closestDistanceSqr);
         }
 
         public int getTickAttempted() {
-            return _tickAttempted;
+            return tickAttempted;
         }
 
         public void setTickAttempted(int tickAttempted) {
-            _tickAttempted = tickAttempted;
+            tickAttempted = tickAttempted;
         }
     }
 }

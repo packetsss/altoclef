@@ -28,33 +28,33 @@ import java.util.stream.Stream;
 public class StoreInAnyContainerTask extends Task {
 
     private static final Block[] TO_SCAN = Stream.concat(Arrays.stream(new Block[]{Blocks.CHEST, Blocks.TRAPPED_CHEST, Blocks.BARREL}), Arrays.stream(ItemHelper.itemsToBlocks(ItemHelper.SHULKER_BOXES))).toArray(Block[]::new);
-    private final ItemTarget[] _toStore;
-    private final boolean _getIfNotPresent;
-    private final HashSet<BlockPos> _dungeonChests = new HashSet<>();
-    private final HashSet<BlockPos> _nonDungeonChests = new HashSet<>();
-    private final MovementProgressChecker _progressChecker = new MovementProgressChecker();
-    private final ContainerStoredTracker _storedItems = new ContainerStoredTracker(slot -> true);
-    private BlockPos _currentChestTry = null;
+    private final ItemTarget[] toStore;
+    private final boolean getIfNotPresent;
+    private final HashSet<BlockPos> dungeonChests = new HashSet<>();
+    private final HashSet<BlockPos> nonDungeonChests = new HashSet<>();
+    private final MovementProgressChecker progressChecker = new MovementProgressChecker();
+    private final ContainerStoredTracker storedItems = new ContainerStoredTracker(slot -> true);
+    private BlockPos currentChestTry = null;
 
     public StoreInAnyContainerTask(boolean getIfNotPresent, ItemTarget... toStore) {
-        _getIfNotPresent = getIfNotPresent;
-        _toStore = toStore;
+        this.getIfNotPresent = getIfNotPresent;
+        this.toStore = toStore;
     }
 
     @Override
     protected void onStart(AltoClef mod) {
-        _storedItems.startTracking();
-        _dungeonChests.clear();
-        _nonDungeonChests.clear();
+        storedItems.startTracking();
+        dungeonChests.clear();
+        nonDungeonChests.clear();
     }
 
     @Override
     protected Task onTick(AltoClef mod) {
 
         // Get more if we don't have & "get if not present" is true.
-        if (_getIfNotPresent) {
-            for (ItemTarget target : _toStore) {
-                int inventoryNeed = target.getTargetCount() - _storedItems.getStoredCount(target.getMatches());
+        if (getIfNotPresent) {
+            for (ItemTarget target : toStore) {
+                int inventoryNeed = target.getTargetCount() - storedItems.getStoredCount(target.getMatches());
                 if (inventoryNeed > mod.getItemStorage().getItemCount(target)) {
                     return TaskCatalogue.getItemTask(new ItemTarget(target, inventoryNeed));
                 }
@@ -62,7 +62,7 @@ public class StoreInAnyContainerTask extends Task {
         }
 
         // ItemTargets we haven't stored yet
-        ItemTarget[] notStored = _storedItems.getUnstoredItemTargetsYouCanStore(mod, _toStore);
+        ItemTarget[] notStored = storedItems.getUnstoredItemTargetsYouCanStore(mod, toStore);
 
         Predicate<BlockPos> validContainer = containerPos -> {
 
@@ -71,7 +71,7 @@ public class StoreInAnyContainerTask extends Task {
             if (isChest && WorldHelper.isSolidBlock(mod, containerPos.up()) && !WorldHelper.canBreak(mod, containerPos.up()))
                 return false;
 
-            //if (!_acceptableContainer.test(containerPos))
+            //if (!acceptableContainer.test(containerPos))
             //    return false;
 
             Optional<ContainerCache> data = mod.getItemStorage().getContainerAtPosition(containerPos);
@@ -79,7 +79,7 @@ public class StoreInAnyContainerTask extends Task {
             if (data.isPresent() && data.get().isFull()) return false;
 
             if (isChest && mod.getModSettings().shouldAvoidSearchingForDungeonChests()) {
-                boolean cachedDungeon = _dungeonChests.contains(containerPos) && !_nonDungeonChests.contains(containerPos);
+                boolean cachedDungeon = dungeonChests.contains(containerPos) && !nonDungeonChests.contains(containerPos);
                 if (cachedDungeon) {
                     return false;
                 }
@@ -89,12 +89,12 @@ public class StoreInAnyContainerTask extends Task {
                     for (int dz = -range; dz <= range; ++dz) {
                         BlockPos offset = adris.altoclef.multiversion.blockpos.BlockPosHelper.add(containerPos,dx,0,dz);
                         if (mod.getWorld().getBlockState(offset).getBlock() == Blocks.SPAWNER) {
-                            _dungeonChests.add(containerPos);
+                            dungeonChests.add(containerPos);
                             return false;
                         }
                     }
                 }
-                _nonDungeonChests.add(containerPos);
+                nonDungeonChests.add(containerPos);
             }
             return true;
         };
@@ -103,26 +103,26 @@ public class StoreInAnyContainerTask extends Task {
 
             setDebugState("Going to container and depositing items");
 
-            if (!_progressChecker.check(mod) && _currentChestTry != null) {
+            if (!progressChecker.check(mod) && currentChestTry != null) {
                 Debug.logMessage("Failed to open container. Suggesting it may be unreachable.");
-                mod.getBlockScanner().requestBlockUnreachable(_currentChestTry, 2);
-                _currentChestTry = null;
-                _progressChecker.reset();
+                mod.getBlockScanner().requestBlockUnreachable(currentChestTry, 2);
+                currentChestTry = null;
+                progressChecker.reset();
             }
 
             return new DoToClosestBlockTask(
                     blockPos -> {
-                        if (_currentChestTry != blockPos) {
-                            _progressChecker.reset();
+                        if (currentChestTry != blockPos) {
+                            progressChecker.reset();
                         }
-                        _currentChestTry = blockPos;
-                        return new StoreInContainerTask(blockPos, _getIfNotPresent, notStored);
+                        currentChestTry = blockPos;
+                        return new StoreInContainerTask(blockPos, getIfNotPresent, notStored);
                     },
                     validContainer,
                     TO_SCAN);
         }
 
-        _progressChecker.reset();
+        progressChecker.reset();
         // Craft + place chest nearby
         for (Block couldPlace : TO_SCAN) {
             if (mod.getItemStorage().hasItem(couldPlace.asItem())) {
@@ -143,24 +143,24 @@ public class StoreInAnyContainerTask extends Task {
     @Override
     public boolean isFinished(AltoClef mod) {
         // We've stored all items
-        return _storedItems.getUnstoredItemTargetsYouCanStore(mod, _toStore).length == 0;
+        return storedItems.getUnstoredItemTargetsYouCanStore(mod, toStore).length == 0;
     }
 
     @Override
     protected void onStop(AltoClef mod, Task interruptTask) {
-        _storedItems.stopTracking();
+        storedItems.stopTracking();
     }
 
     @Override
     protected boolean isEqual(Task other) {
         if (other instanceof StoreInAnyContainerTask task) {
-            return task._getIfNotPresent == _getIfNotPresent && Arrays.equals(task._toStore, _toStore);
+            return task.getIfNotPresent == getIfNotPresent && Arrays.equals(task.toStore, toStore);
         }
         return false;
     }
 
     @Override
     protected String toDebugString() {
-        return "Storing in any container: " + Arrays.toString(_toStore);
+        return "Storing in any container: " + Arrays.toString(toStore);
     }
 }

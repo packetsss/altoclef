@@ -858,46 +858,46 @@ public class TaskCatalogue {
     }
 
     private static class CataloguedResource {
-        private final Item[] _targets;
-        private final Function<Integer, ResourceTask> _getResource;
+        private final Item[] targets;
+        private final Function<Integer, ResourceTask> getResource;
 
-        private boolean _mineIfPresent;
-        private boolean _forceDimension = false;
-        private Dimension _targetDimension;
+        private boolean mineIfPresent;
+        private boolean forceDimension = false;
+        private Dimension targetDimension;
 
         public CataloguedResource(Item[] targets, Function<Integer, ResourceTask> getResource) {
-            _targets = targets;
-            _getResource = getResource;
+            this.targets = targets;
+            this.getResource = getResource;
         }
 
         public CataloguedResource mineIfPresent() {
-            _mineIfPresent = true;
+            mineIfPresent = true;
             return this;
         }
 
         public CataloguedResource dontMineIfPresent() {
-            _mineIfPresent = false;
+            mineIfPresent = false;
             return this;
         }
 
         public CataloguedResource forceDimension(Dimension dimension) {
-            _forceDimension = true;
-            _targetDimension = dimension;
+            forceDimension = true;
+            targetDimension = dimension;
             return this;
         }
 
         public CataloguedResource anyDimension() {
-            _forceDimension = false;
+            forceDimension = false;
             return this;
         }
 
         public ResourceTask getResource(int count) {
-            ResourceTask result = _getResource.apply(count);
-            if (_mineIfPresent) {
-                result = result.mineIfPresent(ItemHelper.itemsToBlocks(_targets));
+            ResourceTask result = getResource.apply(count);
+            if (mineIfPresent) {
+                result = result.mineIfPresent(ItemHelper.itemsToBlocks(targets));
             }
-            if (_forceDimension) {
-                result = result.forceDimension(_targetDimension);
+            if (forceDimension) {
+                result = result.forceDimension(targetDimension);
             }
             return result;
         }

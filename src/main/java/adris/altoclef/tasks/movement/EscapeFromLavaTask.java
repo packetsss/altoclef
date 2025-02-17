@@ -47,7 +47,7 @@ public class EscapeFromLavaTask extends CustomBaritoneGoalTask {
         mod.getBehaviour().setBlockPlacePenalty(0);
         mod.getBehaviour().setBlockBreakAdditionalPenalty(0); // Normally 2
         // do NOT ever wander
-        _checker = new MovementProgressChecker((int) Float.POSITIVE_INFINITY);
+        checker = new MovementProgressChecker((int) Float.POSITIVE_INFINITY);
 
         // avoid trying to place block right under us if there is lava
         mod.getExtraBaritoneSettings().avoidBlockPlace(avoidPlacingRiskyBlock);

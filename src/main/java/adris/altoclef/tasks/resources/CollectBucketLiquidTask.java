@@ -98,7 +98,7 @@ public class CollectBucketLiquidTask extends ResourceTask {
                 setDebugState("Trying to collect (we are in it)");
                 mod.getInputControls().forceLook(0, 90);
                 //mod.getClientBaritone().getLookBehavior().updateTarget(new Rotation(0, 90), true);
-                //Debug.logMessage("Looking at " + _toCollect + ", picking up right away.");
+                //Debug.logMessage("Looking at " + toCollect + ", picking up right away.");
                 tryImmediatePickupTimer.reset();
                 if (mod.getSlotHandler().forceEquipItem(Items.BUCKET)) {
                     mod.getInputControls().tryPress(Input.CLICK_RIGHT);

@@ -44,7 +44,7 @@ public class ExampleTask extends Task {
 
         if (mod.getChunkTracker().isChunkLoaded(whereToPlaceCobblestone)) {
             if (mod.getWorld().getBlockState(whereToPlaceCobblestone).getBlock() != Blocks.COBBLESTONE) {
-                return new PlaceBlockTask(whereToPlaceCobblestone, Blocks.COBBLESTONE); ///new PlaceStructureBlockTask(_whereToPlaceCobblestone);
+                return new PlaceBlockTask(whereToPlaceCobblestone, Blocks.COBBLESTONE); ///new PlaceStructureBlockTask(whereToPlaceCobblestone);
             }
             return null;
         } else {

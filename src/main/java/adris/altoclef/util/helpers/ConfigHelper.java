@@ -27,7 +27,7 @@ public class ConfigHelper {
 
     private static final String ALTO_FOLDER = "altoclef";
     // For reloading
-    private static final HashMap<String, Runnable> _loadedConfigs = new HashMap<>();
+    private static final HashMap<String, Runnable> loadedConfigs = new HashMap<>();
 
     /**
      * Returns a File object representing the configuration file located at the given path.
@@ -47,7 +47,7 @@ public class ConfigHelper {
      * Reloads all configurations.
      */
     public static void reloadAllConfigs() {
-        for (Runnable config : _loadedConfigs.values()) {
+        for (Runnable config : loadedConfigs.values()) {
             config.run();
         }
     }
@@ -114,7 +114,7 @@ public class ConfigHelper {
         T config = getConfig(path, getDefault, classToLoad);
 
         // Store the configuration object and the reload callback in the loadedConfigs map.
-        _loadedConfigs.put(path, () -> onReload.accept(config));
+        loadedConfigs.put(path, () -> onReload.accept(config));
 
         // Call the onReload callback function to notify that the configuration is loaded.
         onReload.accept(config);
@@ -267,7 +267,7 @@ public class ConfigHelper {
         T result = getListConfig(path, getDefault);
 
         // Store a lambda function in the map to handle the reload of the configuration object
-        _loadedConfigs.put(path, () -> onReload.accept(result));
+        loadedConfigs.put(path, () -> onReload.accept(result));
 
         // Trigger the reload of the configuration object
         onReload.accept(result);

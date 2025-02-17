@@ -132,9 +132,9 @@ public class FoodChain extends SingleTaskChain {
             return Float.NEGATIVE_INFINITY;
         }
         Pair<Integer, Optional<Item>> calculation = calculateFood(mod);
-        int _cachedFoodScore = calculation.getLeft();
+        int cachedFoodScore = calculation.getLeft();
         cachedPerfectFood = calculation.getRight();
-        hasFood = _cachedFoodScore > 0;
+        hasFood = cachedFoodScore > 0;
         // If we requested a fillup but we're full, stop.
         if (requestFillup && mod.getPlayer().getHungerManager().getFoodLevel() >= 20) {
             requestFillup = false;
@@ -162,12 +162,12 @@ public class FoodChain extends SingleTaskChain {
 
         Settings settings = mod.getModSettings();
 
-        if (needsFood || _cachedFoodScore < settings.getMinimumFoodAllowed()) {
-            needsFood = _cachedFoodScore < settings.getFoodUnitsToCollect();
+        if (needsFood || cachedFoodScore < settings.getMinimumFoodAllowed()) {
+            needsFood = cachedFoodScore < settings.getFoodUnitsToCollect();
 
             // Only collect if we don't have enough food.
             // If the user inputs invalid settings, the bot would get stuck here.
-            if (_cachedFoodScore < settings.getFoodUnitsToCollect()) {
+            if (cachedFoodScore < settings.getFoodUnitsToCollect()) {
                 setTask(new CollectFoodTask(settings.getFoodUnitsToCollect()));
                 return 55f;
             }

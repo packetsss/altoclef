@@ -28,25 +28,25 @@ import java.util.function.Predicate;
 
 public class CollectCropTask extends ResourceTask {
 
-    private final ItemTarget _cropToCollect;
-    private final Item[] _cropSeed;
-    private final Predicate<BlockPos> _canBreak;
-    private final Block[] _cropBlock;
+    private final ItemTarget cropToCollect;
+    private final Item[] cropSeed;
+    private final Predicate<BlockPos> canBreak;
+    private final Block[] cropBlock;
 
-    private final Set<BlockPos> _emptyCropland = new HashSet<>();
+    private final Set<BlockPos> emptyCropland = new HashSet<>();
 
-    private final Task _collectSeedTask;
+    private final Task collectSeedTask;
 
     // To prevent infinite chunk-unload-reload loop bug
-    private final HashSet<BlockPos> _wasFullyGrown = new HashSet<>();
+    private final HashSet<BlockPos> wasFullyGrown = new HashSet<>();
 
     public CollectCropTask(ItemTarget cropToCollect, Block[] cropBlock, Item[] cropSeed, Predicate<BlockPos> canBreak) {
         super(cropToCollect);
-        _cropToCollect = cropToCollect;
-        _cropSeed = cropSeed;
-        _canBreak = canBreak;
-        _cropBlock = cropBlock;
-        _collectSeedTask = new PickupDroppedItemTask(new ItemTarget(cropSeed, 1), true);
+        this.cropToCollect = cropToCollect;
+        this.cropSeed = cropSeed;
+        this.canBreak = canBreak;
+        this.cropBlock = cropBlock;
+        collectSeedTask = new PickupDroppedItemTask(new ItemTarget(cropSeed, 1), true);
     }
 
     public CollectCropTask(ItemTarget cropToCollect, Block[] cropBlock, Item... cropSeed) {
@@ -75,26 +75,26 @@ public class CollectCropTask extends ResourceTask {
     protected Task onResourceTick(AltoClef mod) {
         /*
          *   Filter the empty crop list to remove non-empty areas
-         *   If _currentCropBreaking != null && _currentCropBreaking is EMPTY:
-         *      Add _currentCropBreaking to empty cropland
+         *   If currentCropBreaking != null && currentCropBreaking is EMPTY:
+         *      Add currentCropBreaking to empty cropland
          * - If empty cropland list not empty && mod.getSettings().shouldReplaceCrops() && we have crop seed in inventory:
          *      do to closest block task: interact with seed
          *   Do to closest block task:
-         *      set _currentCropBreaking = block
+         *      set currentCropBreaking = block
          *      break the block
          */
 
         // Collect seeds if we need to.
-        if (hasEmptyCrops(mod) && mod.getModSettings().shouldReplantCrops() && !mod.getItemStorage().hasItem(_cropSeed)) {
-            if (_collectSeedTask.isActive() && !_collectSeedTask.isFinished(mod)) {
+        if (hasEmptyCrops(mod) && mod.getModSettings().shouldReplantCrops() && !mod.getItemStorage().hasItem(cropSeed)) {
+            if (collectSeedTask.isActive() && !collectSeedTask.isFinished(mod)) {
                 setDebugState("Picking up dropped seeds");
-                return _collectSeedTask;
+                return collectSeedTask;
             }
-            if (mod.getEntityTracker().itemDropped(_cropSeed)) {
-                Optional<ItemEntity> closest = mod.getEntityTracker().getClosestItemDrop(mod.getPlayer().getPos(), _cropSeed);
+            if (mod.getEntityTracker().itemDropped(cropSeed)) {
+                Optional<ItemEntity> closest = mod.getEntityTracker().getClosestItemDrop(mod.getPlayer().getPos(), cropSeed);
                 if (closest.isPresent() && closest.get().isInRange(mod.getPlayer(), 7)) {
                     // Trigger the collection of seeds.
-                    return _collectSeedTask;
+                    return collectSeedTask;
                 }
             }
         }
@@ -103,17 +103,17 @@ public class CollectCropTask extends ResourceTask {
         if (shouldReplantNow(mod)) {
             setDebugState("Replanting...");
             // We guarantee that empty cropland list has valid empty blocks. We can purge at this stage.
-            _emptyCropland.removeIf(blockPos -> !isEmptyCrop(mod, blockPos));
-            assert !_emptyCropland.isEmpty();
+            emptyCropland.removeIf(blockPos -> !isEmptyCrop(mod, blockPos));
+            assert !emptyCropland.isEmpty();
             return new DoToClosestBlockTask(
-                    blockPos -> new InteractWithBlockTask(new ItemTarget(_cropSeed, 1), Direction.UP, blockPos.down(), true),
-                    pos -> _emptyCropland.stream().min(StlHelper.compareValues(block -> BlockPosVer.getSquaredDistance(block,pos))),
-                    _emptyCropland::contains,
+                    blockPos -> new InteractWithBlockTask(new ItemTarget(cropSeed, 1), Direction.UP, blockPos.down(), true),
+                    pos -> emptyCropland.stream().min(StlHelper.compareValues(block -> BlockPosVer.getSquaredDistance(block,pos))),
+                    emptyCropland::contains,
                     Blocks.FARMLAND); // Blocks.FARMLAND is useless to be put here
         }
 
         Predicate<BlockPos> validCrop = blockPos -> {
-            if (!_canBreak.test(blockPos)) return false;
+            if (!canBreak.test(blockPos)) return false;
             // Breaking immature crops will only yield one output! This is a bad move.
             if (mod.getModSettings().shouldReplantCrops() && !isMature(mod, blockPos)) return false;
             // Wheat must be mature always.
@@ -123,7 +123,7 @@ public class CollectCropTask extends ResourceTask {
         };
 
         // Dimension
-        if (isInWrongDimension(mod) && !mod.getBlockScanner().anyFound(validCrop, _cropBlock)) {
+        if (isInWrongDimension(mod) && !mod.getBlockScanner().anyFound(validCrop, cropBlock)) {
             return getToCorrectDimensionTask(mod);
         }
 
@@ -131,11 +131,11 @@ public class CollectCropTask extends ResourceTask {
         setDebugState("Breaking crops.");
         return new DoToClosestBlockTask(
                 blockPos -> {
-                    _emptyCropland.add(blockPos);
+                    emptyCropland.add(blockPos);
                     return new DestroyBlockTask(blockPos);
                 },
                 validCrop,
-                _cropBlock
+                cropBlock
         );
     }
 
@@ -154,11 +154,11 @@ public class CollectCropTask extends ResourceTask {
     }
 
     private boolean shouldReplantNow(AltoClef mod) {
-        return mod.getModSettings().shouldReplantCrops() && hasEmptyCrops(mod) && mod.getItemStorage().hasItem(_cropSeed);
+        return mod.getModSettings().shouldReplantCrops() && hasEmptyCrops(mod) && mod.getItemStorage().hasItem(cropSeed);
     }
 
     private boolean hasEmptyCrops(AltoClef mod) {
-        for (BlockPos pos : _emptyCropland) {
+        for (BlockPos pos : emptyCropland) {
             if (isEmptyCrop(mod, pos)) return true;
         }
         return false;
@@ -171,30 +171,30 @@ public class CollectCropTask extends ResourceTask {
     @Override
     protected boolean isEqualResource(ResourceTask other) {
         if (other instanceof CollectCropTask task) {
-            return Arrays.equals(task._cropSeed, _cropSeed) && Arrays.equals(task._cropBlock, _cropBlock) && task._cropToCollect.equals(_cropToCollect);
+            return Arrays.equals(task.cropSeed, cropSeed) && Arrays.equals(task.cropBlock, cropBlock) && task.cropToCollect.equals(cropToCollect);
         }
         return false;
     }
 
     @Override
     protected String toDebugStringName() {
-        return "Collecting crops: " + _cropToCollect;
+        return "Collecting crops: " + cropToCollect;
     }
 
 
     private boolean isMature(AltoClef mod, BlockPos blockPos) {
         // Chunk needs to be loaded for wheat maturity to be checked.
         if (!mod.getChunkTracker().isChunkLoaded(blockPos) || !WorldHelper.canReach(mod, blockPos)) {
-            return _wasFullyGrown.contains(blockPos);
+            return wasFullyGrown.contains(blockPos);
         }
         // Prune if we're not mature/fully grown wheat.
         BlockState s = mod.getWorld().getBlockState(blockPos);
         if (s.getBlock() instanceof CropBlock crop) {
             boolean mature = crop.isMature(s);
-            if (_wasFullyGrown.contains(blockPos)) {
-                if (!mature) _wasFullyGrown.remove(blockPos);
+            if (wasFullyGrown.contains(blockPos)) {
+                if (!mature) wasFullyGrown.remove(blockPos);
             } else {
-                if (mature) _wasFullyGrown.add(blockPos);
+                if (mature) wasFullyGrown.add(blockPos);
             }
             return mature;
         }

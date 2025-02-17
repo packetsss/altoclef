@@ -24,20 +24,20 @@ public abstract class Slot {
     private static final int UNDEFINED_SLOT_INDEX = -999;
     @SuppressWarnings("StaticInitializerReferencesSubClass")
     public static Slot UNDEFINED = new PlayerSlot(UNDEFINED_SLOT_INDEX);
-    private final int _inventorySlot;
-    private final int _windowSlot;
-    private final boolean _isInventory;
+    private final int inventorySlot;
+    private final int windowSlot;
+    private final boolean isInventory;
 
     public Slot(int slot, boolean inventory) {
-        _isInventory = inventory;
+        isInventory = inventory;
         if (inventory) {
-            _inventorySlot = slot;
-            _windowSlot = UNDEFINED_SLOT_INDEX;
+            inventorySlot = slot;
+            windowSlot = UNDEFINED_SLOT_INDEX;
             //_windowSlot = inventorySlotToWindowSlot(slot);
         } else {
             //_inventorySlot = windowSlotToInventorySlot(slot);
-            _inventorySlot = UNDEFINED_SLOT_INDEX;
-            _windowSlot = slot;
+            inventorySlot = UNDEFINED_SLOT_INDEX;
+            windowSlot = slot;
         }
     }
 
@@ -112,17 +112,17 @@ public abstract class Slot {
     }
 
     public int getInventorySlot() {
-        if (!_isInventory) {
-            return windowSlotToInventorySlot(_windowSlot);
+        if (!isInventory) {
+            return windowSlotToInventorySlot(windowSlot);
         }
-        return _inventorySlot;
+        return inventorySlot;
     }
 
     public int getWindowSlot() {
-        if (_isInventory) {
-            return inventorySlotToWindowSlot(_inventorySlot);
+        if (isInventory) {
+            return inventorySlotToWindowSlot(inventorySlot);
         }
-        return _windowSlot;
+        return windowSlot;
     }
 
     protected abstract int inventorySlotToWindowSlot(int inventorySlot);
@@ -133,7 +133,7 @@ public abstract class Slot {
 
     @Override
     public String toString() {
-        return getName() + (_isInventory ? "InventorySlot" : "Slot") + "{" +
+        return getName() + (isInventory ? "InventorySlot" : "Slot") + "{" +
                 "inventory slot = " + getInventorySlot() +
                 ", window slot = " + getWindowSlot() +
                 '}';

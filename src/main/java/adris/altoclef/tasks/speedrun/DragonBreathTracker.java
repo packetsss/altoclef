@@ -40,7 +40,7 @@ public class DragonBreathTracker {
             mod.getBehaviour().push();
             mod.getBehaviour().setBlockPlacePenalty(Double.POSITIVE_INFINITY);
             // do NOT ever wander
-            _checker = new MovementProgressChecker((int) Float.POSITIVE_INFINITY);
+            checker = new MovementProgressChecker((int) Float.POSITIVE_INFINITY);
         }
 
         @Override

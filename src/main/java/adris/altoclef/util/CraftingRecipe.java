@@ -20,7 +20,7 @@ public class CraftingRecipe {
     // Every item in this list MUST match.
     // Used for beds where the wood can be anything
     // but the wool MUST be the same color.
-    //private final Set<Integer> _mustMatch = new HashSet<>();
+    //private final Set<Integer> mustMatch = new HashSet<>();
 
     private CraftingRecipe() {
     }
@@ -118,7 +118,7 @@ public class CraftingRecipe {
             if (other.outputCount != outputCount) return false;
             if (other.height != height) return false;
             if (other.width != width) return false;
-            //if (other._mustMatch.size() != _mustMatch.size()) return false;
+            //if (other.mustMatch.size() != mustMatch.size()) return false;
             if (other.slots.length != slots.length) return false;
             for (int i = 0; i < slots.length; ++i) {
                 if ((other.slots[i] == null) != (slots[i] == null)) return false;
@@ -136,9 +136,9 @@ public class CraftingRecipe {
             name += "craft " + shortName;
         } else {
             name += "_slots=" + Arrays.toString(slots) +
-                    ", _width=" + width +
-                    ", _height=" + height +
-                    ", _shapeless=" + shapeless;
+                    ", width=" + width +
+                    ", height=" + height +
+                    ", shapeless=" + shapeless;
         }
         name += "}";
         return name;

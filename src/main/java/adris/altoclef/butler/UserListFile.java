@@ -8,23 +8,23 @@ import java.util.function.Consumer;
 
 public class UserListFile implements IListConfigFile {
 
-    private final HashSet<String> _users = new HashSet<>();
+    private final HashSet<String> users = new HashSet<>();
 
     public static void load(String path, Consumer<UserListFile> onLoad) {
         ConfigHelper.loadListConfig(path, UserListFile::new, onLoad);
     }
 
     public boolean containsUser(String username) {
-        return _users.contains(username);
+        return users.contains(username);
     }
 
     @Override
     public void onLoadStart() {
-        _users.clear();
+        users.clear();
     }
 
     @Override
     public void addLine(String line) {
-        _users.add(line);
+        users.add(line);
     }
 }

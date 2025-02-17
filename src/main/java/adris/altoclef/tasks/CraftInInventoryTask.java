@@ -22,16 +22,16 @@ import java.util.Optional;
  */
 public class CraftInInventoryTask extends ResourceTask {
 
-    private final RecipeTarget _target;
-    private final boolean _collect;
-    private final boolean _ignoreUncataloguedSlots;
-    private boolean _fullCheckFailed = false;
+    private final RecipeTarget target;
+    private final boolean collect;
+    private final boolean ignoreUncataloguedSlots;
+    private boolean fullCheckFailed = false;
 
     public CraftInInventoryTask(RecipeTarget target, boolean collect, boolean ignoreUncataloguedSlots) {
         super(new ItemTarget(target.getOutputItem(), target.getTargetCount()));
-        _target = target;
-        _collect = collect;
-        _ignoreUncataloguedSlots = ignoreUncataloguedSlots;
+        this.target = target;
+        this.collect = collect;
+        this.ignoreUncataloguedSlots = ignoreUncataloguedSlots;
     }
 
     public CraftInInventoryTask(RecipeTarget target) {
@@ -45,7 +45,7 @@ public class CraftInInventoryTask extends ResourceTask {
 
     @Override
     protected void onResourceStart(AltoClef mod) {
-        _fullCheckFailed = false;
+        fullCheckFailed = false;
         ItemStack cursorStack = StorageHelper.getItemStackInCursorSlot();
         if (!cursorStack.isEmpty() && !StorageHelper.isBigCraftingOpen()) {
             Optional<Slot> moveTo = mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursorStack, false);
@@ -80,7 +80,7 @@ public class CraftInInventoryTask extends ResourceTask {
 
         ItemTarget toGet = itemTargets[0];
         Item toGetItem = toGet.getMatches()[0];
-        if (_collect && !StorageHelper.hasRecipeMaterialsOrTarget(mod, _target)) {
+        if (collect && !StorageHelper.hasRecipeMaterialsOrTarget(mod, target)) {
             // Collect recipe materials
             setDebugState("Collecting materials");
             return collectRecipeSubTask(mod);
@@ -90,8 +90,8 @@ public class CraftInInventoryTask extends ResourceTask {
 
         setDebugState("Crafting in inventory... for " + toGet);
         return mod.getModSettings().shouldUseCraftingBookToCraft()
-                ? new CraftGenericWithRecipeBooksTask(_target)
-                : new CraftGenericManuallyTask(_target);
+                ? new CraftGenericWithRecipeBooksTask(target)
+                : new CraftGenericManuallyTask(target);
     }
 
     @Override
@@ -123,7 +123,7 @@ public class CraftInInventoryTask extends ResourceTask {
     @Override
     protected boolean isEqualResource(ResourceTask other) {
         if (other instanceof CraftInInventoryTask task) {
-            if (!task._target.equals(_target)) return false;
+            if (!task.target.equals(target)) return false;
             return isCraftingEqual(task);
         }
         return false;
@@ -131,12 +131,12 @@ public class CraftInInventoryTask extends ResourceTask {
 
     @Override
     protected String toDebugStringName() {
-        return toCraftingDebugStringName() + " " + _target;
+        return toCraftingDebugStringName() + " " + target;
     }
 
     // virtual. By default assumes subtasks are CATALOGUED (in TaskCatalogue.java)
     protected Task collectRecipeSubTask(AltoClef mod) {
-        return new CollectRecipeCataloguedResourcesTask(_ignoreUncataloguedSlots, _target);
+        return new CollectRecipeCataloguedResourcesTask(ignoreUncataloguedSlots, target);
     }
 
     protected String toCraftingDebugStringName() {
@@ -148,6 +148,6 @@ public class CraftInInventoryTask extends ResourceTask {
     }
 
     public RecipeTarget getRecipeTarget() {
-        return _target;
+        return target;
     }
 }

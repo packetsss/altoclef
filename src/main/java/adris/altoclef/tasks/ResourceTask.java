@@ -74,14 +74,14 @@ public abstract class ResourceTask extends Task implements ITaskCanForce {
     public boolean shouldForce(AltoClef mod, Task interruptingCandidate) {
         // We have an important item target in our cursor.
         return StorageHelper.itemTargetsMetInventory(mod, itemTargets) && !isFinished(mod)
-                // This _should_ be redundant, but it'll be a guard just to make 100% sure.
+                // This should_ be redundant, but it'll be a guard just to make 100% sure.
                 && Arrays.stream(itemTargets).anyMatch(target -> target.matches(StorageHelper.getItemStackInCursorSlot().getItem()));
     }
 
     @Override
     protected void onStart(AltoClef mod) {
         mod.getBehaviour().push();
-        //removeThrowawayItems(_itemTargets);
+        //removeThrowawayItems(itemTargets);
         mod.getBehaviour().addProtectedItems(ItemTarget.getMatches(itemTargets));
         onResourceStart(mod);
     }

@@ -24,7 +24,7 @@ import java.util.Set;
 public class InputControls {
 
     private final Queue<Input> toUnpress = new ArrayDeque<>();
-    private final Set<Input> _waitForRelease = new HashSet<>(); // a click requires a release.
+    private final Set<Input> waitForRelease = new HashSet<>(); // a click requires a release.
 
     private static KeyBinding inputToKeyBinding(Input input) {
         GameOptions o = MinecraftClient.getInstance().options;
@@ -44,14 +44,14 @@ public class InputControls {
 
     public void tryPress(Input input) {
         // We just pressed, so let us release.
-        if (_waitForRelease.contains(input)) {
+        if (waitForRelease.contains(input)) {
             return;
         }
         inputToKeyBinding(input).setPressed(true);
         // Also necessary to ensure the game registers the input as "pressed"
         KeyBinding.onKeyPressed(inputToKeyBinding(input).getDefaultKey());
         toUnpress.add(input);
-        _waitForRelease.add(input);
+        waitForRelease.add(input);
     }
 
     public void hold(Input input) {
@@ -85,6 +85,6 @@ public class InputControls {
 
     // After the user calls input commands for the frame
     public void onTickPost() {
-        _waitForRelease.clear();
+        waitForRelease.clear();
     }
 }

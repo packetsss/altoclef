@@ -8,10 +8,10 @@ import adris.altoclef.util.helpers.StorageHelper;
 import net.minecraft.item.Item;
 
 public class GetBuildingMaterialsTask extends Task {
-    private final int _count;
+    private final int count;
 
     public GetBuildingMaterialsTask(int count) {
-        _count = count;
+        this.count = count;
     }
 
     @Override
@@ -22,7 +22,7 @@ public class GetBuildingMaterialsTask extends Task {
     @Override
     protected Task onTick(AltoClef mod) {
         Item[] throwaways = mod.getModSettings().getThrowawayItems(mod, true);
-        return new MineAndCollectTask(new ItemTarget[]{new ItemTarget(throwaways, _count)}, MiningRequirement.WOOD);
+        return new MineAndCollectTask(new ItemTarget[]{new ItemTarget(throwaways, count)}, MiningRequirement.WOOD);
     }
 
     @Override
@@ -33,18 +33,18 @@ public class GetBuildingMaterialsTask extends Task {
     @Override
     protected boolean isEqual(Task other) {
         if (other instanceof GetBuildingMaterialsTask task) {
-            return task._count == _count;
+            return task.count == count;
         }
         return false;
     }
 
     @Override
     public boolean isFinished(AltoClef mod) {
-        return StorageHelper.getBuildingMaterialCount(mod) >= _count;
+        return StorageHelper.getBuildingMaterialCount(mod) >= count;
     }
 
     @Override
     protected String toDebugString() {
-        return "Collecting " + _count + " building materials.";
+        return "Collecting " + count + " building materials.";
     }
 }
