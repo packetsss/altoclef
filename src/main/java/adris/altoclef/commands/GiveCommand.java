@@ -21,13 +21,9 @@ public class GiveCommand extends Command {
     protected void call(AltoClef mod, ArgParser parser) throws CommandException {
         String username = parser.get(String.class);
         if (username == null) {
-            if (mod.getButler().hasCurrentUser()) {
-                username = mod.getButler().getCurrentUser();
-            } else {
-                mod.logWarning("No butler user currently present. Running this command with no user argument can ONLY be done via butler.");
-                finish();
-                return;
-            }
+            mod.logWarning("No args :(");
+            finish();
+            return;
         }
         String item = parser.get(String.class);
         int count = parser.get(Integer.class);
