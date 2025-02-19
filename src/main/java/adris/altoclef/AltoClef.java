@@ -176,6 +176,10 @@ public class AltoClef implements ModInitializer {
             long nanos = System.nanoTime();
             onClientTick();
             altoClefTickChart.pushTickNanos(System.nanoTime()-nanos);
+
+            if (getWorld() == null) {
+                SeedListener.reset();
+            }
         });
 
         // Render

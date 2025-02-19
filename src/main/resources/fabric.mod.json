@@ -20,6 +20,9 @@
   "entrypoints": {
     "main": [
       "adris.altoclef.AltoClef"
+    ],
+    "seedcrackerx": [
+      "adris.altoclef.SeedListener"
     ]
   },
   "mixins": [
