@@ -102,7 +102,11 @@ public class LootContainerTask extends Task {
 
     @Override
     protected boolean isEqual(Task other) {
-        return other instanceof LootContainerTask && targets.equals(((LootContainerTask) other).targets);
+        if (other instanceof LootContainerTask lootContainerTask) {
+            return targets.equals(lootContainerTask.targets) &&
+                chest.equals(lootContainerTask.chest);
+        }
+        return false;
     }
 
     private Optional<Slot> getAMatchingSlot(AltoClef mod) {
