@@ -4,7 +4,7 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.TaskCatalogue;
 import adris.altoclef.commandsystem.ArgParser;
 import adris.altoclef.commandsystem.Command;
-import adris.altoclef.commandsystem.CommandException;
+import adris.altoclef.commandsystem.exception.CommandException;
 import adris.altoclef.ui.MessagePriority;
 
 import java.util.Arrays;

@@ -3,7 +3,6 @@ package adris.altoclef.commands.random;
 import adris.altoclef.AltoClef;
 import adris.altoclef.commandsystem.ArgParser;
 import adris.altoclef.commandsystem.Command;
-import adris.altoclef.tasks.construction.compound.ConstructNetherPortalSpeedrunTask;
 import adris.altoclef.tasks.speedrun.OneCycleTask;
 
 public class CycleTestCommand extends Command {

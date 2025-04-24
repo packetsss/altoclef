@@ -1,17 +1,19 @@
 package adris.altoclef.commands;
 
 import adris.altoclef.AltoClef;
-import adris.altoclef.commandsystem.Arg;
 import adris.altoclef.commandsystem.ArgParser;
 import adris.altoclef.commandsystem.Command;
-import adris.altoclef.commandsystem.CommandException;
+import adris.altoclef.commandsystem.exception.CommandException;
+import adris.altoclef.commandsystem.args.EnumArg;
 import adris.altoclef.tasks.movement.GoToStrongholdPortalTask;
 import adris.altoclef.tasks.movement.LocateDesertTempleTask;
 
 public class LocateStructureCommand extends Command {
 
-    public LocateStructureCommand() throws CommandException {
-        super("locate_structure", "Locate a world generated structure.", new Arg(Structure.class, "structure"));
+    public LocateStructureCommand() {
+        super("locate_structure", "Locate a world generated structure.",
+                new EnumArg<>("structure", Structure.class)
+        );
     }
 
     @Override

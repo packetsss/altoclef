@@ -1,6 +1,6 @@
-package adris.altoclef.commandsystem;
+package adris.altoclef.commandsystem.exception;
 
-public class CommandException extends Exception {
+public abstract class CommandException extends Exception {
 
     public CommandException(String message) {
         super(message);

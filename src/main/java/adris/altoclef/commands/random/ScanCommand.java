@@ -2,10 +2,10 @@ package adris.altoclef.commands.random;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.commands.BlockScanner;
-import adris.altoclef.commandsystem.Arg;
 import adris.altoclef.commandsystem.ArgParser;
 import adris.altoclef.commandsystem.Command;
-import adris.altoclef.commandsystem.CommandException;
+import adris.altoclef.commandsystem.exception.CommandException;
+import adris.altoclef.commandsystem.args.StringArg;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 
@@ -14,7 +14,9 @@ import java.lang.reflect.Field;
 public class ScanCommand extends Command {
 
     public ScanCommand() throws CommandException {
-        super("scan", "Locates nearest block", new Arg<>(String.class, "block", "DIRT", 0));
+        super("scan", "Locates nearest block",
+                new StringArg("block", "DIRT")
+        );
     }
 
     @Override

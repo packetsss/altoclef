@@ -2,6 +2,8 @@ package adris.altoclef.commandsystem;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
+import adris.altoclef.commandsystem.exception.CommandException;
+import adris.altoclef.commandsystem.exception.RuntimeCommandException;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -26,7 +28,7 @@ public class CommandExecutor {
         }
     }
 
-    private String getCommandPrefix() {
+    public String getCommandPrefix() {
         return mod.getModSettings().getCommandPrefix();
     }
 
@@ -44,13 +46,13 @@ public class CommandExecutor {
         String part = parts[index];
         try {
             if (command == null) {
-                getException.accept(new CommandException("Invalid command:" + part));
+                getException.accept(new RuntimeCommandException("Invalid command:" + part));
                 executeRecursive(commands, parts, index + 1, onFinish, getException);
             } else {
-                command.run(mod, part, () -> executeRecursive(commands, parts, index + 1, onFinish, getException));
+                command.run(mod, part.strip(), () -> executeRecursive(commands, parts, index + 1, onFinish, getException));
             }
         } catch (CommandException ae) {
-            getException.accept(new CommandException(ae.getMessage() + "\nUsage: " + command.getHelpRepresentation(), ae));
+            getException.accept(new RuntimeCommandException(ae.getMessage() + "\nUsage: " + command.getHelpRepresentation(), ae));
         }
     }
 
@@ -62,7 +64,12 @@ public class CommandExecutor {
         Command[] commands = new Command[parts.length];
         try {
             for (int i = 0; i < parts.length; ++i) {
-                commands[i] = getCommand(parts[i]);
+                String part = parts[i].strip();
+                if (part.startsWith(getCommandPrefix())) {
+                    part = part.substring(getCommandPrefix().length());
+                }
+
+                commands[i] = getCommand(part);
             }
         } catch (CommandException e) {
             getException.accept(e);
@@ -86,7 +93,7 @@ public class CommandExecutor {
         execute(line);
     }
 
-    private Command getCommand(String line) throws CommandException {
+    private Command getCommand(String line) throws RuntimeCommandException {
         line = line.trim();
         if (line.length() != 0) {
             String command = line;
@@ -96,7 +103,7 @@ public class CommandExecutor {
             }
 
             if (!commandSheet.containsKey(command)) {
-                throw new CommandException("Command " + command + " does not exist.");
+                throw new RuntimeCommandException("Command " + command + " does not exist.");
             }
 
             return commandSheet.get(command);
@@ -107,6 +114,10 @@ public class CommandExecutor {
 
     public Collection<Command> allCommands() {
         return commandSheet.values();
+    }
+
+    public Collection<String> allCommandNames() {
+        return commandSheet.keySet();
     }
 
     public Command get(String name) {

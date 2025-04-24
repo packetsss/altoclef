@@ -5,6 +5,7 @@ import adris.altoclef.butler.Butler;
 import adris.altoclef.chains.*;
 import adris.altoclef.commands.BlockScanner;
 import adris.altoclef.commandsystem.CommandExecutor;
+import adris.altoclef.commandsystem.TabCompleter;
 import adris.altoclef.control.InputControls;
 import adris.altoclef.control.PlayerExtraController;
 import adris.altoclef.control.SlotHandler;
@@ -195,6 +196,11 @@ public class AltoClef implements ModInitializer {
 
         // Playground
         Playground.IDLE_TEST_INIT_FUNCTION(this);
+
+        // Tasks
+        TaskCatalogue.init();
+
+        getClientBaritone().getGameEventHandler().registerEventListener(new TabCompleter());
 
         // External mod initialization
         runEnqueuedPostInits();

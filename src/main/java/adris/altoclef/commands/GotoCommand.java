@@ -2,6 +2,8 @@ package adris.altoclef.commands;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.commandsystem.*;
+import adris.altoclef.commandsystem.args.GoToTargetArg;
+import adris.altoclef.commandsystem.exception.CommandException;
 import adris.altoclef.tasks.movement.DefaultGoToDimensionTask;
 import adris.altoclef.tasks.movement.GetToBlockTask;
 import adris.altoclef.tasks.movement.GetToXZTask;
@@ -22,7 +24,7 @@ public class GotoCommand extends Command {
         // (dimension)
         // (x z dimension)
         super("goto", "Tell bot to travel to a set of coordinates",
-                new Arg<>(GotoTarget.class, "[x y z dimension]/[x z dimension]/[y dimension]/[dimension]/[x y z]/[x z]/[y]")
+                new GoToTargetArg("[x y z dimension]/[x z dimension]/[y dimension]/[dimension]/[x y z]/[x z]/[y]")
         );
     }
 

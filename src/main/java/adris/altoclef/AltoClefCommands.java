@@ -3,7 +3,7 @@ package adris.altoclef;
 import adris.altoclef.commands.*;
 import adris.altoclef.commands.random.ScanCommand;
 import adris.altoclef.commands.random.DummyTaskCommand;
-import adris.altoclef.commandsystem.CommandException;
+import adris.altoclef.commandsystem.exception.CommandException;
 
 /**
  * Initializes altoclef's built in commands.
@@ -38,7 +38,6 @@ public class AltoClefCommands {
                 new MarvionCommand(),
                 new DummyTaskCommand(),
                 new FollowCommand(),
-                new GiveCommand(),
                 new ScanCommand()
         );
     }

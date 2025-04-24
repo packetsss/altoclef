@@ -3,27 +3,35 @@ package adris.altoclef.commands;
 import adris.altoclef.AltoClef;
 import adris.altoclef.TaskCatalogue;
 import adris.altoclef.commandsystem.*;
+import adris.altoclef.commandsystem.args.ItemTargetArg;
+import adris.altoclef.commandsystem.args.ListArg;
+import adris.altoclef.commandsystem.exception.CommandException;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.ItemTarget;
+import net.minecraft.item.ItemStack;
+
+import java.util.List;
 
 public class GetCommand extends Command {
 
     public GetCommand() throws CommandException {
-        super("get", "Get an item/resource", new Arg<>(ItemList.class, "items"));
+        super("get", "Get an item/resource",
+                new ListArg<>(new ItemTargetArg("stack"), "items")
+        );
     }
 
 
-    private void getItems(AltoClef mod, ItemTarget... items) {
+    private void getItems(AltoClef mod, List<ItemTarget> items) {
         Task targetTask;
-        if (items == null || items.length == 0) {
+        if (items == null || items.isEmpty()) {
             mod.log("You must specify at least one item!");
             finish();
             return;
         }
-        if (items.length == 1) {
-            targetTask = TaskCatalogue.getItemTask(items[0]);
+        if (items.size() == 1) {
+            targetTask = TaskCatalogue.getItemTask(items.getFirst());
         } else {
-            targetTask = TaskCatalogue.getSquashedItemTask(items);
+            targetTask = TaskCatalogue.getSquashedItemTask(items.toArray(new ItemTarget[0]));
         }
         if (targetTask != null) {
             mod.runUserTask(targetTask, this::finish);
@@ -34,7 +42,8 @@ public class GetCommand extends Command {
 
     @Override
     protected void call(AltoClef mod, ArgParser parser) throws CommandException {
-        ItemList items = parser.get(ItemList.class);
-        getItems(mod, items.items);
+        List<ItemTarget> items = parser.get(List.class);
+
+        getItems(mod, items);
     }
 }

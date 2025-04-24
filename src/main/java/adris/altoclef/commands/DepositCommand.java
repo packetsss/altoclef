@@ -2,6 +2,9 @@ package adris.altoclef.commands;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.commandsystem.*;
+import adris.altoclef.commandsystem.args.ItemTargetArg;
+import adris.altoclef.commandsystem.args.ListArg;
+import adris.altoclef.commandsystem.exception.CommandException;
 import adris.altoclef.tasks.container.StoreInAnyContainerTask;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.helpers.StorageHelper;
@@ -11,9 +14,13 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.ToolItem;
 import org.apache.commons.lang3.ArrayUtils;
 
+import java.util.List;
+
 public class DepositCommand extends Command {
-    public DepositCommand() throws CommandException {
-        super("deposit", "Deposit ALL of our items", new Arg(ItemList.class, "items (empty for ALL non gear items)", null, 0, false));
+    public DepositCommand() {
+        super("deposit", "Deposit ALL of our items",
+                new ListArg<>(new ItemTargetArg("itemStack"), "Item list", null, false)
+        );
     }
 
     public static ItemTarget[] getAllNonEquippedOrToolItemsAsTarget(AltoClef mod) {
@@ -33,12 +40,13 @@ public class DepositCommand extends Command {
 
     @Override
     protected void call(AltoClef mod, ArgParser parser) throws CommandException {
-        ItemList itemList = parser.get(ItemList.class);
+        List<ItemStack> itemList = parser.get(List.class);
+
         ItemTarget[] items;
         if (itemList == null) {
             items = getAllNonEquippedOrToolItemsAsTarget(mod);
         } else {
-            items = itemList.items;
+            items = itemList.stream().map(stack -> new ItemTarget(stack.getItem(), stack.getCount())).toArray(ItemTarget[]::new);
         }
 
         mod.runUserTask(new StoreInAnyContainerTask(false, items), this::finish);

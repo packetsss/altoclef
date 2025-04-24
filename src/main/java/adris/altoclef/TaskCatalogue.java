@@ -40,6 +40,10 @@ public class TaskCatalogue {
     private static final HashMap<Item, CataloguedResource> itemToResourceTask = new HashMap<>();
     private static final HashSet<Item> resourcesObtainable = new HashSet<>();
 
+    public static void init() {
+        nameToItemMatches.keySet();
+    }
+
     static {
         /// DEFINE RESOURCE TASKS HERE
         {

@@ -20,48 +20,6 @@ public class GotoTarget {
         this.type = type;
     }
 
-    public static GotoTarget parseRemainder(String line) throws CommandException {
-        line = line.trim();
-        if (line.startsWith("(") && line.endsWith(")")) {
-            line = line.substring(1, line.length() - 1);
-        }
-        String[] parts = line.split(" ");
-        List<Integer> numbers = new ArrayList<>();
-        Dimension dimension = null;
-        for (String part : parts) {
-            try {
-                int num = Integer.parseInt(part);
-                numbers.add(num);
-            } catch (NumberFormatException e) {
-                dimension = (Dimension) Arg.parseEnum(part, Dimension.class);
-                break;
-            }
-        }
-        int x = 0, y = 0, z = 0;
-        GotoTarget.GotoTargetCoordType coordType;
-        switch (numbers.size()) {
-            case 0 -> coordType = GotoTargetCoordType.NONE;
-            case 1 -> {
-                y = numbers.get(0);
-                coordType = GotoTargetCoordType.Y;
-            }
-            case 2 -> {
-                x = numbers.get(0);
-                z = numbers.get(1);
-                coordType = GotoTargetCoordType.XZ;
-            }
-            case 3 -> {
-                x = numbers.get(0);
-                y = numbers.get(1);
-                z = numbers.get(2);
-                coordType = GotoTargetCoordType.XYZ;
-            }
-            default ->
-                    throw new CommandException("Unexpected number of integers passed to coordinate: " + numbers.size());
-        }
-        return new GotoTarget(x, y, z, dimension, coordType);
-    }
-
     public int getX() {
         return x;
     }
