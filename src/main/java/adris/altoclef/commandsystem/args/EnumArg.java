@@ -38,7 +38,7 @@ public class EnumArg<T extends Enum<T>> extends Arg<T>{
 
     @Override
     public Class<T> getType() {
-        return null;
+        return enumCl;
     }
 
 
