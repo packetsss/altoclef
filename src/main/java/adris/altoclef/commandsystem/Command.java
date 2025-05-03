@@ -100,6 +100,9 @@ public abstract class Command {
         for (int i = 0; i < args.length; i++) {
             Arg<?> arg = args[i];
 
+            if (!reader.hasNext() && !line.endsWith(" ")) {
+                return Stream.empty();
+            }
             Arg.ParseResult result = arg.consumeIfSupplied(reader);
             if (result == Arg.ParseResult.BAD_SYNTAX) {
                 return Stream.empty();
