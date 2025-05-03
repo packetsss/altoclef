@@ -1,6 +1,7 @@
 package adris.altoclef.commandsystem.args;
 
 import adris.altoclef.commandsystem.StringReader;
+import adris.altoclef.commandsystem.exception.CommandNotFinishedException;
 
 import java.util.stream.Stream;
 
@@ -26,7 +27,12 @@ public class StringArg extends Arg<String> {
 
     @Override
     protected StringParser<String> getParser() {
-        return StringReader::next;
+        return reader -> {
+            String value = reader.next();
+            if (value.isEmpty()) throw new CommandNotFinishedException("String cannot be empty");
+
+            return value;
+        };
     }
 
     @Override

@@ -22,6 +22,9 @@ public class GoToTargetArg extends Arg<GotoTarget> {
         super(name);
     }
 
+    public GoToTargetArg(String name, GotoTarget defaultValue, boolean showDefault) {
+        super(name, defaultValue, showDefault);
+    }
 
     public static GotoTarget parse(StringReader reader) throws CommandException {
         List<Integer> numbers = new ArrayList<>();

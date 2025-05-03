@@ -63,7 +63,7 @@ public class GiveItemToPlayerTask extends Task {
             return throwTask;
         }
 
-        if (cords==null) {
+        if (cords == null) {
             Optional<Vec3d> lastPos = mod.getEntityTracker().getPlayerMostRecentPosition(playerName);
             if (lastPos.isEmpty()) {
                 setDebugState("No player found/detected. Doing nothing until player loads into render distance.");
@@ -78,7 +78,7 @@ public class GiveItemToPlayerTask extends Task {
             return resourceTask;
         }
 
-        if (cords!=null) {
+        if (cords != null) {
             if (!atGoal) {
                 atGoal = true;
                 return new GetToBlockTask(new BlockPos(cords.getX(), cords.getY(), cords.getZ()), cords.getDimension());
@@ -93,8 +93,7 @@ public class GiveItemToPlayerTask extends Task {
 
         if (droppingItems) {
             // For each target, pick up its stack and then throw it
-            for (int i = 0; i < throwTarget.size(); i++) {
-                ItemTarget target = throwTarget.get(i);
+            for (ItemTarget target : throwTarget) {
                 if (target.getTargetCount() <= 0) continue;
 
                 // Find a slot with item
