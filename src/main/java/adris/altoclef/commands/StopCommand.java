@@ -14,7 +14,7 @@ public class StopCommand extends Command {
 
     @Override
     protected void call(AltoClef mod, ArgParser parser) {
-        mod.getUserTaskChain().cancel(mod);
+        mod.stopTasks();
         finish();
     }
 }

@@ -216,10 +216,7 @@ public class AltoClef implements ModInitializer {
 
         // Cancel shortcut
         if (InputHelper.isKeyPressed(GLFW.GLFW_KEY_LEFT_CONTROL) && InputHelper.isKeyPressed(GLFW.GLFW_KEY_K)) {
-            userTaskChain.cancel(this);
-            if (taskRunner.getCurrentTaskChain() != null) {
-                taskRunner.getCurrentTaskChain().stop();
-            }
+            stopTasks();
         }
 
         // TODO: should this go here?
@@ -236,17 +233,13 @@ public class AltoClef implements ModInitializer {
     }
 
     public void stopTasks() {
-        if (isPaused()) {
-            log("Bot is already paused!");
-        } else if (!getUserTaskChain().isActive()) {
-            log("Bot has no current task!");
-        } else {
-            setStoredTask(getUserTaskChain().getCurrentTask());
-            setPaused(true);
-            getUserTaskChain().stop();
-            getTaskRunner().disable();
-            log("Pausing Bot and time");
+        if (userTaskChain != null) {
+            userTaskChain.cancel(this);
         }
+        if (taskRunner.getCurrentTaskChain() != null) {
+            taskRunner.getCurrentTaskChain().stop();
+        }
+        commandStatusOverlay.resetTimer();
     }
 
     /// GETTERS AND SETTERS

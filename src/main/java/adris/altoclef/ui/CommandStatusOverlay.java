@@ -127,4 +127,10 @@ public class CommandStatusOverlay {
 
     }
 
+    public void resetTimer() {
+        runningSince = Instant.now().toEpochMilli();//reset the timer
+        lastTime = 0;
+        paused = false;
+        pausedTime = -1;
+    }
 }
