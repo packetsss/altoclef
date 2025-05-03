@@ -235,6 +235,20 @@ public class AltoClef implements ModInitializer {
         inputControls.onTickPost();
     }
 
+    public void stopTasks() {
+        if (isPaused()) {
+            log("Bot is already paused!");
+        } else if (!getUserTaskChain().isActive()) {
+            log("Bot has no current task!");
+        } else {
+            setStoredTask(getUserTaskChain().getCurrentTask());
+            setPaused(true);
+            getUserTaskChain().stop();
+            getTaskRunner().disable();
+            log("Pausing Bot and time");
+        }
+    }
+
     /// GETTERS AND SETTERS
 
     private void onClientRenderOverlay(DrawContextWrapper context) {

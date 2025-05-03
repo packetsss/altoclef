@@ -64,13 +64,12 @@ public class TaskRunner {
     public void disable() {
         if (active) {
             mod.getBehaviour().pop();
+            Debug.logMessage("Stopped");
         }
         for (TaskChain chain : chains) {
             chain.stop();
         }
         active = false;
-
-        Debug.logMessage("Stopped");
     }
 
     public boolean isActive() {

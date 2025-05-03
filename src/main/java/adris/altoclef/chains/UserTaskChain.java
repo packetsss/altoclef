@@ -58,6 +58,11 @@ public class UserTaskChain extends SingleTaskChain {
             stop();
             onTaskFinish(mod);
         }
+        mod.getTaskRunner().disable();
+
+        // FIXME kinda junk, the whole pausing should probably be moved to this class
+        mod.setStoredTask(null);
+        mod.setPaused(false);
     }
 
     @Override

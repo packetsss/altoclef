@@ -5,9 +5,11 @@ import adris.altoclef.Debug;
 import adris.altoclef.commandsystem.ArgParser;
 import adris.altoclef.commandsystem.Command;
 
+import java.util.List;
+
 public class UnPauseCommand extends Command {
     public UnPauseCommand() {
-        super("unpause", "Unpauses the bot");
+        super(List.of("unpause", "resume"), "Unpauses the bot");
     }
 
     @Override
@@ -19,6 +21,7 @@ public class UnPauseCommand extends Command {
                 Debug.logError("Stored task is null!");
             } else {
                 mod.runUserTask(mod.getStoredTask());
+                mod.getTaskRunner().enable();
                 mod.log("Unpausing Bot and time");
             }
             mod.setPaused(false);

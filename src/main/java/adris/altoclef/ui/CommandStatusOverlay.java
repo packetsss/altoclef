@@ -5,9 +5,7 @@ import adris.altoclef.multiversion.DrawContextWrapper;
 import adris.altoclef.tasksystem.Task;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.util.math.MatrixStack;
-import org.joml.Matrix4f;
 
 import java.awt.*;
 import java.time.Instant;
@@ -21,13 +19,20 @@ public class CommandStatusOverlay {
 
     private final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss.SSS").withZone(ZoneId.from(ZoneOffset.of("+00:00"))); // The date formatter
     //For the ingame timer
-    private long timeRunning;
+    private long runningSince;
     private long lastTime = 0;
+    private long pausedTime = -1;
+    private boolean paused = false;
 
     public void render(AltoClef mod, DrawContextWrapper context) {
         List<Task> tasks = Collections.emptyList();
         if (mod.getTaskRunner().getCurrentTaskChain() != null) {
             tasks = mod.getTaskRunner().getCurrentTaskChain().getTasks();
+        }
+        if (paused && !mod.isPaused()) {
+            runningSince = Instant.now().minusMillis(pausedTime).toEpochMilli();
+            lastTime = Instant.now().toEpochMilli();
+            paused = false;
         }
 
         MatrixStack matrixStack = context.getMatrices();
@@ -53,11 +58,25 @@ public class CommandStatusOverlay {
         y += addY;
 
         if (tasks.isEmpty()) {
+            if (mod.isPaused() && mod.getStoredTask() != null) {
+                if (!paused) {
+                    paused = true;
+                    pausedTime = Instant.now().minusMillis(runningSince).toEpochMilli();
+                }
+                String realTime = DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(pausedTime));
+                context.drawText(renderer, "<" + realTime + ">", x, y, whiteColor, true);
+                x += addX;
+                y += addY;
+
+                context.drawText(renderer, " (Paused)", x, y, Color.LIGHT_GRAY.getRGB(), true);
+                renderTask(mod.getStoredTask(), context, renderer, x+addX*2, y+addY);
+                return;
+            }
             if (mod.getTaskRunner().isActive()) {
-                context.drawText(renderer," (no task running) ", x, y, whiteColor, true);
+                context.drawText(renderer, " (no task running) ", x, y, whiteColor, true);
             }
             if (lastTime + 10000 < Instant.now().toEpochMilli() && mod.getModSettings().shouldShowTimer()) {//if it doesn't run any task in 10 secs
-                timeRunning = Instant.now().toEpochMilli();//reset the timer
+                runningSince = Instant.now().toEpochMilli();//reset the timer
             }
             return;
         }
@@ -65,7 +84,7 @@ public class CommandStatusOverlay {
         if (mod.getModSettings().shouldShowTimer()) {
             lastTime = Instant.now().toEpochMilli();
 
-            String realTime = DATE_TIME_FORMATTER.format(Instant.now().minusMillis(timeRunning));
+            String realTime = DATE_TIME_FORMATTER.format(Instant.now().minusMillis(runningSince));
             context.drawText(renderer, "<" + realTime + ">", x, y, whiteColor, true);
             x += addX;
             y += addY;
