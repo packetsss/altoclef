@@ -3,8 +3,8 @@ package adris.altoclef.chains;
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 import adris.altoclef.control.KillAura;
-import adris.altoclef.multiversion.versionedfields.Entities;
 import adris.altoclef.multiversion.item.ItemVer;
+import adris.altoclef.multiversion.versionedfields.Entities;
 import adris.altoclef.tasks.construction.ProjectileProtectionWallTask;
 import adris.altoclef.tasks.entity.KillEntitiesTask;
 import adris.altoclef.tasks.movement.CustomBaritoneGoalTask;
@@ -39,7 +39,6 @@ import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.Difficulty;
-
 
 import java.util.*;
 
@@ -115,6 +114,24 @@ public class MobDefenseChain extends SingleTaskChain {
             }
         }
         return numberOfProblematicEntities;
+    }
+
+    private static boolean hasShield(AltoClef mod) {
+        return mod.getItemStorage().hasItem(Items.SHIELD) || mod.getItemStorage().hasItemInOffhand(Items.SHIELD);
+    }
+
+    private static SwordItem getBestSword(AltoClef mod) {
+        Item[] SWORDS = new Item[]{Items.NETHERITE_SWORD, Items.DIAMOND_SWORD, Items.IRON_SWORD, Items.GOLDEN_SWORD,
+                Items.STONE_SWORD, Items.WOODEN_SWORD};
+
+        SwordItem bestSword = null;
+        for (Item item : SWORDS) {
+            if (mod.getItemStorage().hasItem(item)) {
+                bestSword = (SwordItem) item;
+                break;
+            }
+        }
+        return bestSword;
     }
 
     @Override
@@ -216,24 +233,22 @@ public class MobDefenseChain extends SingleTaskChain {
                 return 50 + blowingUp.getClientFuseTime(1) * 50;
             }
         }
-        synchronized (BaritoneHelper.MINECRAFT_LOCK) {
-            // Block projectiles with shield
-            if (mod.getModSettings().isDodgeProjectiles()
-                    && hasShield(mod)
-                    && !mod.getPlayer().getItemCooldownManager().isCoolingDown(offhandItem)
-                    && mod.getClientBaritone().getPathingBehavior().isSafeToCancel()
-                    && !mod.getEntityTracker().entityFound(PotionEntity.class) && isProjectileClose(mod)) {
-                ItemStack shieldSlot = StorageHelper.getItemStackInSlot(PlayerSlot.OFFHAND_SLOT);
-                if (shieldSlot.getItem() != Items.SHIELD) {
-                    mod.getSlotHandler().forceEquipItemToOffhand(Items.SHIELD);
-                } else {
-                    startShielding(mod);
-                }
-                return 60;
+        // Block projectiles with shield
+        if (mod.getModSettings().isDodgeProjectiles()
+                && hasShield(mod)
+                && !mod.getPlayer().getItemCooldownManager().isCoolingDown(offhandItem)
+                && mod.getClientBaritone().getPathingBehavior().isSafeToCancel()
+                && !mod.getEntityTracker().entityFound(PotionEntity.class) && isProjectileClose(mod)) {
+            ItemStack shieldSlot = StorageHelper.getItemStackInSlot(PlayerSlot.OFFHAND_SLOT);
+            if (shieldSlot.getItem() != Items.SHIELD) {
+                mod.getSlotHandler().forceEquipItemToOffhand(Items.SHIELD);
+            } else {
+                startShielding(mod);
             }
-            if (blowingUp == null && !isProjectileClose(mod)) {
-                stopShielding(mod);
-            }
+            return 60;
+        }
+        if (blowingUp == null && !isProjectileClose(mod)) {
+            stopShielding(mod);
         }
 
         if (mod.getFoodChain().needsToEat() || mod.getMLGBucketChain().isFalling(mod)
@@ -275,40 +290,38 @@ public class MobDefenseChain extends SingleTaskChain {
 
             List<LivingEntity> toDealWithList = new ArrayList<>();
 
-            synchronized (BaritoneHelper.MINECRAFT_LOCK) {
-                for (LivingEntity hostile : hostiles) {
-                    boolean isRangedOrPoisonous = (hostile instanceof SkeletonEntity
-                            || hostile instanceof WitchEntity || hostile instanceof PillagerEntity
-                            || hostile instanceof PiglinEntity || hostile instanceof StrayEntity
-                            || hostile instanceof CaveSpiderEntity);
-                    int annoyingRange = 10;
+            for (LivingEntity hostile : hostiles) {
+                boolean isRangedOrPoisonous = (hostile instanceof SkeletonEntity
+                        || hostile instanceof WitchEntity || hostile instanceof PillagerEntity
+                        || hostile instanceof PiglinEntity || hostile instanceof StrayEntity
+                        || hostile instanceof CaveSpiderEntity);
+                int annoyingRange = 10;
 
-                    if (isRangedOrPoisonous) {
-                        annoyingRange = 20;
-                        if (!hasShield(mod)) {
-                            annoyingRange = 35;
+                if (isRangedOrPoisonous) {
+                    annoyingRange = 20;
+                    if (!hasShield(mod)) {
+                        annoyingRange = 35;
+                    }
+                }
+
+                // Give each hostile a timer, if they're close for too long deal with them.
+                if (hostile.isInRange(mod.getPlayer(), annoyingRange) && LookHelper.seesPlayer(hostile, mod.getPlayer(), annoyingRange)) {
+
+                    boolean isIgnored = false;
+                    for (Class<? extends Entity> ignored : ignoredMobs) {
+                        if (ignored.isInstance(hostile)) {
+                            isIgnored = true;
+                            break;
                         }
                     }
 
-                    // Give each hostile a timer, if they're close for too long deal with them.
-                    if (hostile.isInRange(mod.getPlayer(), annoyingRange) && LookHelper.seesPlayer(hostile, mod.getPlayer(), annoyingRange)) {
-
-                        boolean isIgnored = false;
-                        for (Class<? extends Entity> ignored : ignoredMobs) {
-                            if (ignored.isInstance(hostile)) {
-                                isIgnored = true;
-                                break;
-                            }
-                        }
-
-                        // do not go and "attack" these mobs, just hit them if on low HP, or they are close
-                        if (isIgnored) {
-                            if (mod.getPlayer().getHealth() <= 10) {
-                                toDealWithList.add(hostile);
-                            }
-                        } else {
+                    // do not go and "attack" these mobs, just hit them if on low HP, or they are close
+                    if (isIgnored) {
+                        if (mod.getPlayer().getHealth() <= 10) {
                             toDealWithList.add(hostile);
                         }
+                    } else {
+                        toDealWithList.add(hostile);
                     }
                 }
             }
@@ -369,38 +382,20 @@ public class MobDefenseChain extends SingleTaskChain {
         return 0;
     }
 
-    private static boolean hasShield(AltoClef mod) {
-        return mod.getItemStorage().hasItem(Items.SHIELD) || mod.getItemStorage().hasItemInOffhand(Items.SHIELD);
-    }
-
-    private static SwordItem getBestSword(AltoClef mod) {
-        Item[] SWORDS = new Item[]{Items.NETHERITE_SWORD, Items.DIAMOND_SWORD, Items.IRON_SWORD, Items.GOLDEN_SWORD,
-                Items.STONE_SWORD, Items.WOODEN_SWORD};
-
-        SwordItem bestSword = null;
-        for (Item item : SWORDS) {
-            if (mod.getItemStorage().hasItem(item)) {
-                bestSword = (SwordItem) item;
-                break;
-            }
-        }
-        return bestSword;
-    }
-
     private BlockPos isInsideFireAndOnFire(AltoClef mod) {
         boolean onFire = mod.getPlayer().isOnFire();
         if (!onFire) return null;
         BlockPos p = mod.getPlayer().getBlockPos();
         BlockPos[] toCheck = new BlockPos[]{
                 p,
-                p.add(1,0,0),
-                p.add(1,0,-1),
-                p.add(0,0,-1),
-                p.add(-1,0,-1),
-                p.add(-1,0,0),
-                p.add(-1,0,1),
-                p.add(0,0,1),
-                p.add(1,0,1)
+                p.add(1, 0, 0),
+                p.add(1, 0, -1),
+                p.add(0, 0, -1),
+                p.add(-1, 0, -1),
+                p.add(-1, 0, 0),
+                p.add(-1, 0, 1),
+                p.add(0, 0, 1),
+                p.add(1, 0, 1)
         };
         for (BlockPos check : toCheck) {
             Block b = mod.getWorld().getBlockState(check).getBlock();
@@ -584,13 +579,11 @@ public class MobDefenseChain extends SingleTaskChain {
                 ClientPlayerEntity player = mod.getPlayer();
                 List<LivingEntity> hostiles = mod.getEntityTracker().getHostiles();
 
-                synchronized (BaritoneHelper.MINECRAFT_LOCK) {
-                    for (Entity entity : hostiles) {
-                        if (entity.isInRange(player, SAFE_KEEP_DISTANCE)
-                                && !mod.getBehaviour().shouldExcludeFromForcefield(entity)
-                                && EntityHelper.isAngryAtPlayer(mod, entity)) {
-                            return true;
-                        }
+                for (Entity entity : hostiles) {
+                    if (entity.isInRange(player, SAFE_KEEP_DISTANCE)
+                            && !mod.getBehaviour().shouldExcludeFromForcefield(entity)
+                            && EntityHelper.isAngryAtPlayer(mod, entity)) {
+                        return true;
                     }
                 }
             } catch (Exception e) {
