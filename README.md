@@ -1,3 +1,10 @@
+# Links
+- [About](#altoclef)
+- [Versions](#versions)
+- [Download](#download)
+- [FAQ](#faq)
+- [Other useful files](#other-useful-files)
+
 # AltoClef
 *Plays block game.*
 
@@ -21,13 +28,14 @@ Because I rewrote a good portion of the `BeatMinecraftTask` a lot of the config 
 I am currently using the [replay mod preprocessor](https://github.com/ReplayMod/preprocessor) to keep the mod updated across multiple versions at the same time.
 
 ### Versions
-Thanks to that, the mod is currently available on **fabric** for (basically) all versions between `1.21.1` and `1.17.1`.
+Thanks to that, the mod is currently available on **fabric** for (basically) all versions between `1.21.1` and `1.16.5` (inclusive).
 
-(If there is a specific version in this range that you would like to use, and it isn't supported you can try creating a ticket).
+(If there is a specific version in this range that you would like to use, and it isn't supported you can try creating an issue).
 
 
-
-*note: All of the versions use the "same release" of Altoclef, although some of them use older versions of baritone.* 
+> [!NOTE]   
+> All of the versions use the "same release" of Altoclef, although some of them use older versions of baritone.
+You can check out the baritone [here](https://github.com/MiranCZ/baritone_altoclef)
 
 
 ## How it works
@@ -37,18 +45,38 @@ or this [Video explanation](https://youtu.be/q5OmcinQ2ck?t=387)
 
 
 ## Download
-
-**Note:** After installing, please move/delete your old baritone configurations if you have any. Preexisting baritone
+> [!IMPORTANT]  
+> After installing, please move/delete your old baritone configurations if you have any. Preexisting baritone
 configurations will interfere with altoclef and introduce bugs. This will be fixed in the future.
 
-[Check releases](https://github.com/MiranCZ/altoclef/releases)
+
+Here is a list of links for download of the latest versions for convenience. 
+
+| Version | Fabric download link                                                                                          |
+|---------|---------------------------------------------------------------------------------------------------------------|
+| 1.21.1  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.21.1-0.19.jar) |
+| 1.21    | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.21-0.19.jar)   |
+| 1.20.6  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.20.6-0.19.jar) |
+| 1.20.5  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.20.5-0.19.jar) |
+| 1.20.4  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.20.4-0.19.jar) |
+| 1.20.2  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.20.2-0.19.jar) |
+| 1.20.1  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.20.1-0.19.jar) |
+| 1.19.4  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.19.4-0.19.jar) |
+| 1.18.2  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.18.2-0.19.jar) |
+| 1.18    | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.18-0.19.jar)   |
+| 1.17.1  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.17.1-0.19.jar) |
+| 1.16.5  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.16.5-0.19.jar) |
+
+
+You can also [check releases](https://github.com/MiranCZ/altoclef/releases) for all previous releases.
 
 
 ## FAQ
 
 ### My Altoclef is crashing! What do I do?
 
-*note: If you are trying to run AltoClef on cracked launchers (TLauncher, launchers to run the game on mobile etc...) or unofficial launchers there is a high change I might not help you.*
+> [!WARNING]    
+> If you are trying to run AltoClef on cracked launchers (TLauncher, launchers to run the game on mobile etc...) or unofficial launchers there is a high change I might not help you.
 
 - First check if you downloaded the right file for the right Minecraft version, every release has the name in the following pattern: `altoclef-<minecraftVersion>-<altoclefVersion>.jar`.
 
@@ -83,8 +111,10 @@ You can open an issue if you want support for specific version in that range tha
 no.
 
 
-## [Usage Guide](usage.md)
+## Other useful files
 
-## [TODO's/Future Features](TODO.md)
+### [Usage Guide](usage.md)
 
-## [Development Guide](develop.md)
+### [TODO's/Future Features](TODO.md)
+
+### [Development Guide](develop.md)
