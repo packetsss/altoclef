@@ -2,6 +2,7 @@ package adris.altoclef;
 
 
 import adris.altoclef.butler.Butler;
+import adris.altoclef.cambridge.CamBridge;
 import adris.altoclef.chains.*;
 import adris.altoclef.trackers.BlockScanner;
 import adris.altoclef.commandsystem.CommandExecutor;
@@ -87,6 +88,7 @@ public class AltoClef implements ModInitializer {
     private Task storedTask;
 
     private static AltoClef instance;
+    private CamBridge camBridge;
 
     // Are we in game (playing in a server/world)
     public static boolean inGame() {
@@ -125,6 +127,7 @@ public class AltoClef implements ModInitializer {
         trackerManager = new TrackerManager(this);
         botBehaviour = new BotBehaviour(this);
         extraController = new PlayerExtraController(this);
+    camBridge = new CamBridge(this);
 
         // Task chains
         userTaskChain = new UserTaskChain(taskRunner);
@@ -161,6 +164,9 @@ public class AltoClef implements ModInitializer {
         // Load settings
         adris.altoclef.Settings.load(newSettings -> {
             settings = newSettings;
+            if (camBridge != null) {
+                camBridge.onSettingsReload(newSettings);
+            }
             // Baritone's `acceptableThrowawayItems` should match our own.
             List<Item> baritoneCanPlace = Arrays.stream(settings.getThrowawayItems(true))
                     .filter(item -> item != Items.SOUL_SAND && item != Items.MAGMA_BLOCK && item != Items.SAND && item
@@ -190,6 +196,9 @@ public class AltoClef implements ModInitializer {
         EventBus.subscribe(ClientTickEvent.class, evt -> {
             long nanos = System.nanoTime();
             onClientTick();
+            if (camBridge != null) {
+                camBridge.onClientTick();
+            }
             altoClefTickChart.pushTickNanos(System.nanoTime()-nanos);
         });
 

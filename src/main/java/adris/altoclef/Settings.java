@@ -293,6 +293,31 @@ public class Settings implements IFailableConfigFile {
     private int randomRespawnMaxRadius = 150000;
 
     /**
+     * Enables the CamBridge telemetry bridge that emits camera-friendly events.
+     */
+    private boolean camBridgeEnabled = true;
+
+    /**
+     * Transport to use for CamBridge event delivery. Supported values: "udp", "file".
+     */
+    private String camBridgeTransport = "udp";
+
+    /**
+     * Loopback host used for CamBridge UDP transport.
+     */
+    private String camBridgeHost = "127.0.0.1";
+
+    /**
+     * CamBridge UDP port on localhost.
+     */
+    private int camBridgePort = 36666;
+
+    /**
+     * Filesystem path used when CamBridge transport is set to "file".
+     */
+    private String camBridgeFilePath = "cambridge-events.jsonl";
+
+    /**
      * This setting lets you configure what the bot should do if it needs to go to the nether
      * but can't find a nether portal immediately.
      * <p>
@@ -553,6 +578,26 @@ public class Settings implements IFailableConfigFile {
 
     public int getRandomRespawnMaxRadius() {
         return randomRespawnMaxRadius;
+    }
+
+    public boolean isCamBridgeEnabled() {
+        return camBridgeEnabled;
+    }
+
+    public String getCamBridgeTransport() {
+        return camBridgeTransport == null ? "udp" : camBridgeTransport;
+    }
+
+    public String getCamBridgeHost() {
+        return camBridgeHost == null ? "127.0.0.1" : camBridgeHost;
+    }
+
+    public int getCamBridgePort() {
+        return camBridgePort <= 0 ? 36666 : camBridgePort;
+    }
+
+    public String getCamBridgeFilePath() {
+        return camBridgeFilePath == null || camBridgeFilePath.isBlank() ? "cambridge-events.jsonl" : camBridgeFilePath;
     }
 
     public boolean shouldReplantCrops() {

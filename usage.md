@@ -60,3 +60,16 @@ If you want the bot to start from a fresh location after every death, enable the
 - `"randomRespawnMinRadius"` / `"randomRespawnMaxRadius"` – control the radial distance in blocks (measured from world origin) that the new spawn point will be rolled from. Values in the low thousands work well for a fresh overworld start.
 
 When enabled, Alto Clef will pick a random overworld coordinate inside that range each time you die, set the spawn point there, and relocate immediately after respawning. The feature requires an integrated (singleplayer/LAN-hosted) world so the client can move the player server-side.
+
+### CamBridge telemetry bridge
+
+AltoClef can expose its internal state to external camera tooling through a lightweight event bridge. To enable it, configure the following keys in `altoclef_settings.json` and reload settings with `@reload_settings`:
+
+- `"camBridgeEnabled": true` – activates the bridge runtime.
+- `"camBridgeTransport"`: either `"udp"` (default) to emit JSON lines over loopback UDP, or `"file"` to drop events into a local file.
+- `"camBridgeHost"` / `"camBridgePort"` – loopback endpoint used when the transport is `udp` (defaults to `127.0.0.1:36666`).
+- `"camBridgeFilePath"` – output path when the transport is `file` (defaults to `cambridge-events.jsonl` in the game directory).
+
+Events are emitted once per client tick with built-in coalescing, hazard debouncing, and a 64-entry in-memory ring buffer so a subscribing camera mod can build overlays without spamming chat or requiring a server plugin.
+
+If you’re handing the feed to a dedicated camera operator, share [`docs/cambridge-camera-guide.md`](docs/cambridge-camera-guide.md) with them. It walks through connecting a camera mod, decoding the event taxonomy, and building overlays on top of the stream.
