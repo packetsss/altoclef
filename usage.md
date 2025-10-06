@@ -71,5 +71,3 @@ AltoClef can expose its internal state to external camera tooling through a ligh
 - `"camBridgeFilePath"` – output path when the transport is `file` (defaults to `cambridge-events.jsonl` in the game directory).
 
 Events are emitted once per client tick with built-in coalescing, hazard debouncing, and a 64-entry in-memory ring buffer so a subscribing camera mod can build overlays without spamming chat or requiring a server plugin.
-
-If you’re handing the feed to a dedicated camera operator, share [`docs/cambridge-camera-guide.md`](docs/cambridge-camera-guide.md) with them. It walks through connecting a camera mod, decoding the event taxonomy, and building overlays on top of the stream.

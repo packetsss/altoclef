@@ -14,6 +14,8 @@ public enum CamEventType {
     STALL(true, "P2"),
     DIM_CHANGE(true, "P2"),
     HEARTBEAT(false, "P3"),
+    ACTIVITY_CONTEXT(false, "P1"),
+    MINI_HUD(false, "P3"),
     DIAGNOSTIC(false, "P3");
 
     private final boolean big;

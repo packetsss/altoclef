@@ -18,6 +18,7 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
     private final TimeoutWanderTask _wanderTask = new TimeoutWanderTask(5);
     private final Entity _entity;
     private final double _closeEnoughDistance;
+    private boolean escapingPortal = false;
     Block[] annoyingBlocks = new Block[]{
             Blocks.VINE,
             Blocks.NETHER_SPROUTS,
@@ -107,25 +108,37 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
     protected Task onTick() {
         AltoClef mod = AltoClef.getInstance();
 
+        boolean inPortal = WorldHelper.isInNetherPortal();
+        boolean isPathing = mod.getClientBaritone().getPathingBehavior().isPathing();
+
+        if (escapingPortal && (isPathing || !inPortal)) {
+            mod.getInputControls().release(Input.SNEAK);
+            mod.getInputControls().release(Input.MOVE_FORWARD);
+            escapingPortal = false;
+        }
+
         if (mod.getClientBaritone().getPathingBehavior().isPathing()) {
             _progress.reset();
         }
-        if (WorldHelper.isInNetherPortal()) {
-            if (!mod.getClientBaritone().getPathingBehavior().isPathing()) {
+        if (inPortal) {
+            if (!isPathing) {
                 setDebugState("Getting out from nether portal");
                 mod.getInputControls().hold(Input.SNEAK);
                 mod.getInputControls().hold(Input.MOVE_FORWARD);
+                escapingPortal = true;
                 return null;
             } else {
                 mod.getInputControls().release(Input.SNEAK);
                 mod.getInputControls().release(Input.MOVE_BACK);
                 mod.getInputControls().release(Input.MOVE_FORWARD);
+                escapingPortal = false;
             }
         } else {
-            if (mod.getClientBaritone().getPathingBehavior().isPathing()) {
+            mod.getInputControls().release(Input.MOVE_BACK);
+            if (escapingPortal) {
                 mod.getInputControls().release(Input.SNEAK);
-                mod.getInputControls().release(Input.MOVE_BACK);
                 mod.getInputControls().release(Input.MOVE_FORWARD);
+                escapingPortal = false;
             }
         }
         if (_unstuckTask != null && _unstuckTask.isActive() && !_unstuckTask.isFinished() && stuckInBlock(mod) != null) {

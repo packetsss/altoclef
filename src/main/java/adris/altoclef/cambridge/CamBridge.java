@@ -4,9 +4,24 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 import adris.altoclef.Settings;
 import adris.altoclef.chains.MobDefenseChain;
+import adris.altoclef.tasks.CraftGenericManuallyTask;
+import adris.altoclef.tasks.CraftGenericWithRecipeBooksTask;
+import adris.altoclef.tasks.CraftInInventoryTask;
+import adris.altoclef.tasks.SafeNetherPortalTask;
 import adris.altoclef.tasks.speedrun.BeatMinecraftConfig;
 import adris.altoclef.tasks.speedrun.beatgame.BeatMinecraftTask;
+import adris.altoclef.tasks.construction.compound.ConstructNetherPortalBucketTask;
+import adris.altoclef.tasks.construction.compound.ConstructNetherPortalObsidianTask;
+import adris.altoclef.tasks.construction.compound.ConstructNetherPortalSpeedrunTask;
+import adris.altoclef.tasks.container.CraftInTableTask;
+import adris.altoclef.tasks.container.SmeltInBlastFurnaceTask;
+import adris.altoclef.tasks.container.SmeltInFurnaceTask;
+import adris.altoclef.tasks.container.SmeltInSmokerTask;
+import adris.altoclef.tasks.movement.GoToStrongholdPortalTask;
 import adris.altoclef.tasksystem.Task;
+import adris.altoclef.tasks.resources.CollectBlazeRodsTask;
+import adris.altoclef.tasks.resources.KillEndermanTask;
+import adris.altoclef.tasks.resources.TradeWithPiglinsTask;
 import adris.altoclef.util.Dimension;
 import adris.altoclef.util.helpers.EntityHelper;
 import adris.altoclef.util.helpers.ItemHelper;
@@ -31,10 +46,12 @@ import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -47,6 +64,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 
 /**
  * Runtime bridge that gathers bot telemetry and emits compact camera events.
@@ -61,6 +79,9 @@ public final class CamBridge implements AutoCloseable {
     private static final int RING_CAPACITY = 64;
     private static final long STALL_THRESHOLD_MS = 18_000L;
     private static final double PROGRESS_DISTANCE_SQ = 1.5 * 1.5;
+    private static final long PANEL_COOLDOWN_MS = 10_000L;
+    private static final long MINI_HUD_INTERVAL_MS = 2_500L;
+    private static final double STATIONARY_DISTANCE_SQ = 0.25;
 
     private final AltoClef mod;
     private final ObjectWriter writer;
@@ -71,12 +92,15 @@ public final class CamBridge implements AutoCloseable {
     private final Map<HazardType, HazardState> hazardStates = new EnumMap<>(HazardType.class);
     private final MilestoneAccumulator milestoneAccumulator = new MilestoneAccumulator();
     private final AtomicLong nextEventId = new AtomicLong(1L);
+    private final Map<ActivityKind, ActivityState> activityStates = new EnumMap<>(ActivityKind.class);
 
     private CamBridgeTransport transport;
     private boolean enabled;
     private long lastBigEventMs = Long.MIN_VALUE;
     private long lastFullInspectMs = Long.MIN_VALUE;
     private long lastHeartbeatMs = Long.MIN_VALUE;
+    private long lastPanelStartMs = Long.MIN_VALUE;
+    private long lastMiniHudMs = Long.MIN_VALUE;
     private CamPhase currentPhase;
     private Task currentTask;
     private ResourceSnapshot lastResources;
@@ -85,6 +109,8 @@ public final class CamBridge implements AutoCloseable {
     private Vec3d lastProgressPos;
     private long lastProgressMs;
     private long lastTransportErrorLogMs;
+    private Vec3d lastStationaryPos;
+    private long stationarySinceMs = Long.MIN_VALUE;
 
     public CamBridge(AltoClef mod) {
         this.mod = mod;
@@ -92,6 +118,9 @@ public final class CamBridge implements AutoCloseable {
         this.dispatcher = Executors.newSingleThreadExecutor(new CamBridgeThreadFactory());
         for (HazardType type : HazardType.values()) {
             hazardStates.put(type, new HazardState());
+        }
+        for (ActivityKind kind : ActivityKind.values()) {
+            activityStates.put(kind, new ActivityState());
         }
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
@@ -150,6 +179,7 @@ public final class CamBridge implements AutoCloseable {
         updateMilestones(currentSnapshot, now);
         updateHazards(currentSnapshot, now);
         updateStallState(now);
+        updateActivities(currentSnapshot, now);
         emitHeartbeatIfDue(currentSnapshot, now);
 
         lastResources = currentSnapshot;
@@ -208,6 +238,11 @@ public final class CamBridge implements AutoCloseable {
         stallActive = false;
         milestoneAccumulator.reset();
         hazardStates.values().forEach(HazardState::resetImmediate);
+        activityStates.values().forEach(ActivityState::reset);
+        lastPanelStartMs = Long.MIN_VALUE;
+        lastMiniHudMs = Long.MIN_VALUE;
+        lastStationaryPos = null;
+        stationarySinceMs = Long.MIN_VALUE;
     }
 
     private void updatePhase(ResourceSnapshot snapshot, long now) {
@@ -352,6 +387,367 @@ public final class CamBridge implements AutoCloseable {
         payload.put("brief", snapshot.brief());
         CamEvent hb = CamEvent.simple(CamEventType.HEARTBEAT, nextId(), now, currentPhase, payload);
         emitEvent(hb, now);
+    }
+
+    private void updateActivities(ResourceSnapshot snapshot, long now) {
+        List<Task> tasks = getActiveTasks();
+        boolean hazardActive = anyHazardActive();
+        boolean stationary = evaluateStationary(now);
+        updateCraftingActivity(tasks, hazardActive, now);
+        updateSmeltingActivity(tasks, hazardActive, now);
+        updateSpawnActivity(tasks, hazardActive, now);
+        updateContextActivity(tasks, hazardActive, stationary, now);
+        updateStrongholdActivity(tasks, hazardActive, now);
+        emitMiniHud(snapshot, now);
+    }
+
+    private boolean anyHazardActive() {
+        for (HazardState state : hazardStates.values()) {
+            if (state.isActive()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean evaluateStationary(long now) {
+        if (mod.getPlayer() == null) {
+            lastStationaryPos = null;
+            stationarySinceMs = Long.MIN_VALUE;
+            return false;
+        }
+        Vec3d pos = mod.getPlayer().getPos();
+        if (lastStationaryPos == null) {
+            lastStationaryPos = pos;
+            stationarySinceMs = now;
+            return false;
+        }
+        if (pos.squaredDistanceTo(lastStationaryPos) > STATIONARY_DISTANCE_SQ) {
+            lastStationaryPos = pos;
+            stationarySinceMs = now;
+            return false;
+        }
+        lastStationaryPos = pos;
+        if (stationarySinceMs == Long.MIN_VALUE) {
+            stationarySinceMs = now;
+        }
+        return now - stationarySinceMs >= 1_200L;
+    }
+
+    private List<Task> getActiveTasks() {
+        if (mod.getUserTaskChain() != null && mod.getUserTaskChain().isActive()) {
+            return new ArrayList<>(mod.getUserTaskChain().getTasks());
+        }
+        return Collections.emptyList();
+    }
+
+    private Task findTask(List<Task> tasks, Predicate<Task> predicate) {
+        for (Task task : tasks) {
+            if (predicate.test(task)) {
+                return task;
+            }
+        }
+        return null;
+    }
+
+    private boolean isCraftTask(Task task) {
+        if (task == null) {
+            return false;
+        }
+        if (task instanceof CraftInInventoryTask
+                || task instanceof CraftInTableTask
+                || task instanceof CraftGenericManuallyTask
+                || task instanceof CraftGenericWithRecipeBooksTask) {
+            return true;
+        }
+        String name = task.getClass().getSimpleName().toLowerCase(Locale.ROOT);
+        return name.contains("craft") && !name.contains("squash");
+    }
+
+    private boolean isSmeltTask(Task task) {
+        return task instanceof SmeltInFurnaceTask
+                || task instanceof SmeltInSmokerTask
+                || task instanceof SmeltInBlastFurnaceTask;
+    }
+
+    private boolean isPortalTask(Task task) {
+        return task instanceof ConstructNetherPortalBucketTask
+                || task instanceof ConstructNetherPortalSpeedrunTask
+                || task instanceof ConstructNetherPortalObsidianTask
+                || task instanceof SafeNetherPortalTask
+                || task.getClass().getSimpleName().toLowerCase(Locale.ROOT).contains("portal");
+    }
+
+    private boolean isInventoryTask(Task task) {
+        String simple = task.getClass().getSimpleName().toLowerCase(Locale.ROOT);
+        String debug = task.toString().toLowerCase(Locale.ROOT);
+        return simple.contains("inventory")
+                || simple.contains("organize")
+                || simple.contains("sorting")
+                || debug.contains("inventory")
+                || debug.contains("organize")
+                || debug.contains("sorting");
+    }
+
+    private String deriveCraftContext(Task task) {
+        String name = task.getClass().getSimpleName().toLowerCase(Locale.ROOT);
+        if (name.contains("bed")) {
+            return "beds";
+        }
+        if (name.contains("eye") || name.contains("ender")) {
+            return "eyes";
+        }
+        if (name.contains("flint") || name.contains("steel") || name.contains("bucket") || name.contains("portal")) {
+            return "portal_kit";
+        }
+        if (name.contains("shield") || name.contains("sword") || name.contains("pick") || name.contains("axe")) {
+            return "tools";
+        }
+        return "generic";
+    }
+
+    private String deriveSmeltContext(Task task) {
+        if (task instanceof SmeltInSmokerTask) {
+            return "cooking";
+        }
+        return "smelting";
+    }
+
+    private void updateCraftingActivity(List<Task> tasks, boolean hazardActive, long now) {
+        ActivityState state = activityStates.get(ActivityKind.CRAFTING);
+        if (handleHazardGate(state, ActivityKind.CRAFTING, hazardActive, now)) {
+            return;
+        }
+        Task craftTask = findTask(tasks, this::isCraftTask);
+        if (craftTask != null) {
+            String context = deriveCraftContext(craftTask);
+            if (!state.active || !Objects.equals(state.context, context)) {
+                state.active = true;
+                state.context = context;
+                state.anchor = mod.getPlayer() != null ? mod.getPlayer().getPos() : null;
+                state.lastStateChangeMs = now;
+                Map<String, Object> extra = new HashMap<>();
+                extra.put("label", context);
+                emitActivityStart(ActivityKind.CRAFTING, extra, now, true);
+            }
+        } else if (state.active) {
+            String reason = "complete";
+            if (state.anchor != null && mod.getPlayer() != null && mod.getPlayer().getPos().squaredDistanceTo(state.anchor) > 4.0) {
+                reason = "moved";
+            }
+            emitActivityStop(ActivityKind.CRAFTING, reason, now);
+            state.reset();
+        }
+    }
+
+    private void updateSmeltingActivity(List<Task> tasks, boolean hazardActive, long now) {
+        ActivityState state = activityStates.get(ActivityKind.SMELTING);
+        if (handleHazardGate(state, ActivityKind.SMELTING, hazardActive, now)) {
+            return;
+        }
+        Task smeltTask = findTask(tasks, this::isSmeltTask);
+        if (smeltTask != null) {
+            String context = deriveSmeltContext(smeltTask);
+            if (!state.active || !Objects.equals(state.context, context)) {
+                state.active = true;
+                state.context = context;
+                state.anchor = mod.getPlayer() != null ? mod.getPlayer().getPos() : null;
+                state.lastStateChangeMs = now;
+                Map<String, Object> extra = new HashMap<>();
+                extra.put("label", context);
+                emitActivityStart(ActivityKind.SMELTING, extra, now, true);
+            }
+        } else if (state.active) {
+            String reason = "complete";
+            if (state.anchor != null && mod.getPlayer() != null && mod.getPlayer().getPos().squaredDistanceTo(state.anchor) > 25.0) {
+                reason = "abandoned";
+            }
+            emitActivityStop(ActivityKind.SMELTING, reason, now);
+            state.reset();
+        }
+    }
+
+    private void updateSpawnActivity(List<Task> tasks, boolean hazardActive, long now) {
+        ActivityState state = activityStates.get(ActivityKind.SPAWN_WAIT);
+        if (handleHazardGate(state, ActivityKind.SPAWN_WAIT, hazardActive, now)) {
+            return;
+        }
+        ActivityDescriptor descriptor = detectSpawnActivity(tasks);
+        if (descriptor != null) {
+            if (!state.active || !Objects.equals(state.context, descriptor.label)) {
+                state.active = true;
+                state.context = descriptor.label;
+                state.anchor = mod.getPlayer() != null ? mod.getPlayer().getPos() : null;
+                state.lastStateChangeMs = now;
+                Map<String, Object> extra = new HashMap<>();
+                extra.put("label", descriptor.label);
+                emitActivityStart(ActivityKind.SPAWN_WAIT, extra, now, true);
+            }
+        } else if (state.active) {
+            emitActivityStop(ActivityKind.SPAWN_WAIT, "task_end", now);
+            state.reset();
+        }
+    }
+
+    private void updateContextActivity(List<Task> tasks, boolean hazardActive, boolean stationary, long now) {
+        ActivityState state = activityStates.get(ActivityKind.CONTEXT);
+        if (handleHazardGate(state, ActivityKind.CONTEXT, hazardActive, now)) {
+            return;
+        }
+        ActivityDescriptor descriptor = detectContextActivity(tasks, stationary);
+        if (descriptor != null) {
+            if (!state.active || !Objects.equals(state.context, descriptor.label)) {
+                state.active = true;
+                state.context = descriptor.label;
+                state.anchor = mod.getPlayer() != null ? mod.getPlayer().getPos() : null;
+                state.lastStateChangeMs = now;
+                Map<String, Object> extra = new HashMap<>();
+                extra.put("label", descriptor.label);
+                emitActivityStart(ActivityKind.CONTEXT, extra, now, true);
+            }
+        } else if (state.active) {
+            String reason = "task_end";
+            if (!stationary && !"PORTAL_KIT".equals(state.context)) {
+                reason = "movement";
+            }
+            emitActivityStop(ActivityKind.CONTEXT, reason, now);
+            state.reset();
+        }
+    }
+
+    private void updateStrongholdActivity(List<Task> tasks, boolean hazardActive, long now) {
+        ActivityState state = activityStates.get(ActivityKind.STRONGHOLD);
+        if (handleHazardGate(state, ActivityKind.STRONGHOLD, hazardActive, now)) {
+            return;
+        }
+        Task strongholdTask = findTask(tasks, t -> t instanceof GoToStrongholdPortalTask);
+        if (strongholdTask != null) {
+            if (!state.active) {
+                state.active = true;
+                state.context = "STRONGHOLD_TRIANGULATE";
+                state.anchor = mod.getPlayer() != null ? mod.getPlayer().getPos() : null;
+                state.lastStateChangeMs = now;
+                Map<String, Object> extra = new HashMap<>();
+                extra.put("label", state.context);
+                emitActivityStart(ActivityKind.STRONGHOLD, extra, now, true);
+            }
+        } else if (state.active) {
+            emitActivityStop(ActivityKind.STRONGHOLD, "task_end", now);
+            state.reset();
+        }
+    }
+
+    private boolean handleHazardGate(ActivityState state, ActivityKind kind, boolean hazardActive, long now) {
+        if (hazardActive) {
+            if (state.active) {
+                emitActivityStop(kind, "hazard", now);
+                state.active = false;
+                state.hazardHold = true;
+                state.context = null;
+                state.anchor = null;
+                state.lastStateChangeMs = now;
+            }
+            return true;
+        }
+        if (state.hazardHold) {
+            state.hazardHold = false;
+        }
+        return false;
+    }
+
+    private ActivityDescriptor detectSpawnActivity(List<Task> tasks) {
+        for (Task task : tasks) {
+            if (task instanceof CollectBlazeRodsTask) {
+                return new ActivityDescriptor("FORTRESS_BLAZE");
+            }
+        }
+        for (Task task : tasks) {
+            if (task instanceof KillEndermanTask) {
+                return new ActivityDescriptor("HUNT_ENDERMEN");
+            }
+        }
+        for (Task task : tasks) {
+            if (task instanceof TradeWithPiglinsTask) {
+                return new ActivityDescriptor("BARTER_PEARLS");
+            }
+        }
+        return null;
+    }
+
+    private ActivityDescriptor detectContextActivity(List<Task> tasks, boolean stationary) {
+        for (Task task : tasks) {
+            if (isPortalTask(task)) {
+                return new ActivityDescriptor("PORTAL_KIT");
+            }
+        }
+        if (!stationary) {
+            return null;
+        }
+        for (Task task : tasks) {
+            if (isInventoryTask(task)) {
+                return new ActivityDescriptor("INVENTORY_TIDY");
+            }
+        }
+        return null;
+    }
+
+    private void emitActivityStart(ActivityKind kind, Map<String, Object> extra, long now, boolean fullPanel) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("activity", kind.name());
+        payload.put("state", "start");
+        if (extra != null) {
+            payload.putAll(extra);
+        }
+        CamEvent event = CamEvent.simple(CamEventType.ACTIVITY_CONTEXT, nextId(), now, currentPhase, payload);
+        if (fullPanel) {
+            if (now - lastPanelStartMs < PANEL_COOLDOWN_MS) {
+                event = event.withSuggestedMode("QUICK", 4);
+            } else {
+                lastPanelStartMs = now;
+                event = event.withSuggestedMode("FULL", null);
+            }
+        }
+        emitEvent(event, now);
+    }
+
+    private void emitActivityStop(ActivityKind kind, String reason, long now) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("activity", kind.name());
+        payload.put("state", "stop");
+        if (reason != null) {
+            payload.put("reason", reason);
+        }
+        CamEvent event = CamEvent.simple(CamEventType.ACTIVITY_CONTEXT, nextId(), now, currentPhase, payload)
+                .withSuggestedMode("QUICK", 2);
+        emitEvent(event, now);
+    }
+
+    private void emitMiniHud(ResourceSnapshot snapshot, long now) {
+        if (now - lastMiniHudMs < MINI_HUD_INTERVAL_MS) {
+            return;
+        }
+        lastMiniHudMs = now;
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("pearls", snapshot.pearls);
+        payload.put("rods", snapshot.rods);
+        payload.put("beds", snapshot.beds);
+        payload.put("food", snapshot.food);
+        payload.put("arrows", snapshot.arrows);
+        payload.put("phase_slot", determinePhaseSlot());
+        CamEvent mini = CamEvent.simple(CamEventType.MINI_HUD, nextId(), now, currentPhase, payload);
+        emitEvent(mini, now);
+    }
+
+    private String determinePhaseSlot() {
+        if (currentPhase == null) {
+            return "IRON";
+        }
+        return switch (currentPhase) {
+            case OVERWORLD_PREP -> "IRON";
+            case NETHER, FORTRESS, PEARLS -> "GOLD";
+            case STRONGHOLD -> "EYES";
+            case END -> "ARROWS";
+        };
     }
 
     private void emitEvent(CamEvent event, long now) {
@@ -504,6 +900,14 @@ public final class CamBridge implements AutoCloseable {
         return Math.round(value * 10.0) / 10.0;
     }
 
+    private enum ActivityKind {
+        CRAFTING,
+        SMELTING,
+        SPAWN_WAIT,
+        CONTEXT,
+        STRONGHOLD
+    }
+
     private enum HazardType {
         COMBAT,
         FIRE,
@@ -511,6 +915,30 @@ public final class CamBridge implements AutoCloseable {
         FALLING,
         DROWNING,
         LOW_HP
+    }
+
+    private static final class ActivityState {
+        boolean active;
+        boolean hazardHold;
+        String context;
+        Vec3d anchor;
+        long lastStateChangeMs;
+
+        void reset() {
+            active = false;
+            hazardHold = false;
+            context = null;
+            anchor = null;
+            lastStateChangeMs = 0L;
+        }
+    }
+
+    private static final class ActivityDescriptor {
+        final String label;
+
+        ActivityDescriptor(String label) {
+            this.label = label;
+        }
     }
 
     private static final class HazardState {

@@ -135,7 +135,8 @@ public class TimeoutWanderTask extends Task implements ITaskRequiresGrounded {
 
         timer.reset();
         mod.getClientBaritone().getPathingBehavior().forceCancel();
-        origin = mod.getPlayer().getPos();
+    ClientPlayerEntity player = mod.getPlayer();
+    origin = player != null ? player.getPos() : null;
         progressChecker.reset();
         stuckCheck.reset();
         failCounter = 0;
@@ -259,8 +260,16 @@ public class TimeoutWanderTask extends Task implements ITaskRequiresGrounded {
 
         ClientPlayerEntity player = AltoClef.getInstance().getPlayer();
 
-        if (player != null && player.getPos() != null && (player.isOnGround() ||
-                player.isTouchingWater())) {
+        if (player == null || player.getPos() == null) {
+            return false;
+        }
+
+        if (origin == null) {
+            origin = player.getPos();
+            return false;
+        }
+
+        if (player.isOnGround() || player.isTouchingWater()) {
             double sqDist = player.getPos().squaredDistanceTo(origin);
             double toWander = distanceToWander + _wanderDistanceExtension;
             return sqDist > toWander * toWander;
