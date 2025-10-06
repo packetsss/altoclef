@@ -3,6 +3,7 @@ package adris.altoclef.control;
 import adris.altoclef.AltoClef;
 import adris.altoclef.multiversion.versionedfields.Entities;
 import adris.altoclef.multiversion.item.ItemVer;
+import adris.altoclef.util.helpers.EntityHelper;
 import adris.altoclef.util.helpers.LookHelper;
 import adris.altoclef.util.helpers.StlHelper;
 import adris.altoclef.util.helpers.StorageHelper;
@@ -14,7 +15,15 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.boss.WitherEntity;
 import net.minecraft.entity.mob.CreeperEntity;
 import net.minecraft.entity.mob.HoglinEntity;
+import net.minecraft.entity.mob.PillagerEntity;
+import net.minecraft.entity.mob.SkeletonEntity;
+import net.minecraft.entity.mob.StrayEntity;
 import net.minecraft.entity.mob.ZoglinEntity;
+import net.minecraft.entity.mob.BlazeEntity;
+import net.minecraft.entity.mob.GhastEntity;
+import net.minecraft.entity.mob.DrownedEntity;
+import net.minecraft.entity.mob.WitchEntity;
+import net.minecraft.entity.mob.ShulkerEntity;
 import net.minecraft.entity.projectile.FireballEntity;
 import net.minecraft.entity.projectile.thrown.PotionEntity;
 import net.minecraft.item.Item;
@@ -86,9 +95,15 @@ public class KillAura {
                 !mod.getMLGBucketChain().isChorusFruiting()) {
             PlayerSlot offhandSlot = PlayerSlot.OFFHAND_SLOT;
             Item offhandItem = StorageHelper.getItemStackInSlot(offhandSlot).getItem();
-            if (entities.get().getClass() != CreeperEntity.class && entities.get().getClass() != HoglinEntity.class &&
-                    entities.get().getClass() != ZoglinEntity.class && entities.get().getClass() != Entities.WARDEN &&
-                    entities.get().getClass() != WitherEntity.class
+            Entity threat = entities.get();
+            boolean shouldShield = shouldRaiseShield(mod, threat);
+            if (!shouldShield) {
+                stopShielding(mod);
+            }
+            if (shouldShield
+                    && threat.getClass() != CreeperEntity.class && threat.getClass() != HoglinEntity.class &&
+                    threat.getClass() != ZoglinEntity.class && threat.getClass() != Entities.WARDEN &&
+                    threat.getClass() != WitherEntity.class
                     && (mod.getItemStorage().hasItem(Items.SHIELD) || mod.getItemStorage().hasItemInOffhand(Items.SHIELD))
                     && !mod.getPlayer().getItemCooldownManager().isCoolingDown(offhandItem)
                     && mod.getClientBaritone().getPathingBehavior().isSafeToCancel()) {
@@ -148,6 +163,35 @@ public class KillAura {
 
             toHit.ifPresent(entity -> attack(mod, entity, true));
         }
+    }
+
+    private boolean shouldRaiseShield(AltoClef mod, Entity entity) {
+        if (entity instanceof FireballEntity) {
+            return true;
+        }
+        if (!EntityHelper.isProbablyHostileToPlayer(mod, entity)) {
+            return false;
+        }
+        double distanceSq = entity.squaredDistanceTo(mod.getPlayer());
+        boolean hasLineOfSight = LookHelper.seesPlayer(entity, mod.getPlayer(), 32);
+        if (!hasLineOfSight) {
+            return false;
+        }
+        if (isProjectileThreat(entity)) {
+            return distanceSq <= 24 * 24;
+        }
+        return distanceSq <= 9 * 9;
+    }
+
+    private boolean isProjectileThreat(Entity entity) {
+        return entity instanceof SkeletonEntity
+                || entity instanceof StrayEntity
+                || entity instanceof PillagerEntity
+                || entity instanceof BlazeEntity
+                || entity instanceof GhastEntity
+                || entity instanceof WitchEntity
+                || entity instanceof ShulkerEntity
+                || (entity instanceof DrownedEntity drowned && drowned.getMainHandStack().getItem() == Items.TRIDENT);
     }
 
     private void performFastestAttack(AltoClef mod) {

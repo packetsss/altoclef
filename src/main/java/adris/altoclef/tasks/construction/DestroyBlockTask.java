@@ -4,12 +4,14 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 import adris.altoclef.tasks.movement.RunAwayFromPositionTask;
 import adris.altoclef.tasks.movement.SafeRandomShimmyTask;
+import adris.altoclef.tasks.resources.SatisfyMiningRequirementTask;
 import adris.altoclef.tasksystem.ITaskRequiresGrounded;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.helpers.ItemHelper;
 import adris.altoclef.util.helpers.LookHelper;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.WorldHelper;
+import adris.altoclef.util.MiningRequirement;
 import adris.altoclef.util.progresscheck.MovementProgressChecker;
 import adris.altoclef.util.slots.Slot;
 import adris.altoclef.util.time.TimerGame;
@@ -54,6 +56,8 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
     private Task unstuckTask = null;
     private boolean isMining;
     private final TimerGame reachPauseTimer = new TimerGame(0.65);
+    private Task satisfyRequirementTask;
+    private MiningRequirement pendingRequirement;
 
     public DestroyBlockTask(BlockPos pos) {
         this.pos = pos;
@@ -253,6 +257,19 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
         AltoClef mod = AltoClef.getInstance();
         BlockState targetState = mod.getWorld().getBlockState(pos);
         String blockName = targetState.getBlock().getName().getString();
+
+        MiningRequirement requirement = MiningRequirement.getMinimumRequirementForBlock(targetState.getBlock());
+        if (!StorageHelper.miningRequirementMet(requirement)) {
+            setDebugState("Acquiring tool for " + blockName);
+            if (satisfyRequirementTask == null || pendingRequirement != requirement || satisfyRequirementTask.isFinished()) {
+                pendingRequirement = requirement;
+                satisfyRequirementTask = new SatisfyMiningRequirementTask(requirement);
+            }
+            return satisfyRequirementTask;
+        } else {
+            satisfyRequirementTask = null;
+            pendingRequirement = null;
+        }
 
         // Check if there is white wool at the specified position
         if (targetState.getBlock() == Blocks.WHITE_WOOL) {

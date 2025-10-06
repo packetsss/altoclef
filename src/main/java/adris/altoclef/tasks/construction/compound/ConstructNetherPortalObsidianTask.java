@@ -199,12 +199,25 @@ public class ConstructNetherPortalObsidianTask extends Task {
         }
 
         // Clear middle
-        if (_destroyTarget != null && !WorldHelper.isAir(_destroyTarget)) {
-            return new DestroyBlockTask(_destroyTarget);
+        if (_destroyTarget != null) {
+            if (mod.getBlockScanner().isUnreachable(_destroyTarget)) {
+                Debug.logMessage(String.format("[PortalBuild] Skipping unreachable block %s", _destroyTarget.toShortString()));
+                _destroyTarget = null;
+            } else if (!WorldHelper.isAir(_destroyTarget)) {
+                BlockState state = mod.getWorld().getBlockState(_destroyTarget);
+                if (state.getBlock() != Blocks.NETHER_PORTAL && state.getBlock() != Blocks.OBSIDIAN) {
+                    return new DestroyBlockTask(_destroyTarget);
+                }
+                _destroyTarget = null;
+            } else {
+                _destroyTarget = null;
+            }
         }
         for (Vec3i middleOffs : PORTAL_INTERIOR) {
             BlockPos middlePos = origin.add(middleOffs);
-            if (!WorldHelper.isAir(middlePos)) {
+            if (mod.getBlockScanner().isUnreachable(middlePos)) continue;
+            BlockState state = mod.getWorld().getBlockState(middlePos);
+            if (!WorldHelper.isAir(middlePos) && state.getBlock() != Blocks.NETHER_PORTAL && state.getBlock() != Blocks.OBSIDIAN) {
                 _destroyTarget = middlePos;
                 return new DestroyBlockTask(_destroyTarget);
             }
