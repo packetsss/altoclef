@@ -280,17 +280,17 @@ public class Settings implements IFailableConfigFile {
      * If enabled, a new respawn point will be rolled on every death.
      * The bot will pick a random overworld coordinate in the configured range, set its spawn there, and relocate after respawning.
      */
-    private boolean randomRespawnEnabled = false;
+    private boolean randomRespawnEnabled = true;
 
     /**
      * The minimum radial distance (in blocks) from world origin used for random respawn rolls.
      */
-    private int randomRespawnMinRadius = 2500;
+    private int randomRespawnMinRadius = 2000;
 
     /**
      * The maximum radial distance (in blocks) from world origin used for random respawn rolls.
      */
-    private int randomRespawnMaxRadius = 6000;
+    private int randomRespawnMaxRadius = 150000;
 
     /**
      * This setting lets you configure what the bot should do if it needs to go to the nether

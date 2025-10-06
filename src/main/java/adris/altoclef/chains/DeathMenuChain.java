@@ -22,6 +22,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.Heightmap;
 import net.minecraft.world.chunk.ChunkStatus;
 
@@ -35,6 +36,7 @@ public class DeathMenuChain extends TaskChain {
     private final TimerReal deathRetryTimer = new TimerReal(8);
     private final TimerGame reconnectTimer = new TimerGame(1);
     private final TimerGame waitOnDeathScreenBeforeRespawnTimer = new TimerGame(2);
+    private final TimerGame randomRespawnCommandTimeout = new TimerGame(12);
     private ServerInfo prevServerEntry = null;
     private boolean reconnecting = false;
     private int deathCount = 0;
@@ -43,10 +45,18 @@ public class DeathMenuChain extends TaskChain {
     private boolean randomRespawnQueued = false;
     private boolean randomRespawnAttempted = false;
     private boolean randomRespawnWarnedNoServer = false;
+    private boolean randomRespawnUsingServer = false;
+    private boolean randomRespawnCommandActive = false;
+    private boolean randomRespawnAwaitingSetSpawn = false;
     private int randomRespawnTargetX;
     private int randomRespawnTargetZ;
+    private int randomRespawnSpreadCenterX;
+    private int randomRespawnSpreadCenterZ;
+    private int randomRespawnSpreadRange;
+    private int randomRespawnSpreadMinSeparation;
     private double randomRespawnQueuedRadius;
     private double randomRespawnQueuedAngleDeg;
+    private Vec3d randomRespawnSpreadOrigin = Vec3d.ZERO;
 
 
     public DeathMenuChain(TaskRunner runner) {
@@ -78,6 +88,15 @@ public class DeathMenuChain extends TaskChain {
 
     @Override
     public float getPriority() {
+        if (randomRespawnQueued && !randomRespawnAttempted && AltoClef.inGame()) {
+            attemptRandomRespawnTeleport();
+        }
+        if (randomRespawnCommandActive && AltoClef.inGame()) {
+            ClientPlayerEntity clientPlayer = MinecraftClient.getInstance().player;
+            if (clientPlayer != null) {
+                handleRandomRespawnCommandFollowup(clientPlayer);
+            }
+        }
         //MinecraftClient.getInstance().getCurrentServerEntry().address;
 //        MinecraftClient.getInstance().
         Screen screen = MinecraftClient.getInstance().currentScreen;
@@ -102,6 +121,11 @@ public class DeathMenuChain extends TaskChain {
 
             if (waitOnDeathScreenBeforeRespawnTimer.elapsed()) {
                 waitOnDeathScreenBeforeRespawnTimer.reset();
+                if (mod.getModSettings().isRandomRespawnEnabled()) {
+                    queueRandomRespawn(mod);
+                } else {
+                    clearRandomRespawnState();
+                }
                 if (shouldAutoRespawn()) {
                     deathCount++;
                     Debug.logMessage("RESPAWNING... (this is death #" + deathCount + ")");
@@ -171,5 +195,223 @@ public class DeathMenuChain extends TaskChain {
     @Override
     public String getName() {
         return "Death Menu Respawn Handling";
+    }
+
+    private void queueRandomRespawn(AltoClef mod) {
+        if (randomRespawnQueued) {
+            return;
+        }
+        int min = mod.getModSettings().getRandomRespawnMinRadius();
+        int max = mod.getModSettings().getRandomRespawnMaxRadius();
+        if (max < min) {
+            int tmp = min;
+            min = max;
+            max = tmp;
+        }
+        min = Math.max(0, min);
+        max = Math.max(min + 1, max);
+        double radius = min + random.nextDouble(max - min);
+        double angle = random.nextDouble() * Math.PI * 2.0;
+        randomRespawnQueuedRadius = radius;
+        randomRespawnQueuedAngleDeg = Math.toDegrees(angle);
+
+        randomRespawnUsingServer = MinecraftClient.getInstance().isIntegratedServerRunning();
+        if (randomRespawnUsingServer) {
+            randomRespawnTargetX = MathHelper.floor(Math.cos(angle) * radius);
+            randomRespawnTargetZ = MathHelper.floor(Math.sin(angle) * radius);
+        } else {
+            int centerRadius = MathHelper.floor(radius);
+            randomRespawnSpreadCenterX = MathHelper.floor(Math.cos(angle) * centerRadius);
+            randomRespawnSpreadCenterZ = MathHelper.floor(Math.sin(angle) * centerRadius);
+            int rangeEstimate = Math.max(64, Math.min(1024, (max - min) / 2));
+            randomRespawnSpreadRange = Math.max(32, rangeEstimate);
+            randomRespawnSpreadMinSeparation = Math.max(16, Math.min(randomRespawnSpreadRange, min / 2));
+        }
+        randomRespawnQueued = true;
+        randomRespawnAttempted = false;
+        randomRespawnWarnedNoServer = false;
+        randomRespawnCommandActive = false;
+        randomRespawnAwaitingSetSpawn = false;
+        randomRespawnSpreadOrigin = Vec3d.ZERO;
+        if (randomRespawnUsingServer) {
+            Debug.logMessage(String.format(Locale.ROOT,
+                    "[RandomRespawn] Queued target ~%.0f blocks @ %.0f° -> (%d, %d)",
+                    radius,
+                    randomRespawnQueuedAngleDeg,
+                    randomRespawnTargetX,
+                    randomRespawnTargetZ), false);
+        } else {
+            Debug.logMessage(String.format(Locale.ROOT,
+                    "[RandomRespawn] Queued remote spread center ~%.0f blocks @ %.0f° -> (%d, %d) range=%d",
+                    radius,
+                    randomRespawnQueuedAngleDeg,
+                    randomRespawnSpreadCenterX,
+                    randomRespawnSpreadCenterZ,
+                    randomRespawnSpreadRange), false);
+        }
+    }
+
+    private void attemptRandomRespawnTeleport() {
+        ClientPlayerEntity clientPlayer = MinecraftClient.getInstance().player;
+        if (clientPlayer == null || !clientPlayer.isAlive()) {
+            return;
+        }
+        randomRespawnAttempted = true;
+
+        if (randomRespawnUsingServer) {
+            MinecraftServer server = MinecraftClient.getInstance().getServer();
+            if (server == null) {
+                if (!randomRespawnWarnedNoServer) {
+                    Debug.logWarning("Random respawn requested but no integrated server is running; falling back to command dispatcher.");
+                    randomRespawnWarnedNoServer = true;
+                }
+                executeRandomRespawnCommands(clientPlayer);
+                return;
+            }
+
+            UUID playerUuid = clientPlayer.getUuid();
+            final int targetX = randomRespawnTargetX;
+            final int targetZ = randomRespawnTargetZ;
+            final double loggedRadius = randomRespawnQueuedRadius;
+            final double loggedAngle = randomRespawnQueuedAngleDeg;
+            final float yaw = clientPlayer.getYaw();
+            final float pitch = clientPlayer.getPitch();
+
+            server.execute(() -> {
+                ServerPlayerEntity serverPlayer = server.getPlayerManager().getPlayer(playerUuid);
+                if (serverPlayer == null) {
+                    Debug.logWarning("Random respawn failed: server-side player entity not found.");
+                    return;
+                }
+                ServerWorld targetWorld = server.getOverworld();
+                if (targetWorld == null) {
+                    Debug.logWarning("Random respawn failed: overworld dimension unavailable.");
+                    return;
+                }
+                BlockPos safePos = findSafeRespawnPosition(targetWorld, targetX, targetZ);
+                serverPlayer.teleport(targetWorld, safePos.getX() + 0.5, safePos.getY(), safePos.getZ() + 0.5, yaw, pitch);
+                serverPlayer.setSpawnPoint(targetWorld.getRegistryKey(), safePos, 0.0f, true, false);
+                Debug.logMessage(String.format(Locale.ROOT,
+                        "[RandomRespawn] Relocated spawn to %s (r=%.0f, θ=%.0f°)",
+                        safePos.toShortString(),
+                        loggedRadius,
+                        loggedAngle), false);
+            });
+
+            clearRandomRespawnState();
+        } else {
+            executeRandomRespawnCommands(clientPlayer);
+        }
+    }
+
+    private void executeRandomRespawnCommands(ClientPlayerEntity player) {
+        randomRespawnQueued = false;
+        randomRespawnAttempted = true;
+        randomRespawnCommandActive = true;
+        randomRespawnAwaitingSetSpawn = true;
+        randomRespawnSpreadOrigin = player.getPos();
+        randomRespawnCommandTimeout.reset();
+
+        int separation = Math.max(16, randomRespawnSpreadMinSeparation);
+        int range = Math.max(separation + 32, randomRespawnSpreadRange);
+    String targetName = player.getGameProfile().getName();
+        String spreadCommand = String.format(Locale.ROOT,
+                "spreadplayers %d %d %d %d false %s",
+                randomRespawnSpreadCenterX,
+                randomRespawnSpreadCenterZ,
+                separation,
+                range,
+                targetName);
+        PlayerVer.sendChatCommand(player, spreadCommand);
+        Debug.logMessage(String.format(Locale.ROOT,
+                "[RandomRespawn] Executed spreadplayers center=(%d,%d) separation=%d range=%d",
+                randomRespawnSpreadCenterX,
+                randomRespawnSpreadCenterZ,
+                separation,
+                range), false);
+    }
+
+    private void handleRandomRespawnCommandFollowup(ClientPlayerEntity player) {
+        if (!randomRespawnCommandActive) {
+            return;
+        }
+        if (randomRespawnAwaitingSetSpawn) {
+            double distanceSq = player.getPos().squaredDistanceTo(randomRespawnSpreadOrigin);
+            if (distanceSq > 36) {
+                PlayerVer.sendChatCommand(player, "setworldspawn ~ ~ ~");
+                Debug.logMessage(String.format(Locale.ROOT,
+                        "[RandomRespawn] Set world spawn to (%d, %d, %d) (r=%.0f, θ=%.0f°)",
+                        player.getBlockX(),
+                        MathHelper.floor(player.getY()),
+                        player.getBlockZ(),
+                        randomRespawnQueuedRadius,
+                        randomRespawnQueuedAngleDeg), false);
+                randomRespawnAwaitingSetSpawn = false;
+                randomRespawnCommandActive = false;
+                clearRandomRespawnState();
+                return;
+            }
+            if (randomRespawnCommandTimeout.elapsed()) {
+                Debug.logWarning("Random respawn spreadplayers command appears to have stalled; keeping current spawn location.");
+                randomRespawnAwaitingSetSpawn = false;
+                randomRespawnCommandActive = false;
+                clearRandomRespawnState();
+            }
+        }
+    }
+
+    private void clearRandomRespawnState() {
+        randomRespawnQueued = false;
+        randomRespawnAttempted = false;
+        randomRespawnWarnedNoServer = false;
+        randomRespawnUsingServer = false;
+        randomRespawnCommandActive = false;
+        randomRespawnAwaitingSetSpawn = false;
+        randomRespawnSpreadOrigin = Vec3d.ZERO;
+        randomRespawnCommandTimeout.forceElapse();
+    }
+
+    private BlockPos findSafeRespawnPosition(ServerWorld world, int x, int z) {
+        BlockPos surface = getSurfaceSpawn(world, x, z);
+        if (isSafeRespawnSpot(world, surface)) {
+            return surface;
+        }
+        final int searchStep = 4;
+        final int maxRadius = 64;
+        for (int radius = searchStep; radius <= maxRadius; radius += searchStep) {
+            for (int dx = -radius; dx <= radius; dx += searchStep) {
+                for (int dz = -radius; dz <= radius; dz += searchStep) {
+                    if (Math.abs(dx) != radius && Math.abs(dz) != radius) continue;
+                    BlockPos candidate = getSurfaceSpawn(world, x + dx, z + dz);
+                    if (isSafeRespawnSpot(world, candidate)) {
+                        return candidate;
+                    }
+                }
+            }
+        }
+        return surface;
+    }
+
+    private BlockPos getSurfaceSpawn(ServerWorld world, int x, int z) {
+        world.getChunkManager().getChunk(x >> 4, z >> 4, ChunkStatus.FULL, true);
+        int topY = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, x, z);
+        if (topY < world.getBottomY() + 2) {
+            topY = world.getSeaLevel() + 1;
+        }
+        return new BlockPos(x, topY, z);
+    }
+
+    private boolean isSafeRespawnSpot(ServerWorld world, BlockPos pos) {
+        BlockPos floorPos = pos.down();
+        BlockState floorState = world.getBlockState(floorPos);
+        if (!floorState.isSolidBlock(world, floorPos) || floorState.getCollisionShape(world, floorPos).isEmpty()) {
+            return false;
+        }
+        BlockState feetState = world.getBlockState(pos);
+        BlockState headState = world.getBlockState(pos.up());
+        if (!feetState.getCollisionShape(world, pos).isEmpty() || !headState.getCollisionShape(world, pos.up()).isEmpty()) {
+            return false;
+        }
+        return feetState.getFluidState().isEmpty() && headState.getFluidState().isEmpty();
     }
 }

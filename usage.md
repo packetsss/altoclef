@@ -51,3 +51,12 @@ Check [Settings.java](https://github.com/MiranCZ/altoclef/blob/main/src/main/jav
 Other configs can be found in the `configs` subdirectory. Some of the `beat_minecraft.json` settings may not work, but I plan to reimplement proper settings in the future.
 
 After modifying your local settings, run `@reload_settings` to apply your changes in-game.
+
+### Random respawn
+
+If you want the bot to start from a fresh location after every death, enable the random respawn settings in `altoclef_settings.json`:
+
+- `"randomRespawnEnabled": true` – turn on random respawns (defaults to `false`).
+- `"randomRespawnMinRadius"` / `"randomRespawnMaxRadius"` – control the radial distance in blocks (measured from world origin) that the new spawn point will be rolled from. Values in the low thousands work well for a fresh overworld start.
+
+When enabled, Alto Clef will pick a random overworld coordinate inside that range each time you die, set the spawn point there, and relocate immediately after respawning. The feature requires an integrated (singleplayer/LAN-hosted) world so the client can move the player server-side.
