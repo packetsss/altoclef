@@ -12,6 +12,7 @@ import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.progresscheck.MovementProgressChecker;
 import adris.altoclef.util.slots.Slot;
+import adris.altoclef.util.time.TimerGame;
 import baritone.api.pathing.goals.GoalBlock;
 import baritone.api.pathing.goals.GoalNear;
 import baritone.api.utils.Rotation;
@@ -52,6 +53,7 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
     };
     private Task unstuckTask = null;
     private boolean isMining;
+    private final TimerGame reachPauseTimer = new TimerGame(0.65);
 
     public DestroyBlockTask(BlockPos pos) {
         this.pos = pos;
@@ -199,6 +201,7 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
         // Reset move checker and stuck check.
         _moveChecker.reset();
         stuckCheck.reset();
+    reachPauseTimer.reset();
 
         // Get the item stack in the cursor slot.
         ItemStack cursorStack = StorageHelper.getItemStackInCursorSlot();
@@ -326,7 +329,19 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
         }
 
         Optional<Rotation> reach = LookHelper.getReach(pos);
-        if (reach.isPresent() && (mod.getPlayer().isTouchingWater() || mod.getPlayer().isOnGround()) && !mod.getFoodChain().needsToEat() && !WorldHelper.isInNetherPortal() && mod.getClientBaritone().getPathingBehavior().isSafeToCancel()) {
+        if (reach.isPresent() && (mod.getPlayer().isTouchingWater() || mod.getPlayer().isOnGround()) && !mod.getFoodChain().needsToEat() && !WorldHelper.isInNetherPortal()) {
+            if (!mod.getClientBaritone().getPathingBehavior().isSafeToCancel()) {
+                if (reachPauseTimer.elapsed()) {
+                    Debug.logMessage(String.format(Locale.ROOT,
+                            "[DestroyBlock] Forcing pause before mining %s (%s)",
+                            pos.toShortString(),
+                            blockName), false);
+                    mod.getClientBaritone().getPathingBehavior().requestPause();
+                    reachPauseTimer.reset();
+                }
+                setDebugState("Waiting for pathing pause before mining");
+                return null;
+            }
             setDebugState("Block in range, mining...");
             stuckCheck.reset();
             if (!isMining) {

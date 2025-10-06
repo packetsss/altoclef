@@ -9,6 +9,7 @@ public enum CamEventType {
     TASK_START(true, "P1"),
     TASK_END(true, "P1"),
     MILESTONE(false, "P2"),
+    STATUS_NOW(false, "P1"),
     HAZARD(true, "P1"),
     REROUTE(true, "P1"),
     STALL(true, "P2"),

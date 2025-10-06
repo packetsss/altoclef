@@ -82,6 +82,9 @@ public final class CamBridge implements AutoCloseable {
     private static final long PANEL_COOLDOWN_MS = 10_000L;
     private static final long MINI_HUD_INTERVAL_MS = 2_500L;
     private static final double STATIONARY_DISTANCE_SQ = 0.25;
+    private static final long STATUS_MIN_INTERVAL_MS = 750L;
+    private static final long STATUS_FORCE_INTERVAL_MS = 5_000L;
+    private static final long REROUTE_STATUS_WINDOW_MS = 6_000L;
 
     private final AltoClef mod;
     private final ObjectWriter writer;
@@ -93,6 +96,7 @@ public final class CamBridge implements AutoCloseable {
     private final MilestoneAccumulator milestoneAccumulator = new MilestoneAccumulator();
     private final AtomicLong nextEventId = new AtomicLong(1L);
     private final Map<ActivityKind, ActivityState> activityStates = new EnumMap<>(ActivityKind.class);
+    private final StatusTracker statusTracker = new StatusTracker();
 
     private CamBridgeTransport transport;
     private boolean enabled;
@@ -180,6 +184,7 @@ public final class CamBridge implements AutoCloseable {
         updateHazards(currentSnapshot, now);
         updateStallState(now);
         updateActivities(currentSnapshot, now);
+    updateStatus(currentSnapshot, now);
         emitHeartbeatIfDue(currentSnapshot, now);
 
         lastResources = currentSnapshot;
@@ -243,6 +248,7 @@ public final class CamBridge implements AutoCloseable {
         lastMiniHudMs = Long.MIN_VALUE;
         lastStationaryPos = null;
         stationarySinceMs = Long.MIN_VALUE;
+        statusTracker.reset();
     }
 
     private void updatePhase(ResourceSnapshot snapshot, long now) {
@@ -276,6 +282,7 @@ public final class CamBridge implements AutoCloseable {
             currentTask = userTask;
             if (previous != null) {
                 boolean success = previous.isFinished() && !previous.stopped();
+                statusTracker.onTaskFinished(success, now);
                 Map<String, Object> payload = new HashMap<>();
                 payload.put("task_key", previous.getClass().getSimpleName());
                 payload.put("task_class", previous.getClass().getName());
@@ -288,6 +295,7 @@ public final class CamBridge implements AutoCloseable {
                 emitEvent(end, now);
             }
             if (userTask != null) {
+                statusTracker.onTaskStarted(now);
                 Map<String, Object> payload = new HashMap<>();
                 payload.put("task_key", userTask.getClass().getSimpleName());
                 payload.put("task_class", userTask.getClass().getName());
@@ -303,7 +311,7 @@ public final class CamBridge implements AutoCloseable {
         if (lastResources == null) {
             return;
         }
-        Map<String, Integer> delta = snapshot.diff(lastResources);
+        Map<String, ResourceSnapshot.StatChange> delta = snapshot.diff(lastResources);
         if (!delta.isEmpty()) {
             milestoneAccumulator.record(delta, snapshot.crossedThresholds(lastResources), now);
         }
@@ -334,6 +342,7 @@ public final class CamBridge implements AutoCloseable {
                 emitEvent(hazard, now);
                 if (type == HazardType.LAVA && state.isActive()) {
                     emitEvent(CamEvent.simple(CamEventType.REROUTE, nextId(), now, currentPhase, Map.of("reason", "lava_blocked_path")), now);
+                    statusTracker.registerReroute(now);
                 }
             }
         });
@@ -377,6 +386,83 @@ public final class CamBridge implements AutoCloseable {
         }
     }
 
+    private void updateStatus(ResourceSnapshot snapshot, long now) {
+        StatusDescriptor descriptor = determineStatus(currentTask, snapshot, currentPhase);
+        statusTracker.tick(descriptor, currentPhase, stallActive, now);
+        statusTracker.pollEmit(now).ifPresent(payload -> {
+            CamEvent status = CamEvent.simple(CamEventType.STATUS_NOW, nextId(), now, currentPhase, payload)
+                    .withSuggestedMode("QUICK", 2);
+            emitEvent(status, now);
+        });
+    }
+
+    private StatusDescriptor determineStatus(Task task, ResourceSnapshot snapshot, CamPhase phase) {
+        BeatMinecraftConfig config = BeatMinecraftTask.getConfig();
+        StatusDescriptor fromTask = mapTaskStatus(task, snapshot, config);
+        if (fromTask != null) {
+            return fromTask;
+        }
+        return defaultStatusForPhase(phase, snapshot, config);
+    }
+
+    private StatusDescriptor mapTaskStatus(Task task, ResourceSnapshot snapshot, BeatMinecraftConfig config) {
+        if (task == null) {
+            return null;
+        }
+        if (task instanceof CollectBlazeRodsTask) {
+            return StatusDescriptor.of("collect_rods", "Fortress – Blaze Rods", new ProgressSnapshot("rods", snapshot.rods, 6));
+        }
+        if (task instanceof TradeWithPiglinsTask) {
+            return StatusDescriptor.of("barter_pearls", "Nether – Bartering Pearls", new ProgressSnapshot("pearls", snapshot.pearls, config.targetEyes));
+        }
+        if (task instanceof KillEndermanTask) {
+            return StatusDescriptor.of("hunt_endermen", "Overworld – Hunt Endermen", new ProgressSnapshot("pearls", snapshot.pearls, config.targetEyes));
+        }
+        if (task instanceof GoToStrongholdPortalTask) {
+            return StatusDescriptor.of("locate_stronghold", "Stronghold – Locate Portal", null);
+        }
+        if (task instanceof ConstructNetherPortalBucketTask
+                || task instanceof ConstructNetherPortalSpeedrunTask
+                || task instanceof ConstructNetherPortalObsidianTask
+                || task instanceof SafeNetherPortalTask) {
+            return StatusDescriptor.of("build_portal", "Overworld – Build Portal", null);
+        }
+        String name = task.getClass().getSimpleName().toLowerCase(Locale.ROOT);
+        if (name.contains("bed") && name.contains("cycle")) {
+            return StatusDescriptor.of("dragon_bed_cycle", "End – Dragon Cycle", new ProgressSnapshot("beds", snapshot.beds, config.requiredBeds));
+        }
+        return null;
+    }
+
+    private StatusDescriptor defaultStatusForPhase(CamPhase phase, ResourceSnapshot snapshot, BeatMinecraftConfig config) {
+        if (phase == null) {
+            return StatusDescriptor.idle();
+        }
+        return switch (phase) {
+            case OVERWORLD_PREP -> StatusDescriptor.of("build_portal", "Overworld – Build Portal", null);
+            case FORTRESS -> StatusDescriptor.of("collect_rods", "Fortress – Blaze Rods", new ProgressSnapshot("rods", snapshot.rods, 6));
+            case PEARLS -> {
+                boolean barter = config.barterPearlsInsteadOfEndermanHunt;
+                String key = barter ? "barter_pearls" : "hunt_endermen";
+                String hint = barter ? "Nether – Bartering Pearls" : "Overworld – Hunt Endermen";
+                yield StatusDescriptor.of(key, hint, new ProgressSnapshot("pearls", snapshot.pearls, config.targetEyes));
+            }
+            case NETHER -> {
+                if (snapshot.eyes < config.targetEyes) {
+                    yield StatusDescriptor.of("craft_eyes", "Nether – Craft Eyes", new ProgressSnapshot("eyes", snapshot.eyes, config.targetEyes));
+                }
+                yield StatusDescriptor.of("enter_end", "Nether – Exit Prep", null);
+            }
+            case STRONGHOLD -> {
+                if (snapshot.eyes < config.targetEyes) {
+                    yield StatusDescriptor.of("craft_eyes", "Stronghold – Craft Eyes", new ProgressSnapshot("eyes", snapshot.eyes, config.targetEyes));
+                }
+                yield StatusDescriptor.of("locate_stronghold", "Stronghold – Locate Portal", null);
+            }
+            case END -> StatusDescriptor.of("dragon_bed_cycle", "End – Dragon Cycle", new ProgressSnapshot("beds", snapshot.beds, config.requiredBeds));
+        };
+    }
+
     private void emitHeartbeatIfDue(ResourceSnapshot snapshot, long now) {
         if (now - lastHeartbeatMs < HEARTBEAT_INTERVAL_MS) {
             return;
@@ -385,6 +471,7 @@ public final class CamBridge implements AutoCloseable {
         Map<String, Object> payload = new HashMap<>();
         payload.put("phase", currentPhase != null ? currentPhase.name() : "UNKNOWN");
         payload.put("brief", snapshot.brief());
+        statusTracker.appendHeartbeat(payload);
         CamEvent hb = CamEvent.simple(CamEventType.HEARTBEAT, nextId(), now, currentPhase, payload);
         emitEvent(hb, now);
     }
@@ -900,6 +987,172 @@ public final class CamBridge implements AutoCloseable {
         return Math.round(value * 10.0) / 10.0;
     }
 
+    private enum StatusState {
+        RUNNING("running"),
+        PAUSED("paused"),
+        STALLED("stalled"),
+        REROUTING("rerouting"),
+        SUCCESS("success"),
+        FAILED("failed");
+
+        private final String wire;
+
+        StatusState(String wire) {
+            this.wire = wire;
+        }
+
+        public String wire() {
+            return wire;
+        }
+    }
+
+    private record ProgressSnapshot(String key, int current, int target) {
+        Map<String, Object> toJson() {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("key", key);
+            payload.put("current", current);
+            if (target > 0) {
+                payload.put("target", target);
+                payload.put("display", current + " / " + target);
+            } else {
+                payload.put("display", Integer.toString(current));
+            }
+            return payload;
+        }
+    }
+
+    private record StatusDescriptor(String taskKey, String hint, ProgressSnapshot progress) {
+        static StatusDescriptor of(String taskKey, String hint, ProgressSnapshot progress) {
+            return new StatusDescriptor(taskKey, hint, progress);
+        }
+
+        static StatusDescriptor idle() {
+            return new StatusDescriptor("idle", "Idle", null);
+        }
+    }
+
+    private final class StatusTracker {
+        private StatusDescriptor descriptor = StatusDescriptor.idle();
+        private CamPhase phase;
+        private ProgressSnapshot progress;
+        private StatusState state = StatusState.PAUSED;
+        private long startedAtMs = System.currentTimeMillis();
+        private long lastEmitMs = Long.MIN_VALUE;
+        private boolean dirty;
+        private StatusState overrideState;
+        private long overrideUntilMs;
+        private long rerouteUntilMs;
+
+        void tick(StatusDescriptor next, CamPhase nextPhase, boolean stalled, long now) {
+            if (next == null) {
+                next = StatusDescriptor.idle();
+            }
+            if (!Objects.equals(descriptor, next)) {
+                descriptor = next;
+                startedAtMs = now;
+                progress = next.progress();
+                dirty = true;
+                overrideState = null;
+                overrideUntilMs = 0L;
+            } else if (!Objects.equals(progress, next.progress())) {
+                progress = next.progress();
+                dirty = true;
+            }
+            if (!Objects.equals(phase, nextPhase)) {
+                phase = nextPhase;
+                dirty = true;
+            }
+
+            StatusState computed = computeState(stalled, now);
+            if (computed != state) {
+                state = computed;
+                dirty = true;
+            }
+
+            if (now - lastEmitMs >= STATUS_FORCE_INTERVAL_MS) {
+                dirty = true;
+            }
+        }
+
+        private StatusState computeState(boolean stalled, long now) {
+            if (overrideState != null && now >= overrideUntilMs) {
+                overrideState = null;
+            }
+            if (overrideState != null && now < overrideUntilMs) {
+                return overrideState;
+            }
+            if (stalled) {
+                return StatusState.STALLED;
+            }
+            if (rerouteUntilMs > now) {
+                return StatusState.REROUTING;
+            }
+            if (descriptor == null || "idle".equals(descriptor.taskKey())) {
+                return StatusState.PAUSED;
+            }
+            return StatusState.RUNNING;
+        }
+
+        Optional<Map<String, Object>> pollEmit(long now) {
+            if (!dirty || now - lastEmitMs < STATUS_MIN_INTERVAL_MS) {
+                return Optional.empty();
+            }
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("phase", phase != null ? phase.name() : "UNKNOWN");
+            payload.put("task_key", descriptor.taskKey());
+            payload.put("hint", descriptor.hint());
+            payload.put("state", state.wire());
+            payload.put("started_at", Instant.ofEpochMilli(startedAtMs).toString());
+            if (progress != null) {
+                payload.put("progress", progress.toJson());
+            }
+            lastEmitMs = now;
+            dirty = false;
+            return Optional.of(payload);
+        }
+
+        void appendHeartbeat(Map<String, Object> payload) {
+            payload.put("task_key", descriptor.taskKey());
+            payload.put("state", state.wire());
+            payload.put("hint", descriptor.hint());
+            payload.put("started_at", Instant.ofEpochMilli(startedAtMs).toString());
+            if (progress != null) {
+                payload.put("progress", progress.toJson());
+            }
+        }
+
+        void onTaskFinished(boolean success, long now) {
+            overrideState = success ? StatusState.SUCCESS : StatusState.FAILED;
+            overrideUntilMs = now + 3_000L;
+            dirty = true;
+        }
+
+        void onTaskStarted(long now) {
+            overrideState = null;
+            overrideUntilMs = 0L;
+            startedAtMs = now;
+            dirty = true;
+        }
+
+        void registerReroute(long now) {
+            rerouteUntilMs = Math.max(rerouteUntilMs, now + REROUTE_STATUS_WINDOW_MS);
+            dirty = true;
+        }
+
+        void reset() {
+            descriptor = StatusDescriptor.idle();
+            phase = null;
+            progress = null;
+            state = StatusState.PAUSED;
+            startedAtMs = System.currentTimeMillis();
+            lastEmitMs = Long.MIN_VALUE;
+            dirty = true;
+            overrideState = null;
+            overrideUntilMs = 0L;
+            rerouteUntilMs = 0L;
+        }
+    }
+
     private enum ActivityKind {
         CRAFTING,
         SMELTING,
@@ -979,13 +1232,14 @@ public final class CamBridge implements AutoCloseable {
     }
 
     private final class MilestoneAccumulator {
-        private final Map<String, Integer> values = new HashMap<>();
+        private final Map<String, Integer> latestValues = new HashMap<>();
+        private final Map<String, Integer> deltaTotals = new HashMap<>();
         private final Set<String> crossed = new HashSet<>();
         private boolean active;
         private long firstChangeMs;
         private long lastChangeMs;
 
-        void record(Map<String, Integer> delta, Collection<String> thresholds, long now) {
+        void record(Map<String, ResourceSnapshot.StatChange> delta, Collection<String> thresholds, long now) {
             if (delta.isEmpty()) {
                 return;
             }
@@ -994,7 +1248,10 @@ public final class CamBridge implements AutoCloseable {
                 firstChangeMs = now;
             }
             lastChangeMs = now;
-            values.putAll(delta);
+            delta.forEach((key, change) -> {
+                latestValues.put(key, change.current());
+                deltaTotals.merge(key, change.delta(), Integer::sum);
+            });
             crossed.addAll(thresholds);
         }
 
@@ -1005,21 +1262,64 @@ public final class CamBridge implements AutoCloseable {
             if ((now - lastChangeMs) < MILESTONE_INACTIVITY_FLUSH_MS && (now - firstChangeMs) < MILESTONE_MAX_WINDOW_MS) {
                 return Optional.empty();
             }
-            Map<String, Object> payload = new HashMap<>();
-            payload.putAll(values);
-            if (!crossed.isEmpty()) {
-                payload.put("crossed", new ArrayList<>(crossed));
+            if (latestValues.isEmpty()) {
+                reset();
+                return Optional.empty();
             }
+
+            BeatMinecraftConfig config = BeatMinecraftTask.getConfig();
+            List<Map<String, Object>> items = new ArrayList<>();
+            for (Map.Entry<String, Integer> entry : latestValues.entrySet()) {
+                String key = entry.getKey();
+                int current = entry.getValue();
+                int delta = deltaTotals.getOrDefault(key, 0);
+                boolean reached = crossed.contains(key);
+                if (delta == 0 && !reached) {
+                    continue;
+                }
+                Map<String, Object> item = new HashMap<>();
+                item.put("key", key);
+                item.put("current", current);
+                item.put("delta", delta);
+                Integer target = resolveTarget(config, key);
+                if (target != null) {
+                    item.put("target", target);
+                    item.put("target_met", reached || current >= target);
+                } else if (reached) {
+                    item.put("target_met", true);
+                }
+                items.add(item);
+            }
+
+            if (items.isEmpty()) {
+                reset();
+                return Optional.empty();
+            }
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("milestones", items);
+            payload.put("duration_ms", Math.max(0L, lastChangeMs - firstChangeMs));
             reset();
             return Optional.of(payload);
         }
 
         void reset() {
             active = false;
-            values.clear();
+            latestValues.clear();
+            deltaTotals.clear();
             crossed.clear();
             firstChangeMs = 0L;
             lastChangeMs = 0L;
+        }
+
+        private Integer resolveTarget(BeatMinecraftConfig config, String key) {
+            return switch (key) {
+                case "pearls" -> config.targetEyes;
+                case "rods" -> 6;
+                case "eyes" -> config.targetEyes;
+                case "beds" -> config.requiredBeds;
+                default -> null;
+            };
         }
     }
 
@@ -1071,8 +1371,8 @@ public final class CamBridge implements AutoCloseable {
             return new ResourceSnapshot(pearls, rods, eyes, beds, arrows, food, iron, gold, obsidian, buckets, flintSteel, tools);
         }
 
-        Map<String, Integer> diff(ResourceSnapshot previous) {
-            Map<String, Integer> delta = new HashMap<>();
+        Map<String, StatChange> diff(ResourceSnapshot previous) {
+            Map<String, StatChange> delta = new HashMap<>();
             compare(delta, "pearls", pearls, previous.pearls);
             compare(delta, "rods", rods, previous.rods);
             compare(delta, "eyes", eyes, previous.eyes);
@@ -1085,7 +1385,7 @@ public final class CamBridge implements AutoCloseable {
             compare(delta, "buckets", buckets, previous.buckets);
             compare(delta, "flint_steel", flintSteel, previous.flintSteel);
             if (!Objects.equals(tools, previous.tools) && tools != null) {
-                delta.put("tools", 1);
+                delta.put("tools", new StatChange(1, 1));
             }
             return delta;
         }
@@ -1094,16 +1394,16 @@ public final class CamBridge implements AutoCloseable {
             List<String> hit = new ArrayList<>();
             BeatMinecraftConfig config = BeatMinecraftTask.getConfig();
             if (previous.pearls < config.targetEyes && pearls >= config.targetEyes) {
-                hit.add("pearls_target");
+                hit.add("pearls");
             }
             if (previous.rods < 6 && rods >= 6) {
-                hit.add("rods_min");
+                hit.add("rods");
             }
             if (previous.eyes < config.minimumEyes && eyes >= config.minimumEyes) {
-                hit.add("eyes_min");
+                hit.add("eyes");
             }
             if (previous.beds < config.requiredBeds && beds >= config.requiredBeds) {
-                hit.add("beds_target");
+                hit.add("beds");
             }
             return hit;
         }
@@ -1147,10 +1447,14 @@ public final class CamBridge implements AutoCloseable {
             return tool;
         }
 
-        private static void compare(Map<String, Integer> delta, String key, int current, int previous) {
-            if (current != previous) {
-                delta.put(key, current);
+        private static void compare(Map<String, StatChange> delta, String key, int current, int previous) {
+            int change = current - previous;
+            if (change != 0) {
+                delta.put(key, new StatChange(current, change));
             }
+        }
+
+        record StatChange(int current, int delta) {
         }
 
         private static int tierScore(Item item) {

@@ -275,6 +275,7 @@ public class MobDefenseChain extends SingleTaskChain {
 
         updateDamageTracking(mod);
         latestThreats = evaluateThreats(mod);
+        boolean targetIsNonHostile = targetEntity != null && !EntityHelper.isProbablyHostileToPlayer(mod, targetEntity);
 
         if (diagnosticsTimer.elapsed()) {
             emitDiagnostics(mod);
@@ -354,7 +355,7 @@ public class MobDefenseChain extends SingleTaskChain {
         PlayerSlot offhandSlot = PlayerSlot.OFFHAND_SLOT;
         Item offhandItem = StorageHelper.getItemStackInSlot(offhandSlot).getItem();
         // Run away from creepers
-        CreeperEntity blowingUp = getClosestFusingCreeper(mod);
+    CreeperEntity blowingUp = getClosestFusingCreeper(mod);
         if (blowingUp != null) {
             if ((!mod.getFoodChain().needsToEat() || mod.getPlayer().getHealth() < 9)
                     && hasShield(mod)
@@ -378,13 +379,15 @@ public class MobDefenseChain extends SingleTaskChain {
                 return 50 + blowingUp.getClientFuseTime(1) * 50;
             }
         }
+        boolean projectileIncoming = false;
         synchronized (BaritoneHelper.MINECRAFT_LOCK) {
+            projectileIncoming = isProjectileClose(mod);
             // Block projectiles with shield
             if (mod.getModSettings().isDodgeProjectiles()
                     && hasShield(mod)
                     && !mod.getPlayer().getItemCooldownManager().isCoolingDown(offhandItem)
                     && mod.getClientBaritone().getPathingBehavior().isSafeToCancel()
-                    && !mod.getEntityTracker().entityFound(PotionEntity.class) && isProjectileClose(mod)) {
+                    && !mod.getEntityTracker().entityFound(PotionEntity.class) && projectileIncoming) {
                 ItemStack shieldSlot = StorageHelper.getItemStackInSlot(PlayerSlot.OFFHAND_SLOT);
                 if (shieldSlot.getItem() != Items.SHIELD) {
                     mod.getSlotHandler().forceEquipItemToOffhand(Items.SHIELD);
@@ -393,9 +396,20 @@ public class MobDefenseChain extends SingleTaskChain {
                 }
                 return 60;
             }
-            if (blowingUp == null && !isProjectileClose(mod)) {
+            if (blowingUp == null && !projectileIncoming) {
                 stopShielding(mod);
             }
+        }
+
+        if (targetIsNonHostile
+                && !hasImmediateThreat
+                && blowingUp == null
+                && !projectileIncoming
+                && defenseState != DefenseState.RETREAT
+                && defenseState != DefenseState.FAILSAFE
+                && !panicRetreatActive) {
+            killAura.stopShielding(mod);
+            stopShielding(mod);
         }
 
         boolean mustPauseForUtility = mod.getFoodChain().needsToEat() || mod.getMLGBucketChain().isFalling(mod)
