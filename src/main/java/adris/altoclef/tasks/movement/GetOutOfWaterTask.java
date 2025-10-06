@@ -1,6 +1,7 @@
 package adris.altoclef.tasks.movement;
 
 import adris.altoclef.AltoClef;
+import adris.altoclef.Debug;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.helpers.LookHelper;
 import adris.altoclef.util.helpers.StorageHelper;
@@ -47,6 +48,7 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
                 if (!startedShimmying) {
                     startedShimmying = true;
                     shimmyTaskTimer.reset();
+                    Debug.logMessage("[GetOutOfWater] Starting shimmy", false);
                 }
                 return new SafeRandomShimmyTask();
             }
@@ -54,6 +56,9 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
             mod.getSlotHandler().forceEquipItem(mod.getClientBaritoneSettings().acceptableThrowawayItems.value.toArray(new Item[0]));
             LookHelper.lookAt(mod, mod.getPlayer().getSteppingPos().down());
             mod.getInputControls().tryPress(Input.CLICK_RIGHT);
+            Debug.logMessage("[GetOutOfWater] Placing block beneath player", false);
+        } else if (hasAirAbove && hasBlockBelow) {
+            Debug.logMessage("[GetOutOfWater] No throwaway blocks available for pillar", false);
         }
 
         return super.onTick();

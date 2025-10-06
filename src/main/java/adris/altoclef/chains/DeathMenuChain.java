@@ -9,12 +9,25 @@ import adris.altoclef.tasksystem.TaskChain;
 import adris.altoclef.tasksystem.TaskRunner;
 import adris.altoclef.util.time.TimerGame;
 import adris.altoclef.util.time.TimerReal;
+import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.*;
 import net.minecraft.client.gui.screen.multiplayer.*;
+import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.network.ServerAddress;
 import net.minecraft.client.network.ServerInfo;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.world.Heightmap;
+import net.minecraft.world.chunk.ChunkStatus;
+
+import java.util.Locale;
+import java.util.Random;
+import java.util.UUID;
 
 public class DeathMenuChain extends TaskChain {
 
@@ -26,6 +39,14 @@ public class DeathMenuChain extends TaskChain {
     private boolean reconnecting = false;
     private int deathCount = 0;
     private Class<? extends Screen> prevScreen = null;
+    private final Random random = new Random();
+    private boolean randomRespawnQueued = false;
+    private boolean randomRespawnAttempted = false;
+    private boolean randomRespawnWarnedNoServer = false;
+    private int randomRespawnTargetX;
+    private int randomRespawnTargetZ;
+    private double randomRespawnQueuedRadius;
+    private double randomRespawnQueuedAngleDeg;
 
 
     public DeathMenuChain(TaskRunner runner) {

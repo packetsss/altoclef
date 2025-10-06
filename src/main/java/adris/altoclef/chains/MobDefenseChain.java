@@ -7,21 +7,27 @@ import adris.altoclef.multiversion.versionedfields.Entities;
 import adris.altoclef.multiversion.item.ItemVer;
 import adris.altoclef.tasks.construction.ProjectileProtectionWallTask;
 import adris.altoclef.tasks.entity.KillEntitiesTask;
+import adris.altoclef.tasks.defense.DefenseFailsafeTask;
+import adris.altoclef.tasks.defense.DefenseFailsafeTask.Reason;
 import adris.altoclef.tasks.movement.CustomBaritoneGoalTask;
 import adris.altoclef.tasks.movement.DodgeProjectilesTask;
 import adris.altoclef.tasks.movement.RunAwayFromCreepersTask;
 import adris.altoclef.tasks.movement.RunAwayFromHostilesTask;
+import adris.altoclef.tasks.movement.GetOutOfWaterTask;
 import adris.altoclef.tasks.speedrun.DragonBreathTracker;
+import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskRunner;
 import adris.altoclef.util.baritone.CachedProjectile;
 import adris.altoclef.util.helpers.*;
 import adris.altoclef.util.slots.PlayerSlot;
 import adris.altoclef.util.slots.Slot;
+import adris.altoclef.util.time.TimerGame;
 import baritone.Baritone;
 import baritone.api.utils.Rotation;
 import baritone.api.utils.input.Input;
 import net.minecraft.block.AbstractFireBlock;
 import net.minecraft.block.Block;
+import net.minecraft.block.Blocks;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
@@ -37,11 +43,16 @@ import net.minecraft.item.Items;
 import net.minecraft.item.SwordItem;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.Difficulty;
+import net.minecraft.world.World;
 
 
 import java.util.*;
+import java.util.stream.Collectors;
+
+import org.jetbrains.annotations.Nullable;
 
 
 // TODO: Optimise shielding against spiders and skeletons
@@ -52,6 +63,28 @@ public class MobDefenseChain extends SingleTaskChain {
     private static final double ARROW_KEEP_DISTANCE_HORIZONTAL = 2;
     private static final double ARROW_KEEP_DISTANCE_VERTICAL = 10;
     private static final double SAFE_KEEP_DISTANCE = 8;
+    private static final double REACHABILITY_DISTANCE_MAX = 32;
+    private static final int REACHABILITY_MAX_EXPANSIONS = 96;
+    private static final int REACHABILITY_CACHE_TTL_TICKS = 40;
+    private static final double MELEE_VERTICAL_THRESHOLD = 5.5;
+    private static final double RANGED_VERTICAL_THRESHOLD = 28;
+    private static final double LOS_CHECK_RANGE = 40;
+    private static final double WATER_STUCK_SPEED_THRESHOLD = 0.05;
+    private static final double WATER_STUCK_TIMEOUT_SECONDS = 10;
+    private static final double NO_DAMAGE_TIMEOUT_SECONDS = 25;
+    private static final double DEFENSE_FAILSAFE_TIMEOUT_SECONDS = 140;
+    private static final double STALE_TARGET_TIMEOUT_SECONDS = 90;
+    private static final double PERSISTENT_THREAT_TIMEOUT_SECONDS = 150;
+    private static final double DIAGNOSTIC_INTERVAL_SECONDS = 1.25;
+    private static final double CLOSE_FORCE_DISTANCE = 2.75;
+    private static final double PANIC_CLOSE_DISTANCE = 4.5;
+    private static final double RETREAT_END_DISTANCE = 10;
+    private static final double RETREAT_RESUME_DISTANCE = 18;
+    private static final float CRITICAL_HEALTH_THRESHOLD = 8f;
+    private static final double PANIC_RETREAT_MIN_HOLD_SECONDS = 2.5;
+    private static final double PANIC_RETREAT_LOG_COOLDOWN_SECONDS = 0.5;
+    private static final int FAILSAFE_PILLAR_EXTRA_HEIGHT = 4;
+    private static final float DEFENSE_BASE_PRIORITY = 60f;
     private static final List<Class<? extends Entity>> ignoredMobs = List.of(Entities.WARDEN, WitherEntity.class, EndermanEntity.class, BlazeEntity.class,
             WitherSkeletonEntity.class, HoglinEntity.class, ZoglinEntity.class, PiglinBruteEntity.class, VindicatorEntity.class, MagmaCubeEntity.class);
 
@@ -67,9 +100,81 @@ public class MobDefenseChain extends SingleTaskChain {
     private Entity lockedOnEntity = null;
 
     private float cachedLastPriority;
+    private float prevAbsorption = 0;
+
+    private final TimerGame defenseActiveTimer = new TimerGame(DEFENSE_FAILSAFE_TIMEOUT_SECONDS);
+    private final TimerGame noDamageTimer = new TimerGame(NO_DAMAGE_TIMEOUT_SECONDS);
+    private final TimerGame waterStuckTimer = new TimerGame(WATER_STUCK_TIMEOUT_SECONDS);
+    private final TimerGame staleTargetTimer = new TimerGame(STALE_TARGET_TIMEOUT_SECONDS);
+    private final TimerGame persistentThreatTimer = new TimerGame(PERSISTENT_THREAT_TIMEOUT_SECONDS);
+    private final TimerGame diagnosticsTimer = new TimerGame(DIAGNOSTIC_INTERVAL_SECONDS);
+    private final TimerGame panicRetreatHoldTimer = new TimerGame(PANIC_RETREAT_MIN_HOLD_SECONDS);
+    private final TimerGame panicRetreatLogTimer = new TimerGame(PANIC_RETREAT_LOG_COOLDOWN_SECONDS);
+
+    private DefenseState defenseState = DefenseState.IDLE;
+    private DefenseFailsafeTask failsafeTask;
+    private List<ThreatSnapshot> latestThreats = Collections.emptyList();
+    private final Map<UUID, ReachabilityCacheEntry> reachabilityCache = new HashMap<>();
+    private Entity lastPrimaryThreat;
+    private boolean playerTookDamageThisTick;
+    private boolean absorptionLostThisTick;
+    private Vec3d lastPlayerPos;
+    private double lastWaterStuckLogSeconds = 0;
+    private boolean panicRetreatActive = false;
 
     public MobDefenseChain(TaskRunner runner) {
         super(runner);
+        panicRetreatHoldTimer.forceElapse();
+        panicRetreatLogTimer.forceElapse();
+    }
+
+    private enum DefenseState {
+        IDLE,
+        ACTIVE,
+        RETREAT,
+        FAILSAFE
+    }
+
+    private static class ThreatSnapshot {
+        final LivingEntity entity;
+        final Vec3d position;
+        final double distanceSq;
+        final double deltaY;
+        final boolean projectile;
+        final boolean reachable;
+        final boolean pathBudgetHit;
+        final boolean hasLineOfSight;
+        final boolean acrossWater;
+        final boolean immediate;
+
+        ThreatSnapshot(LivingEntity entity, Vec3d position, double distanceSq, double deltaY,
+                       boolean projectile, boolean reachable, boolean pathBudgetHit,
+                       boolean hasLineOfSight, boolean acrossWater, boolean immediate) {
+            this.entity = entity;
+            this.position = position;
+            this.distanceSq = distanceSq;
+            this.deltaY = deltaY;
+            this.projectile = projectile;
+            this.reachable = reachable;
+            this.pathBudgetHit = pathBudgetHit;
+            this.hasLineOfSight = hasLineOfSight;
+            this.acrossWater = acrossWater;
+            this.immediate = immediate;
+        }
+    }
+
+    private static class ReachabilityCacheEntry {
+        final BlockPos targetPos;
+        final boolean reachable;
+        final boolean budgetHit;
+        final long tickUpdated;
+
+        ReachabilityCacheEntry(BlockPos targetPos, boolean reachable, boolean budgetHit, long tickUpdated) {
+            this.targetPos = targetPos;
+            this.reachable = reachable;
+            this.budgetHit = budgetHit;
+            this.tickUpdated = tickUpdated;
+        }
     }
 
     public static double getCreeperSafety(Vec3d pos, CreeperEntity creeper) {
@@ -121,6 +226,7 @@ public class MobDefenseChain extends SingleTaskChain {
     public float getPriority() {
         cachedLastPriority = getPriorityInner();
         prevHealth = AltoClef.getInstance().getPlayer().getHealth();
+        prevAbsorption = AltoClef.getInstance().getPlayer().getAbsorptionAmount();
         return cachedLastPriority;
     }
 
@@ -167,6 +273,58 @@ public class MobDefenseChain extends SingleTaskChain {
 
         if (mod.getWorld().getDifficulty() == Difficulty.PEACEFUL) return Float.NEGATIVE_INFINITY;
 
+        updateDamageTracking(mod);
+        latestThreats = evaluateThreats(mod);
+
+        if (diagnosticsTimer.elapsed()) {
+            emitDiagnostics(mod);
+            diagnosticsTimer.reset();
+        }
+
+        boolean panicTriggeredThisTick = shouldPanicRetreat(mod);
+        boolean panicJustActivated = false;
+        if (panicTriggeredThisTick) {
+            if (!panicRetreatActive) {
+                panicRetreatActive = true;
+                panicJustActivated = true;
+                panicRetreatLogTimer.forceElapse();
+            }
+            panicRetreatHoldTimer.reset();
+        } else if (panicRetreatActive && panicRetreatHoldTimer.elapsed()) {
+            panicRetreatActive = false;
+        }
+
+        boolean hasImmediateThreat = latestThreats.stream().anyMatch(snapshot -> snapshot.immediate);
+        if (hasImmediateThreat) {
+            if (defenseState == DefenseState.IDLE) {
+                defenseState = DefenseState.ACTIVE;
+                defenseActiveTimer.reset();
+                noDamageTimer.reset();
+                staleTargetTimer.reset();
+                persistentThreatTimer.reset();
+            }
+        } else if (shouldDropDefense(mod)) {
+            clearDefenseState();
+            return Float.NEGATIVE_INFINITY;
+        }
+
+        updateWaterProgress(mod);
+        maybeTriggerFailsafe(mod);
+        float baselinePriority = defenseState == DefenseState.IDLE ? 0f : DEFENSE_BASE_PRIORITY;
+
+        if (failsafeTask != null) {
+            if (failsafeTask.isFinished()) {
+                failsafeTask = null;
+                defenseState = DefenseState.ACTIVE;
+                staleTargetTimer.reset();
+                persistentThreatTimer.reset();
+            } else {
+                defenseState = DefenseState.FAILSAFE;
+                setTask(failsafeTask);
+                return 90;
+            }
+        }
+
         if (needsChangeOnAttack && (mod.getPlayer().getHealth() < prevHealth || killAura.attackedLastTick)) {
             needsChangeOnAttack = false;
         }
@@ -186,6 +344,8 @@ public class MobDefenseChain extends SingleTaskChain {
         Optional<Entity> universallyDangerous = getUniversallyDangerousMob(mod);
         if (universallyDangerous.isPresent() && mod.getPlayer().getHealth() <= 10) {
             runAwayTask = new RunAwayFromHostilesTask(DANGER_KEEP_DISTANCE, true);
+            defenseState = DefenseState.RETREAT;
+            staleTargetTimer.reset();
             setTask(runAwayTask);
             return 70;
         }
@@ -212,6 +372,8 @@ public class MobDefenseChain extends SingleTaskChain {
             } else {
                 doingFunkyStuff = true;
                 runAwayTask = new RunAwayFromCreepersTask(CREEPER_KEEP_DISTANCE);
+                defenseState = DefenseState.RETREAT;
+                staleTargetTimer.reset();
                 setTask(runAwayTask);
                 return 50 + blowingUp.getClientFuseTime(1) * 50;
             }
@@ -236,11 +398,41 @@ public class MobDefenseChain extends SingleTaskChain {
             }
         }
 
-        if (mod.getFoodChain().needsToEat() || mod.getMLGBucketChain().isFalling(mod)
-                || !mod.getMLGBucketChain().doneMLG() || mod.getMLGBucketChain().isChorusFruiting()) {
+        boolean mustPauseForUtility = mod.getFoodChain().needsToEat() || mod.getMLGBucketChain().isFalling(mod)
+                || !mod.getMLGBucketChain().doneMLG() || mod.getMLGBucketChain().isChorusFruiting();
+        if (mustPauseForUtility) {
             killAura.stopShielding(mod);
             stopShielding(mod);
-            return Float.NEGATIVE_INFINITY;
+            if (!panicRetreatActive) {
+                return Float.NEGATIVE_INFINITY;
+            }
+        }
+
+        if (panicRetreatActive) {
+            doingFunkyStuff = true;
+            if (panicJustActivated || !(runAwayTask instanceof RunAwayFromHostilesTask) || runAwayTask.isFinished()) {
+                runAwayTask = new RunAwayFromHostilesTask(DANGER_KEEP_DISTANCE, true);
+            }
+            defenseState = DefenseState.RETREAT;
+            staleTargetTimer.reset();
+            if (panicRetreatLogTimer.elapsed()) {
+                float health = mod.getPlayer().getHealth();
+                float absorption = mod.getPlayer().getAbsorptionAmount();
+                double closest = latestThreats.stream()
+                        .mapToDouble(snapshot -> Math.sqrt(snapshot.distanceSq))
+                        .min()
+                        .orElse(Double.NaN);
+                Debug.logMessage(String.format(Locale.ROOT,
+                        "[MobDefense] Critical health panic retreat %s hp=%.1f+%.1f threats=%d closest=%s",
+                        panicJustActivated ? "start" : "hold",
+                        health,
+                        absorption,
+                        latestThreats.size(),
+                        Double.isNaN(closest) ? "n/a" : String.format(Locale.ROOT, "%.1f", closest)), false);
+                panicRetreatLogTimer.reset();
+            }
+            setTask(runAwayTask);
+            return 85;
         }
 
         // Force field
@@ -253,10 +445,14 @@ public class MobDefenseChain extends SingleTaskChain {
                     && mod.getModSettings().isDodgeProjectiles() && isProjectileClose(mod)) {
                 doingFunkyStuff = true;
                 setTask(new ProjectileProtectionWallTask(mod));
+                defenseState = DefenseState.RETREAT;
+                staleTargetTimer.reset();
                 return 65;
             }
 
             runAwayTask = new DodgeProjectilesTask(ARROW_KEEP_DISTANCE_HORIZONTAL, ARROW_KEEP_DISTANCE_VERTICAL);
+            defenseState = DefenseState.RETREAT;
+            staleTargetTimer.reset();
             setTask(runAwayTask);
             return 65;
         }
@@ -264,57 +460,51 @@ public class MobDefenseChain extends SingleTaskChain {
         if (isInDanger(mod) && !escapeDragonBreath(mod) && !mod.getFoodChain().isShouldStop()) {
             if (targetEntity == null || WorldHelper.isSurroundedByHostiles()) {
                 runAwayTask = new RunAwayFromHostilesTask(DANGER_KEEP_DISTANCE, true);
+                defenseState = DefenseState.RETREAT;
+                staleTargetTimer.reset();
                 setTask(runAwayTask);
                 return 70;
             }
         }
 
         if (mod.getModSettings().shouldDealWithAnnoyingHostiles()) {
-            // Deal with hostiles because they are annoying.
-            List<LivingEntity> hostiles = mod.getEntityTracker().getHostiles();
+            List<ThreatSnapshot> annoyanceCandidates = latestThreats.stream()
+                    .filter(snapshot -> snapshot.hasLineOfSight)
+                    .filter(snapshot -> snapshot.distanceSq < (hasShield(mod) ? 35 * 35 : 25 * 25))
+                    .collect(Collectors.toList());
 
             List<LivingEntity> toDealWithList = new ArrayList<>();
 
-            synchronized (BaritoneHelper.MINECRAFT_LOCK) {
-                for (LivingEntity hostile : hostiles) {
-                    boolean isRangedOrPoisonous = (hostile instanceof SkeletonEntity
-                            || hostile instanceof WitchEntity || hostile instanceof PillagerEntity
-                            || hostile instanceof PiglinEntity || hostile instanceof StrayEntity
-                            || hostile instanceof CaveSpiderEntity);
-                    int annoyingRange = 10;
+            for (ThreatSnapshot threat : annoyanceCandidates) {
+                LivingEntity hostile = threat.entity;
+                boolean isRangedOrPoisonous = (hostile instanceof SkeletonEntity
+                        || hostile instanceof WitchEntity || hostile instanceof PillagerEntity
+                        || hostile instanceof PiglinEntity || hostile instanceof StrayEntity
+                        || hostile instanceof CaveSpiderEntity);
 
-                    if (isRangedOrPoisonous) {
-                        annoyingRange = 20;
-                        if (!hasShield(mod)) {
-                            annoyingRange = 35;
-                        }
+                double annoyingRange = isRangedOrPoisonous ? (hasShield(mod) ? 20 : 35) : 10;
+
+                if (Math.sqrt(threat.distanceSq) > annoyingRange) continue;
+                if (threat.acrossWater && !threat.reachable) continue;
+
+                boolean isIgnored = false;
+                for (Class<? extends Entity> ignored : ignoredMobs) {
+                    if (ignored.isInstance(hostile)) {
+                        isIgnored = true;
+                        break;
                     }
+                }
 
-                    // Give each hostile a timer, if they're close for too long deal with them.
-                    if (hostile.isInRange(mod.getPlayer(), annoyingRange) && LookHelper.seesPlayer(hostile, mod.getPlayer(), annoyingRange)) {
-
-                        boolean isIgnored = false;
-                        for (Class<? extends Entity> ignored : ignoredMobs) {
-                            if (ignored.isInstance(hostile)) {
-                                isIgnored = true;
-                                break;
-                            }
-                        }
-
-                        // do not go and "attack" these mobs, just hit them if on low HP, or they are close
-                        if (isIgnored) {
-                            if (mod.getPlayer().getHealth() <= 10) {
-                                toDealWithList.add(hostile);
-                            }
-                        } else {
-                            toDealWithList.add(hostile);
-                        }
+                if (isIgnored) {
+                    if (mod.getPlayer().getHealth() <= 10) {
+                        toDealWithList.add(hostile);
                     }
+                } else {
+                    toDealWithList.add(hostile);
                 }
             }
 
-            // attack entities closest to the player first
-            toDealWithList.sort(Comparator.comparingDouble((entity) -> mod.getPlayer().distanceTo(entity)));
+            toDealWithList.sort(Comparator.comparingDouble(mod.getPlayer()::distanceTo));
 
             if (!toDealWithList.isEmpty()) {
 
@@ -340,10 +530,14 @@ public class MobDefenseChain extends SingleTaskChain {
                     lockedOnEntity = toKill;
 
                     setTask(new KillEntitiesTask(toKill.getClass()));
+                    defenseState = DefenseState.ACTIVE;
+                    staleTargetTimer.reset();
                     return 65;
                 } else {
                     // We can't deal with it
                     runAwayTask = new RunAwayFromHostilesTask(DANGER_KEEP_DISTANCE, true);
+                    defenseState = DefenseState.RETREAT;
+                    staleTargetTimer.reset();
                     setTask(runAwayTask);
                     return 80;
                 }
@@ -352,6 +546,7 @@ public class MobDefenseChain extends SingleTaskChain {
         // By default, if we aren't "immediately" in danger but were running away, keep
         // running away until we're good.
         if (runAwayTask != null && !runAwayTask.isFinished()) {
+            defenseState = DefenseState.RETREAT;
             setTask(runAwayTask);
             return cachedLastPriority;
         } else {
@@ -360,13 +555,355 @@ public class MobDefenseChain extends SingleTaskChain {
 
         if (needsChangeOnAttack && lockedOnEntity != null && lockedOnEntity.isAlive()) {
             setTask(new KillEntitiesTask(lockedOnEntity.getClass()));
+            defenseState = DefenseState.ACTIVE;
+            staleTargetTimer.reset();
             return 65;
         } else {
             needsChangeOnAttack = false;
             lockedOnEntity = null;
         }
 
-        return 0;
+        if (defenseState == DefenseState.RETREAT && !latestThreats.isEmpty()) {
+            double closestSq = latestThreats.stream()
+                    .mapToDouble(snapshot -> snapshot.distanceSq)
+                    .min()
+                    .orElse(Double.POSITIVE_INFINITY);
+            if (closestSq <= RETREAT_END_DISTANCE * RETREAT_END_DISTANCE) {
+                Debug.logMessage(String.format(Locale.ROOT,
+                        "[MobDefense] Hold retreat, closest threat %.1f blocks",
+                        Math.sqrt(closestSq)), false);
+                setTask(runAwayTask != null ? runAwayTask : new RunAwayFromHostilesTask(DANGER_KEEP_DISTANCE, true));
+                staleTargetTimer.reset();
+                return 70;
+            }
+        }
+
+        return baselinePriority;
+    }
+
+    private void updateDamageTracking(AltoClef mod) {
+        float health = mod.getPlayer().getHealth();
+        float absorption = mod.getPlayer().getAbsorptionAmount();
+
+        playerTookDamageThisTick = health + 0.01f < prevHealth;
+        absorptionLostThisTick = absorption + 0.01f < prevAbsorption;
+
+        if (playerTookDamageThisTick || absorptionLostThisTick || killAura.attackedLastTick) {
+            noDamageTimer.reset();
+            if (playerTookDamageThisTick) {
+                staleTargetTimer.reset();
+            }
+        }
+    }
+
+    private List<ThreatSnapshot> evaluateThreats(AltoClef mod) {
+        List<ThreatSnapshot> snapshots = new ArrayList<>();
+        Vec3d playerPos = mod.getPlayer().getPos();
+
+        List<LivingEntity> hostiles = mod.getEntityTracker().getHostiles();
+
+        synchronized (BaritoneHelper.MINECRAFT_LOCK) {
+            for (LivingEntity hostile : hostiles) {
+                if (hostile == null || !hostile.isAlive()) continue;
+                if (mod.getBehaviour().shouldExcludeFromForcefield(hostile)) continue;
+                if (!EntityHelper.isProbablyHostileToPlayer(mod, hostile)) continue;
+
+                Vec3d position = hostile.getPos();
+                double distanceSq = position.squaredDistanceTo(playerPos);
+                double deltaY = position.y - playerPos.y;
+
+                boolean projectile = isProjectileMob(hostile);
+                boolean hasLineOfSight = LookHelper.seesPlayer(hostile, mod.getPlayer(), LOS_CHECK_RANGE);
+                boolean acrossWater = isAcrossWater(mod, hostile);
+
+                ReachabilityCacheEntry reachEntry = getReachabilityEntry(mod, hostile);
+
+                boolean immediate = isImmediateThreat(hostile, distanceSq, deltaY, projectile, hasLineOfSight, reachEntry.reachable, acrossWater);
+
+                ThreatSnapshot snapshot = new ThreatSnapshot(hostile, position, distanceSq, deltaY, projectile,
+                        reachEntry.reachable, reachEntry.budgetHit, hasLineOfSight, acrossWater, immediate);
+                snapshots.add(snapshot);
+            }
+        }
+
+        snapshots.sort(Comparator.comparingDouble(threat -> threat.distanceSq));
+
+        Entity newPrimary = snapshots.stream()
+                .filter(threat -> threat.immediate && threat.reachable)
+                .map(threat -> threat.entity)
+                .findFirst()
+                .orElse(null);
+
+        if (newPrimary != null) {
+            if (lastPrimaryThreat == null || !lastPrimaryThreat.getUuid().equals(newPrimary.getUuid())) {
+                staleTargetTimer.reset();
+            }
+            lastPrimaryThreat = newPrimary;
+        } else if (lastPrimaryThreat != null) {
+            staleTargetTimer.reset();
+            lastPrimaryThreat = null;
+        }
+
+        if (snapshots.isEmpty()) {
+            persistentThreatTimer.reset();
+        }
+
+        return snapshots;
+    }
+
+    private boolean shouldDropDefense(AltoClef mod) {
+        if (defenseState == DefenseState.IDLE) {
+            return true;
+        }
+        if (panicRetreatActive && !panicRetreatHoldTimer.elapsed()) {
+            return false;
+        }
+        if (latestThreats.isEmpty()) {
+            return true;
+        }
+        boolean lingeringThreat = latestThreats.stream().anyMatch(snapshot -> snapshot.hasLineOfSight && snapshot.distanceSq < DANGER_KEEP_DISTANCE * DANGER_KEEP_DISTANCE);
+        if (lingeringThreat) {
+            return false;
+        }
+        if (defenseState == DefenseState.RETREAT) {
+            boolean threatsInsideEnd = latestThreats.stream().anyMatch(snapshot -> snapshot.distanceSq < RETREAT_END_DISTANCE * RETREAT_END_DISTANCE);
+            if (threatsInsideEnd) {
+                return false;
+            }
+        }
+        boolean closeThreat = latestThreats.stream().anyMatch(snapshot -> snapshot.distanceSq < RETREAT_RESUME_DISTANCE * RETREAT_RESUME_DISTANCE);
+        if (closeThreat) {
+            return false;
+        }
+        if (playerTookDamageThisTick || absorptionLostThisTick) {
+            return false;
+        }
+        if (!noDamageTimer.elapsed()) {
+            return false;
+        }
+        if (mod.getPlayer().isTouchingWater()) {
+            return false;
+        }
+        return true;
+    }
+
+    private void clearDefenseState() {
+        boolean wasEngaged = defenseState != DefenseState.IDLE
+                || runAwayTask != null
+                || failsafeTask != null
+                || !latestThreats.isEmpty()
+                || needsChangeOnAttack
+                || lockedOnEntity != null;
+        defenseState = DefenseState.IDLE;
+        runAwayTask = null;
+        failsafeTask = null;
+        lastPrimaryThreat = null;
+        latestThreats = Collections.emptyList();
+        staleTargetTimer.reset();
+        persistentThreatTimer.reset();
+        defenseActiveTimer.reset();
+        waterStuckTimer.reset();
+        lastWaterStuckLogSeconds = 0;
+        noDamageTimer.reset();
+        needsChangeOnAttack = false;
+        lockedOnEntity = null;
+        panicRetreatActive = false;
+        panicRetreatHoldTimer.forceElapse();
+        panicRetreatLogTimer.forceElapse();
+        if (wasEngaged) {
+            Debug.logMessage("[MobDefense] Clearing state", false);
+        }
+    }
+
+    private void updateWaterProgress(AltoClef mod) {
+        Vec3d currentPos = mod.getPlayer().getPos();
+        if (lastPlayerPos == null) {
+            lastPlayerPos = currentPos;
+            waterStuckTimer.reset();
+            lastWaterStuckLogSeconds = 0;
+            return;
+        }
+        double movementSq = currentPos.squaredDistanceTo(lastPlayerPos);
+        lastPlayerPos = currentPos;
+
+        if (!mod.getPlayer().isTouchingWater()) {
+            waterStuckTimer.reset();
+            lastWaterStuckLogSeconds = 0;
+            return;
+        }
+
+        double thresholdSq = WATER_STUCK_SPEED_THRESHOLD * WATER_STUCK_SPEED_THRESHOLD;
+        if (movementSq > thresholdSq) {
+            waterStuckTimer.reset();
+            lastWaterStuckLogSeconds = 0;
+            return;
+        }
+
+        double elapsed = waterStuckTimer.getDuration();
+        if (elapsed > 2 && elapsed - lastWaterStuckLogSeconds >= 2) {
+            Debug.logMessage(String.format(Locale.ROOT,
+                    "[MobDefense] Water stall timer %.1fs (movementSq=%.5f)",
+                    elapsed,
+                    movementSq), false);
+            lastWaterStuckLogSeconds = elapsed;
+        }
+    }
+
+    private void maybeTriggerFailsafe(AltoClef mod) {
+        if (defenseState == DefenseState.IDLE || defenseState == DefenseState.FAILSAFE) {
+            return;
+        }
+        if (failsafeTask != null) {
+            return;
+        }
+
+        if (mod.getPlayer().isTouchingWater() && waterStuckTimer.elapsed()) {
+            triggerFailsafe(mod, Reason.WATER, null);
+            return;
+        }
+
+        if (staleTargetTimer.elapsed() && lastPrimaryThreat != null) {
+            triggerFailsafe(mod, Reason.STALE_COMBAT, null);
+            return;
+        }
+
+        if (!latestThreats.isEmpty() && persistentThreatTimer.elapsed()) {
+            BlockPos spawner = findNearbySpawner(mod);
+            if (spawner != null) {
+                triggerFailsafe(mod, Reason.SPAWNER, spawner);
+            } else {
+                triggerFailsafe(mod, Reason.TIMEOUT, null);
+            }
+            return;
+        }
+
+        if (defenseActiveTimer.elapsed()) {
+            triggerFailsafe(mod, Reason.TIMEOUT, null);
+        }
+    }
+
+    private void triggerFailsafe(AltoClef mod, Reason reason, @Nullable BlockPos spawnerHint) {
+        int targetY = mod.getPlayer().getBlockY() + FAILSAFE_PILLAR_EXTRA_HEIGHT;
+        failsafeTask = new DefenseFailsafeTask(reason, spawnerHint, targetY);
+        defenseState = DefenseState.FAILSAFE;
+        defenseActiveTimer.reset();
+        staleTargetTimer.reset();
+        persistentThreatTimer.reset();
+        waterStuckTimer.reset();
+        Debug.logMessage(String.format(Locale.ROOT,
+                "[MobDefense] Failsafe triggered reason=%s targetY=%d spawner=%s",
+                reason,
+                targetY,
+                spawnerHint == null ? "<none>" : spawnerHint.toShortString()), false);
+    }
+
+    private void emitDiagnostics(AltoClef mod) {
+        if (defenseState == DefenseState.IDLE && latestThreats.isEmpty()) {
+            return;
+        }
+        StringBuilder builder = new StringBuilder("[MobDefense] state=")
+                .append(defenseState)
+                .append(" threats=")
+                .append(latestThreats.size())
+        .append(" priority=")
+        .append(String.format(Locale.ROOT, "%.1f", cachedLastPriority))
+                .append(" damageTimer=")
+                .append(String.format(Locale.ROOT, "%.1f", noDamageTimer.getDuration()))
+                .append(" activeTimer=")
+                .append(String.format(Locale.ROOT, "%.1f", defenseActiveTimer.getDuration()))
+                .append(" persistentTimer=")
+                .append(String.format(Locale.ROOT, "%.1f", persistentThreatTimer.getDuration()))
+                .append(" waterTimer=")
+                .append(String.format(Locale.ROOT, "%.1f", waterStuckTimer.getDuration()));
+
+        latestThreats.stream().limit(3).forEach(snapshot -> builder
+                .append(" | ")
+                .append(snapshot.entity.getType().getTranslationKey())
+                .append(" d=")
+                .append(String.format(Locale.ROOT, "%.1f", Math.sqrt(snapshot.distanceSq)))
+                .append(snapshot.reachable ? " R" : " !R")
+                .append(snapshot.hasLineOfSight ? " LoS" : " !LoS"));
+
+        Debug.logMessage(builder.toString(), false);
+    }
+
+    private BlockPos findNearbySpawner(AltoClef mod) {
+        if (latestThreats.isEmpty()) {
+            return null;
+        }
+        Optional<BlockPos> spawner = mod.getBlockScanner().getNearestBlock(pos -> {
+            for (ThreatSnapshot threat : latestThreats) {
+                if (pos.isWithinDistance(threat.position, 6)) {
+                    return true;
+                }
+            }
+            return false;
+        }, Blocks.SPAWNER);
+        return spawner.orElse(null);
+    }
+
+    private boolean isProjectileMob(LivingEntity entity) {
+        return entity instanceof SkeletonEntity || entity instanceof StrayEntity || entity instanceof PillagerEntity
+                || entity instanceof WitchEntity || entity instanceof BlazeEntity || entity instanceof GhastEntity
+                || entity instanceof DrownedEntity || entity instanceof ShulkerEntity;
+    }
+
+    private boolean isImmediateThreat(LivingEntity entity, double distanceSq, double deltaY, boolean projectile,
+                                       boolean hasLineOfSight, boolean reachable, boolean acrossWater) {
+        if (!entity.isAlive()) return false;
+        double distance = Math.sqrt(distanceSq);
+        if (distance <= CLOSE_FORCE_DISTANCE) {
+            return true;
+        }
+        if (entity instanceof CreeperEntity creeper && creeper.getClientFuseTime(1) > 0.1f) {
+            return true;
+        }
+        if (acrossWater && !reachable) {
+            return false;
+        }
+        boolean verticalOkay = Math.abs(deltaY) <= (projectile ? RANGED_VERTICAL_THRESHOLD : MELEE_VERTICAL_THRESHOLD);
+        if (!verticalOkay) {
+            return false;
+        }
+        if (projectile) {
+            return hasLineOfSight && distanceSq <= DANGER_KEEP_DISTANCE * DANGER_KEEP_DISTANCE;
+        }
+        return reachable && distanceSq <= SAFE_KEEP_DISTANCE * SAFE_KEEP_DISTANCE;
+    }
+
+    private boolean shouldPanicRetreat(AltoClef mod) {
+        float healthTotal = mod.getPlayer().getHealth() + mod.getPlayer().getAbsorptionAmount();
+        if (healthTotal > CRITICAL_HEALTH_THRESHOLD) {
+            return false;
+        }
+        if (latestThreats.isEmpty()) {
+            return false;
+        }
+        boolean closeThreat = latestThreats.stream()
+                .anyMatch(snapshot -> snapshot.immediate || snapshot.distanceSq < PANIC_CLOSE_DISTANCE * PANIC_CLOSE_DISTANCE);
+        if (!closeThreat) {
+            return false;
+        }
+        return !mod.getFoodChain().needsToEat();
+    }
+
+    private boolean isAcrossWater(AltoClef mod, LivingEntity hostile) {
+        boolean playerWater = mod.getPlayer().isTouchingWater();
+        boolean hostileWater = hostile.isTouchingWater();
+        return playerWater != hostileWater;
+    }
+
+    private ReachabilityCacheEntry getReachabilityEntry(AltoClef mod, LivingEntity entity) {
+        long currentTick = mod.getPlayer().age;
+        ReachabilityCacheEntry cached = reachabilityCache.get(entity.getUuid());
+        BlockPos targetPos = entity.getBlockPos();
+        if (cached == null || !cached.targetPos.equals(targetPos) || currentTick - cached.tickUpdated > REACHABILITY_CACHE_TTL_TICKS) {
+            boolean withinRange = entity.squaredDistanceTo(mod.getPlayer()) <= REACHABILITY_DISTANCE_MAX * REACHABILITY_DISTANCE_MAX;
+            boolean reachable = withinRange && WorldHelper.canReach(targetPos);
+            cached = new ReachabilityCacheEntry(targetPos, reachable, false, currentTick);
+            reachabilityCache.put(entity.getUuid(), cached);
+        }
+        return cached;
     }
 
     private static boolean hasShield(AltoClef mod) {
@@ -638,5 +1175,31 @@ public class MobDefenseChain extends SingleTaskChain {
     @Override
     public String getName() {
         return "Mob Defense";
+    }
+
+    @Override
+    public String getDebugContext() {
+        Task current = getCurrentTask();
+        String taskInfo = current == null ? "<none>" : current.toString();
+        String targetInfo = targetEntity != null ? targetEntity.getType().getTranslationKey() : "<none>";
+        String lockedInfo = lockedOnEntity != null ? lockedOnEntity.getType().getTranslationKey() : "<none>";
+        String failsafeInfo = failsafeTask != null ? failsafeTask.getReason() + "@" + failsafeTask.getStageName() : "<none>";
+        boolean immediateThreat = latestThreats.stream().anyMatch(snapshot -> snapshot.immediate);
+        boolean runAwayActive = runAwayTask != null && !runAwayTask.isFinished();
+        return String.format(Locale.ROOT,
+                "state=%s, priority=%.1f, task=%s, threats=%d, immediate=%s, failsafe=%s, runAway=%s, target=%s, locked=%s, tookDamage=%s, noDamage=%.1fs, water=%.1fs, persistent=%.1fs",
+                defenseState,
+                cachedLastPriority,
+                taskInfo,
+                latestThreats.size(),
+                immediateThreat,
+                failsafeInfo,
+                runAwayActive,
+                targetInfo,
+                lockedInfo,
+                playerTookDamageThisTick,
+                noDamageTimer.getDuration(),
+                waterStuckTimer.getDuration(),
+                persistentThreatTimer.getDuration());
     }
 }

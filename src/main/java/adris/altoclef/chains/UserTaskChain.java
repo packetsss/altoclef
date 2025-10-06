@@ -8,6 +8,8 @@ import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskRunner;
 import adris.altoclef.util.time.Stopwatch;
 
+import java.util.Locale;
+
 // A task chain that runs a user defined task at the same priority.
 // This basically replaces our old Task Runner.
 public class UserTaskChain extends SingleTaskChain {
@@ -122,6 +124,19 @@ public class UserTaskChain extends SingleTaskChain {
                 runningIdleTask = true;
             }
         }
+    }
+
+    @Override
+    public String getDebugContext() {
+        Task current = getCurrentTask();
+        String taskInfo = current == null ? "<none>" : current.toString();
+        boolean active = current != null && current.isActive();
+        return String.format(Locale.ROOT,
+                "idle=%s, active=%s, task=%s, elapsed=%.1fs",
+                runningIdleTask,
+                active,
+                taskInfo,
+                taskStopwatch.time());
     }
 
     public boolean isRunningIdleTask() {

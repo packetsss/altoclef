@@ -45,4 +45,8 @@ public abstract class TaskChain {
         return getName();
     }
 
+    public String getDebugContext() {
+        return "";
+    }
+
 }

@@ -24,6 +24,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.math.BlockPos;
 
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -247,9 +248,11 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
     @Override
     protected Task onTick() {
         AltoClef mod = AltoClef.getInstance();
+        BlockState targetState = mod.getWorld().getBlockState(pos);
+        String blockName = targetState.getBlock().getName().getString();
 
         // Check if there is white wool at the specified position
-        if (mod.getWorld().getBlockState(pos).getBlock() == Blocks.WHITE_WOOL) {
+        if (targetState.getBlock() == Blocks.WHITE_WOOL) {
             // Iterate over all entities in the world
             Iterable<Entity> entities = mod.getWorld().getEntities();
             for (Entity entity : entities) {
@@ -326,6 +329,14 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
         if (reach.isPresent() && (mod.getPlayer().isTouchingWater() || mod.getPlayer().isOnGround()) && !mod.getFoodChain().needsToEat() && !WorldHelper.isInNetherPortal() && mod.getClientBaritone().getPathingBehavior().isSafeToCancel()) {
             setDebugState("Block in range, mining...");
             stuckCheck.reset();
+            if (!isMining) {
+                Debug.logMessage(String.format(Locale.ROOT,
+                        "[DestroyBlock] Starting to mine %s (%s) underwater=%s safeToCancel=%s",
+                        pos.toShortString(),
+                        blockName,
+                        mod.getPlayer().isTouchingWater(),
+                        mod.getClientBaritone().getPathingBehavior().isSafeToCancel()), false);
+            }
             isMining = true;
             mod.getInputControls().release(Input.SNEAK);
             mod.getInputControls().release(Input.MOVE_BACK);
@@ -339,8 +350,22 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
             mod.getClientBaritone().getInputOverrideHandler().setInputForceState(Input.CLICK_LEFT, true);
         } else {
             setDebugState("Getting to block...");
+            if (isMining) {
+                String reason = mod.getPlayer().isTouchingWater() ? "underwater failover" : "pathing";
+                Debug.logMessage(String.format(Locale.ROOT,
+                        "[DestroyBlock] Pausing mining %s (%s) due to %s (safeToCancel=%s reach=%s)",
+                        pos.toShortString(),
+                        blockName,
+                        reason,
+                        mod.getClientBaritone().getPathingBehavior().isSafeToCancel(),
+                        reach.isPresent()), false);
+            }
             if (isMining && mod.getPlayer().isTouchingWater()) {
                 setDebugState("We are in water... holding break button");
+                Debug.logMessage(String.format(Locale.ROOT,
+                        "[DestroyBlock] Holding break underwater at %s (%s)",
+                        pos.toShortString(),
+                        blockName), false);
                 isMining = false;
                 mod.getBlockScanner().requestBlockUnreachable(pos);
                 mod.getInputControls().hold(Input.CLICK_LEFT);
@@ -379,6 +404,25 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
 
         // Cancel Baritone pathing
         mod.getClientBaritone().getPathingBehavior().forceCancel();
+
+        if (interruptTask != null) {
+            Debug.logMessage(String.format(Locale.ROOT,
+                    "[DestroyBlock] Stop @%s interrupted by %s (active=%s, finished=%s)",
+                    pos.toShortString(),
+                    interruptTask.getClass().getSimpleName(),
+                    interruptTask.isActive(),
+                    interruptTask.isFinished()), false);
+        } else if (AltoClef.inGame()) {
+            BlockState remaining = mod.getWorld().getBlockState(pos);
+            Debug.logMessage(String.format(Locale.ROOT,
+                    "[DestroyBlock] Stop @%s (block now=%s)",
+                    pos.toShortString(),
+                    remaining.getBlock().getName().getString()), false);
+        } else {
+            Debug.logMessage(String.format(Locale.ROOT,
+                    "[DestroyBlock] Stop @%s (interruptTask=<none>, world unavailable)",
+                    pos.toShortString()), false);
+        }
 
         // If not in game, return
         if (!AltoClef.inGame()) {

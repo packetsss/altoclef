@@ -4,6 +4,7 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 
 import java.util.ArrayList;
+import java.util.Locale;
 
 public class TaskRunner {
 
@@ -12,6 +13,7 @@ public class TaskRunner {
     private boolean active;
 
     private TaskChain cachedCurrentTaskChain = null;
+    private float cachedCurrentPriority = Float.NEGATIVE_INFINITY;
 
     public String statusReport = " (no chain running) ";
 
@@ -37,10 +39,31 @@ public class TaskRunner {
                 maxChain = chain;
             }
         }
+        boolean chainChanged = cachedCurrentTaskChain != maxChain;
+
+    if (chainChanged) {
+            String prevName = cachedCurrentTaskChain != null ? cachedCurrentTaskChain.getName() : "<none>";
+            String prevContext = cachedCurrentTaskChain != null ? cachedCurrentTaskChain.getDebugContext() : "";
+            float prevPriority = cachedCurrentTaskChain != null ? cachedCurrentPriority : Float.NEGATIVE_INFINITY;
+            String nextName = maxChain != null ? maxChain.getName() : "<none>";
+            String nextContext = maxChain != null ? maxChain.getDebugContext() : "";
+        Debug.logMessage(String.format(Locale.ROOT,
+            "[TaskRunner] Switch %s(p=%.1f) -> %s(p=%.1f) | prev={%s} | next={%s}",
+            prevName,
+            prevPriority,
+            nextName,
+            maxPriority,
+            prevContext,
+            nextContext), false);
+        }
+
         if (cachedCurrentTaskChain != null && maxChain != cachedCurrentTaskChain) {
             cachedCurrentTaskChain.onInterrupt(maxChain);
         }
+
         cachedCurrentTaskChain = maxChain;
+        cachedCurrentPriority = maxPriority;
+
         if (maxChain != null) {
             statusReport = "Chain: "+maxChain.getName() + ", priority: "+maxPriority;
             maxChain.tick();

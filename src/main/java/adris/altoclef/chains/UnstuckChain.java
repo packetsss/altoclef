@@ -22,6 +22,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.LinkedList;
+import java.util.Locale;
 import java.util.Optional;
 
 public class UnstuckChain extends SingleTaskChain {
@@ -32,6 +33,7 @@ public class UnstuckChain extends SingleTaskChain {
     private boolean interruptedEating = false;
     private TimerGame shimmyTaskTimer = new TimerGame(5);
     private boolean startedShimmying = false;
+    private boolean waterTaskLogged = false;
 
     public UnstuckChain(TaskRunner runner) {
         super(runner);
@@ -68,7 +70,11 @@ public class UnstuckChain extends SingleTaskChain {
             }
         }
 
-        posHistory.clear();
+    double stuckSeconds = posHistory.size() / 20.0;
+    posHistory.clear();
+    Debug.logMessage(String.format(Locale.ROOT,
+        "[Unstuck] Triggering GetOutOfWaterTask after %.1fs with limited movement",
+        stuckSeconds), false);
         setTask(new GetOutOfWaterTask());
     }
 
@@ -141,8 +147,13 @@ public class UnstuckChain extends SingleTaskChain {
     @Override
     public float getPriority() {
         if (mainTask instanceof GetOutOfWaterTask && mainTask.isActive()) {
+            if (!waterTaskLogged) {
+                Debug.logMessage("[Unstuck] Continuing GetOutOfWaterTask", false);
+                waterTaskLogged = true;
+            }
             return 55;
         }
+        waterTaskLogged = false;
 
         isProbablyStuck = false;
 

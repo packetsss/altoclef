@@ -6,6 +6,8 @@ import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskChain;
 import adris.altoclef.tasksystem.TaskRunner;
 
+import java.util.Locale;
+
 public abstract class SingleTaskChain extends TaskChain {
 
     protected Task mainTask = null;
@@ -16,6 +18,13 @@ public abstract class SingleTaskChain extends TaskChain {
     public SingleTaskChain(TaskRunner runner) {
         super(runner);
         mod = runner.getMod();
+    }
+
+    private String taskSummary(Task task) {
+        if (task == null) {
+            return "<none>";
+        }
+        return String.format(Locale.ROOT, "%s %s", task.getClass().getSimpleName(), task.toString());
     }
 
     @Override
@@ -30,7 +39,16 @@ public abstract class SingleTaskChain extends TaskChain {
         }
 
         if (mainTask != null) {
-            if ((mainTask.isFinished()) || mainTask.stopped()) {
+            if (mainTask.isFinished()) {
+                Task finishedTask = mainTask;
+                onTaskFinish(mod);
+                if (mainTask != finishedTask) {
+                    Debug.logMessage(String.format(Locale.ROOT,
+                            "[Chain:%s] Task finished: %s",
+                            getName(),
+                            taskSummary(finishedTask)), false);
+                }
+            } else if (mainTask.stopped()) {
                 onTaskFinish(mod);
             } else {
                 mainTask.tick(this);
@@ -46,13 +64,36 @@ public abstract class SingleTaskChain extends TaskChain {
     }
 
     public void setTask(Task task) {
-        if (mainTask == null || !mainTask.equals(task)) {
-            if (mainTask != null) {
-                mainTask.stop(task);
-            }
-            mainTask = task;
-            if (task != null) task.reset();
+        if (mainTask != null && mainTask.equals(task)) {
+            return;
         }
+
+        Task previous = mainTask;
+        if (previous == null && task == null) {
+            return;
+        }
+        if (previous != null) {
+            Debug.logMessage(String.format(Locale.ROOT,
+                    "[Chain:%s] Replacing task %s (active=%s, finished=%s) -> %s",
+                    getName(),
+                    taskSummary(previous),
+                    previous.isActive(),
+                    previous.isFinished(),
+                    taskSummary(task)), false);
+            previous.stop(task);
+        } else if (task != null) {
+            Debug.logMessage(String.format(Locale.ROOT,
+                    "[Chain:%s] Starting task %s",
+                    getName(),
+                    taskSummary(task)), false);
+        } else {
+            Debug.logMessage(String.format(Locale.ROOT,
+                    "[Chain:%s] Clearing task queue",
+                    getName()), false);
+        }
+
+        mainTask = task;
+        if (task != null) task.reset();
     }
 
 
@@ -81,5 +122,14 @@ public abstract class SingleTaskChain extends TaskChain {
 
     public Task getCurrentTask() {
         return mainTask;
+    }
+
+    @Override
+    public String getDebugContext() {
+        Task current = getCurrentTask();
+        if (current == null) {
+            return "task=<none>";
+        }
+        return "task=" + current + ", active=" + current.isActive() + ", finished=" + current.isFinished();
     }
 }

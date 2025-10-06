@@ -277,6 +277,22 @@ public class Settings implements IFailableConfigFile {
     private boolean autoRespawn = true;
 
     /**
+     * If enabled, a new respawn point will be rolled on every death.
+     * The bot will pick a random overworld coordinate in the configured range, set its spawn there, and relocate after respawning.
+     */
+    private boolean randomRespawnEnabled = false;
+
+    /**
+     * The minimum radial distance (in blocks) from world origin used for random respawn rolls.
+     */
+    private int randomRespawnMinRadius = 2500;
+
+    /**
+     * The maximum radial distance (in blocks) from world origin used for random respawn rolls.
+     */
+    private int randomRespawnMaxRadius = 6000;
+
+    /**
      * This setting lets you configure what the bot should do if it needs to go to the nether
      * but can't find a nether portal immediately.
      * <p>
@@ -525,6 +541,18 @@ public class Settings implements IFailableConfigFile {
 
     public boolean isAutoRespawn() {
         return autoRespawn;
+    }
+
+    public boolean isRandomRespawnEnabled() {
+        return randomRespawnEnabled;
+    }
+
+    public int getRandomRespawnMinRadius() {
+        return randomRespawnMinRadius;
+    }
+
+    public int getRandomRespawnMaxRadius() {
+        return randomRespawnMaxRadius;
     }
 
     public boolean shouldReplantCrops() {
