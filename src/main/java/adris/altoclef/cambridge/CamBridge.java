@@ -145,11 +145,11 @@ public final class CamBridge implements AutoCloseable {
         String transportMode = settings.getCamBridgeTransport().toLowerCase();
         try {
             switch (transportMode) {
-                case "udp" -> newTransport = new UdpCamBridgeTransport(settings.getCamBridgeHost(), settings.getCamBridgePort());
+                case "udp" -> newTransport = createUdpTransport(settings);
                 case "file" -> newTransport = new FileCamBridgeTransport(Path.of(settings.getCamBridgeFilePath()));
                 default -> {
                     Debug.logWarning("Unknown CamBridge transport: " + transportMode + ". Falling back to UDP.");
-                    newTransport = new UdpCamBridgeTransport(settings.getCamBridgeHost(), settings.getCamBridgePort());
+                    newTransport = createUdpTransport(settings);
                 }
             }
         } catch (IOException ex) {
@@ -233,6 +233,44 @@ public final class CamBridge implements AutoCloseable {
             }
             transport = newTransport;
         }
+    }
+
+    private CamBridgeTransport createUdpTransport(Settings settings) throws IOException {
+        String host = settings.getCamBridgeHost();
+        int primaryPort = settings.getCamBridgePort();
+        List<Integer> mirrors = settings.getCamBridgeMirrorUdpPorts();
+        List<CamBridgeTransport> transports = new ArrayList<>();
+        Set<Integer> seenPorts = new HashSet<>();
+
+        try {
+            transports.add(new UdpCamBridgeTransport(host, primaryPort));
+            seenPorts.add(primaryPort);
+            if (mirrors != null) {
+                for (int mirrorPort : mirrors) {
+                    if (mirrorPort <= 0 || seenPorts.contains(mirrorPort)) {
+                        continue;
+                    }
+                    transports.add(new UdpCamBridgeTransport(host, mirrorPort));
+                    seenPorts.add(mirrorPort);
+                }
+            }
+        } catch (IOException ex) {
+            for (CamBridgeTransport transport : transports) {
+                try {
+                    transport.close();
+                } catch (IOException ignored) {
+                }
+            }
+            throw ex;
+        }
+
+        if (transports.isEmpty()) {
+            throw new IOException("No valid CamBridge UDP transports configured.");
+        }
+        if (transports.size() == 1) {
+            return transports.get(0);
+        }
+        return new CompositeCamBridgeTransport(transports);
     }
 
     private void resetState() {

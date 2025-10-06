@@ -313,6 +313,11 @@ public class Settings implements IFailableConfigFile {
     private int camBridgePort = 36666;
 
     /**
+     * Additional UDP ports on the same host that mirror CamBridge events (useful for multiple consumers).
+     */
+    private List<Integer> camBridgeMirrorUdpPorts = Collections.singletonList(36667);
+
+    /**
      * Filesystem path used when CamBridge transport is set to "file".
      */
     private String camBridgeFilePath = "cambridge-events.jsonl";
@@ -598,6 +603,13 @@ public class Settings implements IFailableConfigFile {
 
     public String getCamBridgeFilePath() {
         return camBridgeFilePath == null || camBridgeFilePath.isBlank() ? "cambridge-events.jsonl" : camBridgeFilePath;
+    }
+
+    public List<Integer> getCamBridgeMirrorUdpPorts() {
+        if (camBridgeMirrorUdpPorts == null) {
+            return Collections.emptyList();
+        }
+        return camBridgeMirrorUdpPorts;
     }
 
     public boolean shouldReplantCrops() {

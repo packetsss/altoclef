@@ -24,7 +24,7 @@ CamBridge emits compact JSON objects once per client tick after AltoClef starts 
 
 ### 2.1 UDP transport (default)
 
-1. **Port information.** By default CamBridge fires on `127.0.0.1:36666`. The AltoClef operator can change this in `altoclef_settings.json` (`camBridgeHost`, `camBridgePort`). You need the final values.
+1. **Port information.** By default CamBridge fires on `127.0.0.1:36666`. The AltoClef operator can change this in `altoclef_settings.json` (`camBridgeHost`, `camBridgePort`) and optionally mirror the feed to extra loopback ports via `camBridgeMirrorUdpPorts`. Make sure you know which port you should bind.
 2. **Listening locally.** Run your camera mod or diagnostic tool on the same machine as AltoClef. The stream is newline-delimited UTF-8 JSON. Any UDP client that binds the port will see the traffic.
 3. **Sanity check from PowerShell (Windows):**
    ```powershell
@@ -41,6 +41,8 @@ CamBridge emits compact JSON objects once per client tick after AltoClef starts 
    ```
    Replace `36666` if a different port was agreed upon. You should see `HEARTBEAT` JSON every ~10 seconds even when nothing else is happening.
 4. **Firewall notes.** Because CamBridge binds to loopback only, nothing ever leaves the local PC. No extra firewall rules are needed.
+
+> Looking for a ready-to-run consumer? Check `integrations/python-client/README.md` for a Python listener that binds the mirrored port `127.0.0.1:36667` and prints formatted events.
 
 ### 2.2 File transport
 
