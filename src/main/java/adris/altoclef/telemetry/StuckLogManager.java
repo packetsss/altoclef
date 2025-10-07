@@ -2,6 +2,7 @@ package adris.altoclef.telemetry;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
+import adris.altoclef.Settings;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskChain;
 import adris.altoclef.tasksystem.TaskRunner;
@@ -10,15 +11,11 @@ import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import net.minecraft.block.BlockState;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -30,7 +27,6 @@ import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.LightType;
 import net.minecraft.world.biome.Biome;
-import net.minecraft.text.Text;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -48,13 +44,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
- * Collects rich diagnostic snapshots whenever the player dies and emits them as JSON lines.
+ * Emits rich telemetry snapshots whenever the bot detects a stall condition.
  */
-public final class DeathLogManager {
+public final class StuckLogManager {
 
     private static final int MAX_HOSTILES = 12;
     private static final int MAX_DROPS = 16;
@@ -64,21 +60,22 @@ public final class DeathLogManager {
 
     private final AltoClef mod;
     private final ObjectMapper mapper = new ObjectMapper();
-    private final AtomicInteger sessionSequence = new AtomicInteger(0);
+    private final AtomicLong sequence = new AtomicLong(0L);
     private final String sessionId = UUID.randomUUID().toString();
-    private final Path logDir = Paths.get("altoclef", "logs", "death");
+    private final Path logDir = Paths.get("altoclef", "logs", "stuck");
     private final Path logFile;
 
-    public DeathLogManager(AltoClef mod) {
+    public StuckLogManager(AltoClef mod) {
         this.mod = mod;
-    String fileName = String.format(Locale.ROOT, "death-log-%s-%s.jsonl",
-        FILE_TIMESTAMP_FORMAT.format(LocalDateTime.now(ZoneOffset.UTC)),
-        sessionId.substring(0, 8));
-    this.logFile = logDir.resolve(fileName);
+        String fileName = String.format(Locale.ROOT, "stuck-log-%s-%s.jsonl",
+                FILE_TIMESTAMP_FORMAT.format(LocalDateTime.now(ZoneOffset.UTC)),
+                sessionId.substring(0, 8));
+        this.logFile = logDir.resolve(fileName);
     }
 
-    public void recordDeath(int deathNumber, String deathMessage) {
-        if (mod == null || mod.getModSettings() == null || !mod.getModSettings().isDeathLogEnabled()) {
+    public void recordEvent(String category, Map<String, Object> details) {
+        Settings settings = mod.getModSettings();
+        if (settings == null || !settings.isStuckLogEnabled()) {
             return;
         }
 
@@ -87,26 +84,24 @@ public final class DeathLogManager {
         root.put("timestamp_utc", timestamp.toString());
         root.put("timestamp_epoch_ms", System.currentTimeMillis());
         root.put("session_id", sessionId);
-        root.put("session_death_index", sessionSequence.incrementAndGet());
-        root.put("death_counter", deathNumber);
-        root.put("death_message", deathMessage);
+        root.put("sequence", sequence.incrementAndGet());
+        root.put("category", category);
         root.put("game_tick", WorldHelper.getTicks());
         root.put("paused", mod.isPaused());
 
         ClientPlayerEntity player = mod.getPlayer();
         ClientWorld world = mod.getWorld();
 
-    root.put("player", collectPlayerContext(player, world));
+        root.put("player", collectPlayerContext(player, world));
         root.put("world", collectWorldContext(player, world));
         root.put("inventory", collectInventoryContext(player));
         root.put("tasks", collectTaskContext());
-        root.put("threats", collectThreatContext(player));
-        root.put("drops_nearby", collectNearbyDrops(player));
+        root.put("payload", details == null ? Map.of() : details);
 
         try {
-            writeSnapshot(root);
+            writeSnapshot(root, category);
         } catch (IOException ex) {
-            Debug.logWarning("Failed to write death log entry: " + ex.getMessage());
+            Debug.logWarning("Failed to write stuck log entry: " + ex.getMessage());
         }
     }
 
@@ -118,20 +113,16 @@ public final class DeathLogManager {
         }
         playerMap.put("present", true);
         playerMap.put("uuid", player.getUuidAsString());
-    playerMap.put("name", player.getName().getString());
+        playerMap.put("name", player.getName().getString());
         playerMap.put("dimension", world != null ? world.getRegistryKey().getValue().toString() : "<unknown>");
         playerMap.put("alto_dimension", WorldHelper.getCurrentDimension().name());
-
-        Vec3d pos = player.getPos();
-        BlockPos blockPos = player.getBlockPos();
-        playerMap.put("pos", vectorMap(pos));
-        playerMap.put("block_pos", blockPosMap(blockPos));
+        playerMap.put("pos", vectorMap(player.getPos()));
+        playerMap.put("block_pos", blockPosMap(player.getBlockPos()));
         playerMap.put("velocity", vectorMap(player.getVelocity()));
         playerMap.put("rotation", Map.of(
                 "yaw", round(player.getYaw(), 3),
                 "pitch", round(player.getPitch(), 3)
         ));
-
         playerMap.put("health", round(player.getHealth(), 2));
         playerMap.put("max_health", round(player.getMaxHealth(), 2));
         playerMap.put("absorption", round(player.getAbsorptionAmount(), 2));
@@ -157,38 +148,26 @@ public final class DeathLogManager {
         playerMap.put("off_hand", describeStack(player.getOffHandStack()));
 
         if (world != null) {
-            RegistryEntry<Biome> biomeEntry = world.getBiome(blockPos);
+            RegistryEntry<Biome> biomeEntry = world.getBiome(player.getBlockPos());
             playerMap.put("biome", biomeEntry.getKey().map(key -> key.getValue().toString()).orElse("<unknown>"));
         }
 
         List<Map<String, Object>> statusList = new ArrayList<>();
-        for (StatusEffectInstance effect : player.getStatusEffects()) {
-            if (statusList.size() >= MAX_STATUS_EFFECTS) break;
+        player.getStatusEffects().stream().limit(MAX_STATUS_EFFECTS).forEach(effect -> {
             Map<String, Object> entry = new LinkedHashMap<>();
             RegistryEntry<?> typeEntry = effect.getEffectType();
             entry.put("id", typeEntry.getKey().map(key -> key.getValue().toString()).orElse(effect.getTranslationKey()));
-            entry.put("name", Text.translatable(effect.getTranslationKey()).getString());
             entry.put("amplifier", effect.getAmplifier());
             entry.put("duration", effect.getDuration());
             entry.put("ambient", effect.isAmbient());
             entry.put("show_particles", effect.shouldShowParticles());
             entry.put("show_icon", effect.shouldShowIcon());
             statusList.add(entry);
-        }
+        });
         playerMap.put("status_effects", statusList);
 
-        DamageSource source = player.getRecentDamageSource();
-        if (source != null) {
-            Map<String, Object> damageMap = new LinkedHashMap<>();
-            damageMap.put("message", source.getDeathMessage(player).getString());
-            damageMap.put("type", source.getTypeRegistryEntry().getKey().map(key -> key.getValue().toString()).orElse(source.toString()));
-            if (source.getAttacker() != null) {
-                damageMap.put("attacker", describeEntity(source.getAttacker()));
-            }
-            playerMap.put("recent_damage", damageMap);
-        }
-
         Map<String, Object> surroundings = new LinkedHashMap<>();
+        BlockPos blockPos = player.getBlockPos();
         surroundings.put("block_feet", blockStateId(world != null ? world.getBlockState(blockPos) : null));
         surroundings.put("block_below", blockStateId(world != null ? world.getBlockState(blockPos.down()) : null));
         surroundings.put("block_head", blockStateId(world != null ? world.getBlockState(blockPos.up()) : null));
@@ -336,73 +315,54 @@ public final class DeathLogManager {
         tasks.put("chains", chains);
         tasks.put("stored_task", mod.getStoredTask() != null ? mod.getStoredTask().toString() : null);
 
+        EntityTracker tracker = mod.getEntityTracker();
+        ClientPlayerEntity player = mod.getPlayer();
+        if (tracker != null && player != null) {
+            Vec3d playerPos = player.getPos();
+            List<LivingEntity> hostiles = new ArrayList<>(tracker.getHostiles());
+            hostiles.sort(Comparator.comparingDouble(entity -> entity.squaredDistanceTo(playerPos)));
+            List<Map<String, Object>> threatSummaries = new ArrayList<>();
+            for (LivingEntity hostile : hostiles) {
+                if (threatSummaries.size() >= MAX_HOSTILES) break;
+                Map<String, Object> entry = describeEntity(hostile);
+                entry.put("distance_sq", round(hostile.squaredDistanceTo(playerPos), 3));
+                entry.put("distance", round(Math.sqrt(hostile.squaredDistanceTo(playerPos)), 3));
+                threatSummaries.add(entry);
+            }
+            tasks.put("nearby_threats", threatSummaries);
+
+            List<ItemEntity> drops = new ArrayList<>(tracker.getDroppedItems());
+            drops.sort(Comparator.comparingDouble(entity -> entity.squaredDistanceTo(playerPos)));
+            List<Map<String, Object>> dropSummaries = new ArrayList<>();
+            for (ItemEntity drop : drops) {
+                if (dropSummaries.size() >= MAX_DROPS) break;
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("item", itemId(drop.getStack().getItem()));
+                entry.put("count", drop.getStack().getCount());
+                entry.put("distance", round(Math.sqrt(drop.squaredDistanceTo(playerPos)), 3));
+                entry.put("pos", vectorMap(drop.getPos()));
+                dropSummaries.add(entry);
+            }
+            tasks.put("nearby_drops", dropSummaries);
+        }
+
         return tasks;
     }
 
-    private List<Map<String, Object>> collectThreatContext(ClientPlayerEntity player) {
-        List<Map<String, Object>> threats = new ArrayList<>();
-        EntityTracker tracker = mod.getEntityTracker();
-        if (player == null || tracker == null) {
-            return threats;
-        }
-        Vec3d playerPos = player.getPos();
-        List<LivingEntity> hostiles = new ArrayList<>(tracker.getHostiles());
-        hostiles.sort(Comparator.comparingDouble(entity -> entity.squaredDistanceTo(playerPos)));
-        for (LivingEntity hostile : hostiles) {
-            if (threats.size() >= MAX_HOSTILES) break;
-            Map<String, Object> entry = describeEntity(hostile);
-            entry.put("distance_sq", round(hostile.squaredDistanceTo(playerPos), 3));
-            entry.put("distance", round(Math.sqrt(hostile.squaredDistanceTo(playerPos)), 3));
-            entry.put("health", round(hostile.getHealth(), 2));
-            entry.put("max_health", round(hostile.getMaxHealth(), 2));
-            entry.put("on_fire", hostile.isOnFire());
-            entry.put("is_burning", hostile.isOnFire());
-            if (hostile instanceof MobEntity mob) {
-                entry.put("targeting_player", mob.getTarget() != null && mob.getTarget().equals(player));
-                entry.put("aggressive", mob.isAttacking());
-            }
-            threats.add(entry);
-        }
-        return threats;
-    }
-
-    private List<Map<String, Object>> collectNearbyDrops(ClientPlayerEntity player) {
-        List<Map<String, Object>> drops = new ArrayList<>();
-        EntityTracker tracker = mod.getEntityTracker();
-        if (player == null || tracker == null) {
-            return drops;
-        }
-        Vec3d playerPos = player.getPos();
-        List<ItemEntity> allDrops = tracker.getDroppedItems();
-        allDrops.sort(Comparator.comparingDouble(entity -> entity.squaredDistanceTo(playerPos)));
-        for (ItemEntity drop : allDrops) {
-            if (drops.size() >= MAX_DROPS) break;
-            double distSq = drop.squaredDistanceTo(playerPos);
-            Map<String, Object> entry = new LinkedHashMap<>();
-            entry.put("item", itemId(drop.getStack().getItem()));
-            entry.put("display_name", drop.getStack().getName().getString());
-            entry.put("count", drop.getStack().getCount());
-            entry.put("distance_sq", round(distSq, 3));
-            entry.put("distance", round(Math.sqrt(distSq), 3));
-            entry.put("pos", vectorMap(drop.getPos()));
-            drops.add(entry);
-        }
-        return drops;
-    }
-
-    private void writeSnapshot(Map<String, Object> snapshot) throws IOException {
+    private void writeSnapshot(Map<String, Object> snapshot, String category) throws IOException {
         Files.createDirectories(logDir);
         String json;
         try {
             json = mapper.writeValueAsString(snapshot);
         } catch (JsonProcessingException ex) {
-            Debug.logWarning("Failed to serialize death log snapshot: " + ex.getMessage());
+            Debug.logWarning("Failed to serialize stuck log snapshot: " + ex.getMessage());
             return;
         }
         Files.writeString(logFile, json + System.lineSeparator(), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         Debug.logMessage(String.format(Locale.ROOT,
-                "[DeathLog] Captured detailed death entry #%d -> %s",
-                snapshot.getOrDefault("death_counter", -1),
+                "[StuckLog] Captured %s snapshot #%d -> %s",
+                category,
+                snapshot.getOrDefault("sequence", -1),
                 logFile.toString()), false);
     }
 
@@ -446,7 +406,7 @@ public final class DeathLogManager {
         return data;
     }
 
-    private static String blockStateId(BlockState state) {
+    private static String blockStateId(net.minecraft.block.BlockState state) {
         if (state == null) {
             return "<none>";
         }
@@ -485,21 +445,5 @@ public final class DeathLogManager {
         }
         double scale = Math.pow(10, decimals);
         return Math.round(value * scale) / scale;
-    }
-
-    public record ChainDiagnostics(String name, boolean active, boolean current, String debugContext,
-                                   List<TaskRunner.TaskDiagnostics> tasks) {
-    }
-
-    public record TaskDiagnostics(String className, String summary, boolean finished, boolean active, boolean stopped) {
-        public Map<String, Object> asMap() {
-            Map<String, Object> map = new LinkedHashMap<>();
-            map.put("class", className);
-            map.put("summary", summary);
-            map.put("finished", finished);
-            map.put("active", active);
-            map.put("stopped", stopped);
-            return map;
-        }
     }
 }

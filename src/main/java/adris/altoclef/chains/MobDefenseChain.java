@@ -7,6 +7,7 @@ import adris.altoclef.multiversion.versionedfields.Entities;
 import adris.altoclef.multiversion.item.ItemVer;
 import adris.altoclef.tasks.construction.ProjectileProtectionWallTask;
 import adris.altoclef.tasks.entity.KillEntitiesTask;
+import adris.altoclef.tasks.entity.KillEntityTask;
 import adris.altoclef.tasks.defense.DefenseFailsafeTask;
 import adris.altoclef.tasks.defense.DefenseFailsafeTask.Reason;
 import adris.altoclef.tasks.movement.CustomBaritoneGoalTask;
@@ -84,9 +85,15 @@ public class MobDefenseChain extends SingleTaskChain {
     private static final double PANIC_RETREAT_MIN_HOLD_SECONDS = 2.5;
     private static final double PANIC_RETREAT_LOG_COOLDOWN_SECONDS = 0.5;
     private static final double IMMEDIATE_THREAT_HOLD_SECONDS = 3.0;
+    private static final double SHIELD_STALL_WINDOW_SECONDS = 6.0;
+    private static final double SHIELD_STALL_MOVEMENT_THRESHOLD = 1.1;
+    private static final double PROJECTILE_HOLD_MAX_SECONDS = 3.5;
+    private static final double DEFENSE_IDLE_STALL_SECONDS = 8.0;
+    private static final double DEFENSE_IDLE_MOVEMENT_THRESHOLD = 2.0;
     private static final int FAILSAFE_PILLAR_EXTRA_HEIGHT = 4;
     private static final float DEFENSE_BASE_PRIORITY = 60f;
-    private static final List<Class<? extends Entity>> ignoredMobs = List.of(Entities.WARDEN, WitherEntity.class, EndermanEntity.class, BlazeEntity.class,
+    private static final long IGNORED_LOG_COOLDOWN_TICKS = 100;
+    private static final List<Class<? extends Entity>> ignoredMobs = List.of(Entities.WARDEN, WitherEntity.class, EndermanEntity.class,
             WitherSkeletonEntity.class, HoglinEntity.class, ZoglinEntity.class, PiglinBruteEntity.class, VindicatorEntity.class, MagmaCubeEntity.class);
 
     private static boolean shielding = false;
@@ -117,12 +124,20 @@ public class MobDefenseChain extends SingleTaskChain {
     private DefenseFailsafeTask failsafeTask;
     private List<ThreatSnapshot> latestThreats = Collections.emptyList();
     private final Map<UUID, ReachabilityCacheEntry> reachabilityCache = new HashMap<>();
+    private final Map<UUID, Long> ignoredLogTimestamps = new HashMap<>();
     private Entity lastPrimaryThreat;
     private boolean playerTookDamageThisTick;
     private boolean absorptionLostThisTick;
     private Vec3d lastPlayerPos;
     private double lastWaterStuckLogSeconds = 0;
     private boolean panicRetreatActive = false;
+    private final TimerGame shieldHoldTimer = new TimerGame(SHIELD_STALL_WINDOW_SECONDS);
+    private Vec3d shieldHoldAnchor = null;
+    private boolean shieldHoldTriggered = false;
+    private final TimerGame projectileHoldTimer = new TimerGame(PROJECTILE_HOLD_MAX_SECONDS);
+    private boolean projectileHoldActive = false;
+    private Vec3d defenseIdleAnchor = null;
+    private final TimerGame defenseIdleTimer = new TimerGame(DEFENSE_IDLE_STALL_SECONDS);
 
     public MobDefenseChain(TaskRunner runner) {
         super(runner);
@@ -387,6 +402,10 @@ public class MobDefenseChain extends SingleTaskChain {
             }
         }
         boolean projectileIncoming = false;
+        boolean projectileTimeoutTriggered = false;
+        Vec3d projectileTimeoutAnchor = null;
+        double projectileTimeoutDuration = 0;
+        double projectileTimeoutDisplacement = 0;
         synchronized (BaritoneHelper.MINECRAFT_LOCK) {
             projectileIncoming = isProjectileClose(mod);
             // Block projectiles with shield
@@ -398,14 +417,47 @@ public class MobDefenseChain extends SingleTaskChain {
                 ItemStack shieldSlot = StorageHelper.getItemStackInSlot(PlayerSlot.OFFHAND_SLOT);
                 if (shieldSlot.getItem() != Items.SHIELD) {
                     mod.getSlotHandler().forceEquipItemToOffhand(Items.SHIELD);
+                    resetShieldHoldState();
+                    projectileHoldActive = false;
                 } else {
-                    startShielding(mod);
+                    if (handleShieldHoldStall(mod, "ProjectileShieldHold")) {
+                        projectileHoldActive = false;
+                        return 80;
+                    }
+                    if (!projectileHoldActive) {
+                        projectileHoldTimer.reset();
+                        projectileHoldActive = true;
+                    }
+                    if (projectileHoldTimer.elapsed()) {
+                        Vec3d anchor = shieldHoldAnchor != null ? shieldHoldAnchor : mod.getPlayer().getPos();
+                        double displacement = anchor != null ? Math.sqrt(mod.getPlayer().getPos().squaredDistanceTo(anchor)) : 0;
+                        projectileTimeoutAnchor = anchor;
+                        projectileTimeoutDuration = projectileHoldTimer.getDuration();
+                        projectileTimeoutDisplacement = displacement;
+                        projectileTimeoutTriggered = true;
+                        projectileHoldActive = false;
+                        resetShieldHoldState();
+                    } else {
+                        startShielding(mod);
+                        return 60;
+                    }
                 }
-                return 60;
             }
             if (blowingUp == null && !projectileIncoming) {
                 stopShielding(mod);
             }
+            if (!projectileIncoming) {
+                projectileHoldActive = false;
+                resetShieldHoldState();
+            }
+        }
+
+        if (projectileTimeoutTriggered) {
+            Map<String, Object> extras = new LinkedHashMap<>();
+            extras.put("stall_type", "projectile_timeout");
+            respondToDefenseStall(mod, "ProjectileShieldTimeout", projectileTimeoutAnchor, projectileTimeoutDuration, projectileTimeoutDisplacement, extras);
+            projectileHoldTimer.reset();
+            return 85;
         }
 
         if (targetIsNonHostile
@@ -519,6 +571,8 @@ public class MobDefenseChain extends SingleTaskChain {
                 if (isIgnored) {
                     if (mod.getPlayer().getHealth() <= 10) {
                         toDealWithList.add(hostile);
+                    } else {
+                        maybeLogIgnored(mod, hostile, "ignore-list");
                     }
                 } else {
                     toDealWithList.add(hostile);
@@ -563,6 +617,9 @@ public class MobDefenseChain extends SingleTaskChain {
                     return 80;
                 }
             }
+        }
+        if (handleDefenseIdleStall(mod)) {
+            return 80;
         }
         // By default, if we aren't "immediately" in danger but were running away, keep
         // running away until we're good.
@@ -741,10 +798,16 @@ public class MobDefenseChain extends SingleTaskChain {
         noDamageTimer.reset();
         needsChangeOnAttack = false;
         lockedOnEntity = null;
+    ignoredLogTimestamps.clear();
         panicRetreatActive = false;
         panicRetreatHoldTimer.forceElapse();
         panicRetreatLogTimer.forceElapse();
         immediateThreatHoldTimer.forceElapse();
+        resetShieldHoldState();
+    projectileHoldActive = false;
+    projectileHoldTimer.forceElapse();
+    defenseIdleAnchor = null;
+    defenseIdleTimer.forceElapse();
         AltoClef mod = AltoClef.inGame() ? AltoClef.getInstance() : null;
         if (mod != null) {
             killAura.stopShielding(mod);
@@ -801,6 +864,189 @@ public class MobDefenseChain extends SingleTaskChain {
                     movementSq), false);
             lastWaterStuckLogSeconds = elapsed;
         }
+    }
+
+    private boolean handleShieldHoldStall(AltoClef mod, String reason) {
+        if (mod.getPlayer() == null || defenseState == DefenseState.FAILSAFE) {
+            resetShieldHoldState();
+            return false;
+        }
+        if (latestThreats.isEmpty()) {
+            shieldHoldAnchor = null;
+            shieldHoldTriggered = false;
+            return false;
+        }
+        Vec3d currentPos = mod.getPlayer().getPos();
+        if (shieldHoldAnchor == null) {
+            shieldHoldAnchor = currentPos;
+            shieldHoldTimer.reset();
+            shieldHoldTriggered = false;
+            return false;
+        }
+        double displacementSq = currentPos.squaredDistanceTo(shieldHoldAnchor);
+        double thresholdSq = SHIELD_STALL_MOVEMENT_THRESHOLD * SHIELD_STALL_MOVEMENT_THRESHOLD;
+        if (displacementSq > thresholdSq) {
+            shieldHoldAnchor = currentPos;
+            shieldHoldTimer.reset();
+            shieldHoldTriggered = false;
+            return false;
+        }
+        if (!shieldHoldTriggered && shieldHoldTimer.elapsed()) {
+            shieldHoldTriggered = true;
+            Vec3d anchor = shieldHoldAnchor;
+            double duration = shieldHoldTimer.getDuration();
+            double displacement = Math.sqrt(displacementSq);
+            Map<String, Object> extras = new LinkedHashMap<>();
+            extras.put("stall_type", "projectile_shield");
+            respondToDefenseStall(mod, reason, anchor, duration, displacement, extras);
+            shieldHoldAnchor = currentPos;
+            shieldHoldTimer.reset();
+            shieldHoldTriggered = false;
+            return true;
+        }
+        return false;
+    }
+
+    private boolean handleDefenseIdleStall(AltoClef mod) {
+        if (mod.getPlayer() == null || defenseState == DefenseState.FAILSAFE) {
+            defenseIdleAnchor = null;
+            return false;
+        }
+        if (mainTask != null || (runAwayTask != null && !runAwayTask.isFinished()) || failsafeTask != null || panicRetreatActive) {
+            defenseIdleAnchor = null;
+            return false;
+        }
+        if (latestThreats.isEmpty() || latestThreats.stream().noneMatch(snapshot -> snapshot.immediate)) {
+            defenseIdleAnchor = null;
+            return false;
+        }
+        Vec3d currentPos = mod.getPlayer().getPos();
+        if (defenseIdleAnchor == null) {
+            defenseIdleAnchor = currentPos;
+            defenseIdleTimer.reset();
+            return false;
+        }
+        double displacementSq = currentPos.squaredDistanceTo(defenseIdleAnchor);
+        double thresholdSq = DEFENSE_IDLE_MOVEMENT_THRESHOLD * DEFENSE_IDLE_MOVEMENT_THRESHOLD;
+        if (displacementSq > thresholdSq) {
+            defenseIdleAnchor = currentPos;
+            defenseIdleTimer.reset();
+            return false;
+        }
+        if (defenseIdleTimer.elapsed()) {
+            Vec3d anchor = defenseIdleAnchor;
+            double displacement = Math.sqrt(displacementSq);
+            double duration = defenseIdleTimer.getDuration();
+            Map<String, Object> extras = new LinkedHashMap<>();
+            extras.put("stall_type", "idle_no_task");
+            respondToDefenseStall(mod, "IdleNoTask", anchor, duration, displacement, extras);
+            defenseIdleAnchor = currentPos;
+            defenseIdleTimer.reset();
+            return true;
+        }
+        return false;
+    }
+
+    private void resetShieldHoldState() {
+        shieldHoldAnchor = null;
+        shieldHoldTriggered = false;
+        shieldHoldTimer.forceElapse();
+    }
+
+    private void respondToDefenseStall(AltoClef mod, String reason, Vec3d anchor, double duration, double displacement, Map<String, Object> extras) {
+        stopShielding(mod);
+        killAura.stopShielding(mod);
+        double playerHealth = mod.getPlayer() != null ? mod.getPlayer().getHealth() : Double.NaN;
+        double absorption = mod.getPlayer() != null ? mod.getPlayer().getAbsorptionAmount() : Double.NaN;
+        Vec3d currentPos = mod.getPlayer() != null ? mod.getPlayer().getPos() : Vec3d.ZERO;
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("reason", reason);
+        payload.put("duration_seconds", round(duration, 2));
+        payload.put("displacement", round(displacement, 3));
+        payload.put("state", defenseState.toString());
+        payload.put("threat_count", latestThreats.size());
+        payload.put("shielding", mod.getPlayer() != null && mod.getPlayer().isBlocking());
+        payload.put("health", round(playerHealth, 2));
+        payload.put("absorption", round(absorption, 2));
+        payload.put("priority", round(cachedLastPriority, 2));
+        payload.put("anchor_pos", anchor != null ? vectorMap(anchor) : null);
+        payload.put("player_pos", vectorMap(currentPos));
+        payload.put("dimension", mod.getWorld() != null ? mod.getWorld().getRegistryKey().getValue().toString() : "<unknown>");
+        payload.put("current_task", mainTask != null ? mainTask.getClass().getSimpleName() : "<none>");
+        payload.put("run_task", runAwayTask != null ? runAwayTask.getClass().getSimpleName() : "<none>");
+        payload.put("failsafe", failsafeTask != null ? failsafeTask.getReason().toString() : "<none>");
+        payload.put("target", targetEntity != null ? targetEntity.getType().getTranslationKey() : "<none>");
+        payload.put("locked", lockedOnEntity != null ? lockedOnEntity.getType().getTranslationKey() : "<none>");
+        payload.put("threat_samples", latestThreats.stream().limit(4).map(this::summarizeThreat).collect(Collectors.toList()));
+        if (extras != null) {
+            payload.putAll(extras);
+        }
+        ItemStack offhand = StorageHelper.getItemStackInSlot(PlayerSlot.OFFHAND_SLOT);
+        if (!offhand.isEmpty() && offhand.getItem() == Items.SHIELD) {
+            payload.put("shield_durability", offhand.getMaxDamage() - offhand.getDamage());
+        }
+        if (mod.getStuckLogManager() != null) {
+            mod.getStuckLogManager().recordEvent("MobDefenseStall", payload);
+        }
+        Debug.logMessage(String.format(Locale.ROOT,
+                "[MobDefense] Stall detected reason=%s duration=%.1fs displacement=%.2f threats=%d",
+                reason,
+                duration,
+                displacement,
+                latestThreats.size()), false);
+        forceAttackOrRetreat(mod);
+    }
+
+    private void forceAttackOrRetreat(AltoClef mod) {
+        Optional<ThreatSnapshot> attackCandidate = latestThreats.stream()
+                .filter(snapshot -> snapshot.immediate)
+                .filter(snapshot -> snapshot.reachable)
+                .findFirst();
+        defenseActiveTimer.reset();
+        persistentThreatTimer.reset();
+        staleTargetTimer.reset();
+        if (attackCandidate.isPresent()) {
+            Entity target = attackCandidate.get().entity;
+            lockedOnEntity = target;
+            needsChangeOnAttack = true;
+            runAwayTask = null;
+            doingFunkyStuff = false;
+            setTask(new KillEntityTask(target));
+            defenseState = DefenseState.ACTIVE;
+        } else {
+            doingFunkyStuff = true;
+            runAwayTask = new RunAwayFromHostilesTask(DANGER_KEEP_DISTANCE, true);
+            defenseState = DefenseState.RETREAT;
+            setTask(runAwayTask);
+        }
+    }
+
+    private Map<String, Object> summarizeThreat(ThreatSnapshot snapshot) {
+        Map<String, Object> info = new LinkedHashMap<>();
+        info.put("type", snapshot.entity.getType().getTranslationKey());
+        info.put("distance", round(Math.sqrt(snapshot.distanceSq), 2));
+        info.put("reachable", snapshot.reachable);
+        info.put("los", snapshot.hasLineOfSight);
+        info.put("immediate", snapshot.immediate);
+        info.put("projectile", snapshot.projectile);
+        info.put("delta_y", round(snapshot.deltaY, 2));
+        return info;
+    }
+
+    private static Map<String, Object> vectorMap(Vec3d vec) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("x", round(vec.x, 3));
+        map.put("y", round(vec.y, 3));
+        map.put("z", round(vec.z, 3));
+        return map;
+    }
+
+    private static double round(double value, int decimals) {
+        if (Double.isNaN(value) || Double.isInfinite(value)) {
+            return value;
+        }
+        double scale = Math.pow(10, decimals);
+        return Math.round(value * scale) / scale;
     }
 
     private void maybeTriggerFailsafe(AltoClef mod) {
@@ -928,6 +1174,34 @@ public class MobDefenseChain extends SingleTaskChain {
             return false;
         }, Blocks.SPAWNER);
         return spawner.orElse(null);
+    }
+
+    private void maybeLogIgnored(AltoClef mod, LivingEntity hostile, String reason) {
+        if (mod.getWorld() == null || mod.getPlayer() == null) {
+            return;
+        }
+        long now = mod.getWorld().getTime();
+        Long last = ignoredLogTimestamps.get(hostile.getUuid());
+        if (last != null && now - last < IGNORED_LOG_COOLDOWN_TICKS) {
+            return;
+        }
+        ThreatSnapshot snapshot = latestThreats.stream()
+                .filter(s -> s.entity.getUuid().equals(hostile.getUuid()))
+                .findFirst()
+                .orElse(null);
+        boolean immediate = snapshot != null && snapshot.immediate;
+        boolean reachable = snapshot != null && snapshot.reachable;
+        boolean los = snapshot != null && snapshot.hasLineOfSight;
+        double distance = Math.sqrt(hostile.squaredDistanceTo(mod.getPlayer()));
+        Debug.logMessage(String.format(Locale.ROOT,
+                "[MobDefense] Ignoring %s reason=%s dist=%.1f immediate=%s reachable=%s los=%s",
+                hostile.getType().getTranslationKey(),
+                reason,
+                distance,
+                immediate,
+                reachable,
+                los), false);
+        ignoredLogTimestamps.put(hostile.getUuid(), now);
     }
 
     private boolean isProjectileMob(LivingEntity entity) {

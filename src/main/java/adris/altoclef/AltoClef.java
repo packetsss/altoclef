@@ -30,6 +30,7 @@ import adris.altoclef.ui.MessageSender;
 import adris.altoclef.util.helpers.InputHelper;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.telemetry.DeathLogManager;
+import adris.altoclef.telemetry.StuckLogManager;
 import baritone.Baritone;
 import baritone.altoclef.AltoClefSettings;
 import baritone.api.BaritoneAPI;
@@ -86,6 +87,7 @@ public class AltoClef implements ModInitializer {
     private Butler butler;
     // Telemetry
     private DeathLogManager deathLogManager;
+    private StuckLogManager stuckLogManager;
     // Pausing
     private boolean paused = false;
     private Task storedTask;
@@ -131,6 +133,7 @@ public class AltoClef implements ModInitializer {
         botBehaviour = new BotBehaviour(this);
         extraController = new PlayerExtraController(this);
     deathLogManager = new DeathLogManager(this);
+    stuckLogManager = new StuckLogManager(this);
     camBridge = new CamBridge(this);
 
         // Task chains
@@ -475,6 +478,10 @@ public class AltoClef implements ModInitializer {
 
     public DeathLogManager getDeathLogManager() {
         return deathLogManager;
+    }
+
+    public StuckLogManager getStuckLogManager() {
+        return stuckLogManager;
     }
 
     /**

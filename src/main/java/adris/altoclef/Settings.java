@@ -70,6 +70,11 @@ public class Settings implements IFailableConfigFile {
     private boolean deathLogEnabled = true;
 
     /**
+     * If true, AltoClef will emit detailed JSON telemetry whenever it detects a stuck or idle condition.
+     */
+    private boolean stuckLogEnabled = true;
+
+    /**
      * The prefix for commands (ex. @gamer )
      */
     private String commandPrefix = "@";
@@ -516,6 +521,10 @@ public class Settings implements IFailableConfigFile {
 
     public boolean isDeathLogEnabled() {
         return deathLogEnabled;
+    }
+
+    public boolean isStuckLogEnabled() {
+        return stuckLogEnabled;
     }
 
     public String getLogLevel() {

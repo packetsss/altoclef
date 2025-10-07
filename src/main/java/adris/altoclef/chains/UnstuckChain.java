@@ -21,11 +21,15 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class UnstuckChain extends SingleTaskChain {
 
@@ -38,8 +42,26 @@ public class UnstuckChain extends SingleTaskChain {
     private boolean waterTaskLogged = false;
     private final Map<String, Long> stuckLogCooldowns = new HashMap<>();
 
+    private static final int IDLE_SAMPLE_SIZE = 220;
+    private static final double IDLE_DISPLACEMENT_THRESHOLD = 0.6;
+    private static final double IDLE_TOTAL_PATH_THRESHOLD = 3.5;
+    private static final long IDLE_LOG_COOLDOWN_TICKS = 400;
+
+    private static final int OSC_SAMPLE_SIZE = 180;
+    private static final double OSC_MAX_DISTANCE = 3.5;
+    private static final int OSC_SWITCH_THRESHOLD = 45;
+    private static final long OSC_LOG_COOLDOWN_TICKS = 400;
+
     public UnstuckChain(TaskRunner runner) {
         super(runner);
+    }
+
+
+    private void triggerShimmy() {
+        startedShimmying = true;
+        shimmyTaskTimer.reset();
+        setTask(new SafeRandomShimmyTask());
+        isProbablyStuck = true;
     }
 
 
@@ -79,17 +101,18 @@ public class UnstuckChain extends SingleTaskChain {
         double horizontalMovementSq = Math.pow(pos1.getX() - pos2.getX(), 2) + Math.pow(pos1.getZ() - pos2.getZ(), 2);
         double verticalMovement = Math.abs(pos1.getY() - pos2.getY());
         String dimensionName = world != null ? world.getRegistryKey().getValue().toString() : "<unknown>";
-    logStuckEvent("WaterLimitedMovement", String.format(Locale.ROOT,
-        "trigger=GetOutOfWaterTask duration=%.1fs movementSq=%.5f horizontalSq=%.5f vertical=%.3f start=%s end=%s dimension=%s",
-                stuckSeconds,
-                movementSq,
-                horizontalMovementSq,
-                verticalMovement,
-                pos1.x + "," + pos1.y + "," + pos1.z,
-                pos2.x + "," + pos2.y + "," + pos2.z,
-                dimensionName));
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("trigger", "GetOutOfWaterTask");
+        payload.put("duration_sec", round(stuckSeconds, 2));
+        payload.put("movement_sq", round(movementSq, 5));
+        payload.put("horizontal_sq", round(horizontalMovementSq, 5));
+        payload.put("vertical_delta", round(verticalMovement, 3));
+        payload.put("start_pos", vectorMap(pos1));
+        payload.put("end_pos", vectorMap(pos2));
+        payload.put("dimension", dimensionName);
+        logStuckEvent("WaterLimitedMovement", 200, payload);
         posHistory.clear();
-    isProbablyStuck = true;
+        isProbablyStuck = true;
         setTask(new GetOutOfWaterTask());
     }
 
@@ -118,8 +141,11 @@ public class UnstuckChain extends SingleTaskChain {
             if (destroyPos != null) {
                 setTask(new DestroyBlockTask(destroyPos));
                 String dimensionName = world != null ? world.getRegistryKey().getValue().toString() : "<unknown>";
-        logStuckEvent("PowderSnow", String.format(Locale.ROOT,
-            "trigger=DestroyBlockTask target=%s dimension=%s", destroyPos.toShortString(), dimensionName));
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("trigger", "DestroyBlockTask");
+                payload.put("target", destroyPos.toShortString());
+                payload.put("dimension", dimensionName);
+                logStuckEvent("PowderSnow", 200, payload);
             }
         }
     }
@@ -135,9 +161,103 @@ public class UnstuckChain extends SingleTaskChain {
                 // for now let's just hope the other mechanisms will take care of cases where moving forward will get us in danger
                 mod.getInputControls().tryPress(Input.MOVE_FORWARD);
                 String dimensionName = mod.getWorld() != null ? mod.getWorld().getRegistryKey().getValue().toString() : "<unknown>";
-        logStuckEvent("EndPortalFrame", String.format(Locale.ROOT,
-            "action=MoveForward pos=%s dimension=%s", mod.getPlayer().getBlockPos().toShortString(), dimensionName));
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("action", "MoveForward");
+                payload.put("pos", mod.getPlayer().getBlockPos().toShortString());
+                payload.put("dimension", dimensionName);
+                logStuckEvent("EndPortalFrame", 100, payload);
             }
+        }
+    }
+
+    private void checkIdleStall(AltoClef mod) {
+        if (posHistory.size() < IDLE_SAMPLE_SIZE) {
+            return;
+        }
+        Vec3d newest = posHistory.get(0);
+        Vec3d oldest = posHistory.get(IDLE_SAMPLE_SIZE - 1);
+        double netDisplacement = newest.distanceTo(oldest);
+        double totalPath = 0.0;
+        double maxStepSpeed = 0.0;
+        for (int i = 0; i < IDLE_SAMPLE_SIZE - 1; i++) {
+            Vec3d current = posHistory.get(i);
+            Vec3d next = posHistory.get(i + 1);
+            double step = current.distanceTo(next);
+            totalPath += step;
+            maxStepSpeed = Math.max(maxStepSpeed, step * 20.0);
+        }
+        if (netDisplacement < IDLE_DISPLACEMENT_THRESHOLD && totalPath < IDLE_TOTAL_PATH_THRESHOLD) {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("window_seconds", round(IDLE_SAMPLE_SIZE / 20.0, 2));
+            payload.put("total_path", round(totalPath, 3));
+            payload.put("net_displacement", round(netDisplacement, 3));
+            payload.put("max_step_speed", round(maxStepSpeed, 3));
+            payload.put("current_task", mod.getUserTaskChain() != null && mod.getUserTaskChain().getCurrentTask() != null
+                    ? mod.getUserTaskChain().getCurrentTask().toString()
+                    : "<none>");
+            payload.put("runner_status", mod.getTaskRunner().statusReport.trim());
+            payload.put("pos", vectorMap(newest));
+            payload.put("dimension", mod.getWorld() != null ? mod.getWorld().getRegistryKey().getValue().toString() : "<unknown>");
+            payload.put("sample_count", IDLE_SAMPLE_SIZE);
+            if (logStuckEvent("IdleStall", IDLE_LOG_COOLDOWN_TICKS, payload)) {
+                triggerShimmy();
+            }
+        }
+    }
+
+    private void checkOscillation(AltoClef mod) {
+        if (posHistory.size() < OSC_SAMPLE_SIZE) {
+            return;
+        }
+        Map<BlockPos, Integer> counts = new LinkedHashMap<>();
+        BlockPos previous = null;
+        int switches = 0;
+        double horizontalPath = 0.0;
+        for (int i = 0; i < OSC_SAMPLE_SIZE; i++) {
+            Vec3d sample = posHistory.get(i);
+            BlockPos blockPos = BlockPos.ofFloored(sample);
+            counts.merge(blockPos, 1, Integer::sum);
+            if (previous != null && !blockPos.equals(previous)) {
+                switches++;
+            }
+            if (i < OSC_SAMPLE_SIZE - 1) {
+                horizontalPath += horizontalDistance(sample, posHistory.get(i + 1));
+            }
+            previous = blockPos;
+        }
+        if (counts.size() != 2 || switches < OSC_SWITCH_THRESHOLD) {
+            return;
+        }
+        List<BlockPos> positions = new ArrayList<>(counts.keySet());
+        BlockPos first = positions.get(0);
+        BlockPos second = positions.get(1);
+        double distance = Math.sqrt(squaredDistance(first, second));
+        if (distance > OSC_MAX_DISTANCE) {
+            return;
+        }
+
+        List<Map<String, Object>> positionDetails = new ArrayList<>();
+        for (Map.Entry<BlockPos, Integer> entry : counts.entrySet()) {
+            Map<String, Object> posInfo = new LinkedHashMap<>();
+            posInfo.put("pos", blockPosMap(entry.getKey()));
+            posInfo.put("samples", entry.getValue());
+            positionDetails.add(posInfo);
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("window_seconds", round(OSC_SAMPLE_SIZE / 20.0, 2));
+        payload.put("switches", switches);
+        payload.put("unique_positions", counts.size());
+        payload.put("positions", positionDetails);
+        payload.put("distance_between", round(distance, 3));
+        payload.put("total_horizontal_path", round(horizontalPath, 3));
+        payload.put("current_task", mod.getUserTaskChain() != null && mod.getUserTaskChain().getCurrentTask() != null
+                ? mod.getUserTaskChain().getCurrentTask().toString()
+                : "<none>");
+        payload.put("runner_status", mod.getTaskRunner().statusReport.trim());
+        payload.put("dimension", mod.getWorld() != null ? mod.getWorld().getRegistryKey().getValue().toString() : "<unknown>");
+        if (logStuckEvent("Oscillation", OSC_LOG_COOLDOWN_TICKS, payload)) {
+            triggerShimmy();
         }
     }
 
@@ -161,13 +281,14 @@ public class UnstuckChain extends SingleTaskChain {
             int hunger = player != null ? player.getHungerManager().getFoodLevel() : -1;
             float saturation = player != null ? player.getHungerManager().getSaturationLevel() : -1f;
             String posInfo = player != null ? player.getBlockPos().toShortString() : "<unknown>";
-        logStuckEvent("EatingStall", String.format(Locale.ROOT,
-            "action=ResetEat durationTicks=%d hunger=%d saturation=%.1f pos=%s dimension=%s",
-                    eatingTicks,
-                    hunger,
-                    saturation,
-                    posInfo,
-                    dimensionName));
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("action", "ResetEat");
+            payload.put("duration_ticks", eatingTicks);
+            payload.put("hunger", hunger);
+            payload.put("saturation", round(saturation, 2));
+            payload.put("pos", posInfo);
+            payload.put("dimension", dimensionName);
+            logStuckEvent("EatingStall", 200, payload);
             foodChain.shouldStop(true);
 
             eatingTicks = 0;
@@ -176,14 +297,70 @@ public class UnstuckChain extends SingleTaskChain {
         }
     }
 
-    private void logStuckEvent(String key, String details) {
-        ClientWorld world = AltoClef.getInstance().getWorld();
-        long now = world != null ? world.getTime() : System.currentTimeMillis();
+    private boolean logStuckEvent(String key, long cooldownTicks, Map<String, Object> details) {
+        AltoClef mod = AltoClef.getInstance();
+        ClientWorld world = mod.getWorld();
+        long now = world != null ? world.getTime() : WorldHelper.getTicks();
         long last = stuckLogCooldowns.getOrDefault(key, Long.MIN_VALUE);
-        if (now - last >= 40) {
-            Debug.logMessage(String.format(Locale.ROOT, "[Unstuck] %s: %s", key, details), false);
-            stuckLogCooldowns.put(key, now);
+        if (now - last < cooldownTicks) {
+            return false;
         }
+        stuckLogCooldowns.put(key, now);
+        String detailLine = details.entrySet().stream()
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(Collectors.joining(", "));
+        Debug.logMessage(String.format(Locale.ROOT, "[Unstuck] %s: %s", key, detailLine), false);
+        if (mod.getStuckLogManager() != null) {
+            mod.getStuckLogManager().recordEvent(key, details);
+        }
+        return true;
+    }
+
+    private boolean logStuckEvent(String key, Map<String, Object> details) {
+        return logStuckEvent(key, 40, details);
+    }
+
+    private static Map<String, Object> vectorMap(Vec3d vec) {
+        if (vec == null) {
+            return Map.of("x", 0.0, "y", 0.0, "z", 0.0);
+        }
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("x", round(vec.x, 3));
+        map.put("y", round(vec.y, 3));
+        map.put("z", round(vec.z, 3));
+        return map;
+    }
+
+    private static Map<String, Object> blockPosMap(BlockPos pos) {
+        if (pos == null) {
+            return Map.of("x", 0, "y", 0, "z", 0);
+        }
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("x", pos.getX());
+        map.put("y", pos.getY());
+        map.put("z", pos.getZ());
+        return map;
+    }
+
+    private static double round(double value, int decimals) {
+        if (Double.isNaN(value) || Double.isInfinite(value)) {
+            return value;
+        }
+        double scale = Math.pow(10, decimals);
+        return Math.round(value * scale) / scale;
+    }
+
+    private static double squaredDistance(BlockPos a, BlockPos b) {
+        long dx = a.getX() - b.getX();
+        long dy = a.getY() - b.getY();
+        long dz = a.getZ() - b.getZ();
+        return dx * dx + dy * dy + dz * dz;
+    }
+
+    private static double horizontalDistance(Vec3d a, Vec3d b) {
+        double dx = a.x - b.x;
+        double dz = a.z - b.z;
+        return Math.sqrt(dx * dx + dz * dz);
     }
 
     @Override
@@ -218,6 +395,8 @@ public class UnstuckChain extends SingleTaskChain {
         checkStuckInPowderedSnow();
         checkEatingGlitch();
         checkStuckOnEndPortalFrame(mod);
+        checkIdleStall(mod);
+        checkOscillation(mod);
 
 
         if (isProbablyStuck) {
