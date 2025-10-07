@@ -22,6 +22,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -51,6 +52,7 @@ public class UnstuckChain extends SingleTaskChain {
     private static final double OSC_MAX_DISTANCE = 3.5;
     private static final int OSC_SWITCH_THRESHOLD = 45;
     private static final long OSC_LOG_COOLDOWN_TICKS = 400;
+    private static final double OSC_DOMINANT_FRACTION = 0.85;
 
     public UnstuckChain(TaskRunner runner) {
         super(runner);
@@ -209,45 +211,63 @@ public class UnstuckChain extends SingleTaskChain {
         if (posHistory.size() < OSC_SAMPLE_SIZE) {
             return;
         }
-        Map<BlockPos, Integer> counts = new LinkedHashMap<>();
-        BlockPos previous = null;
+
+        Map<HorizontalPos, ColumnStats> columns = new LinkedHashMap<>();
+        HorizontalPos previous = null;
         int switches = 0;
         double horizontalPath = 0.0;
         for (int i = 0; i < OSC_SAMPLE_SIZE; i++) {
             Vec3d sample = posHistory.get(i);
             BlockPos blockPos = BlockPos.ofFloored(sample);
-            counts.merge(blockPos, 1, Integer::sum);
-            if (previous != null && !blockPos.equals(previous)) {
+            HorizontalPos key = new HorizontalPos(blockPos.getX(), blockPos.getZ());
+            ColumnStats stats = columns.computeIfAbsent(key, ColumnStats::new);
+            stats.recordSample(sample.y);
+            if (previous != null && !previous.equals(key)) {
                 switches++;
             }
             if (i < OSC_SAMPLE_SIZE - 1) {
                 horizontalPath += horizontalDistance(sample, posHistory.get(i + 1));
             }
-            previous = blockPos;
+            previous = key;
         }
-        if (counts.size() != 2 || switches < OSC_SWITCH_THRESHOLD) {
+
+        if (columns.size() < 2 || switches < OSC_SWITCH_THRESHOLD) {
             return;
         }
-        List<BlockPos> positions = new ArrayList<>(counts.keySet());
-        BlockPos first = positions.get(0);
-        BlockPos second = positions.get(1);
-        double distance = Math.sqrt(squaredDistance(first, second));
+
+        List<ColumnStats> sorted = new ArrayList<>(columns.values());
+    sorted.sort(Comparator.comparingInt(ColumnStats::count).reversed());
+
+    ColumnStats first = sorted.get(0);
+    ColumnStats second = sorted.get(1);
+    int dominantSamples = first.count + second.count;
+        if (dominantSamples < OSC_SAMPLE_SIZE * OSC_DOMINANT_FRACTION) {
+            return;
+        }
+
+        double distance = Math.sqrt(squaredHorizontalDistance(first.position, second.position));
         if (distance > OSC_MAX_DISTANCE) {
             return;
         }
 
         List<Map<String, Object>> positionDetails = new ArrayList<>();
-        for (Map.Entry<BlockPos, Integer> entry : counts.entrySet()) {
+        for (int i = 0; i < Math.min(sorted.size(), 5); i++) {
+            ColumnStats stats = sorted.get(i);
             Map<String, Object> posInfo = new LinkedHashMap<>();
-            posInfo.put("pos", blockPosMap(entry.getKey()));
-            posInfo.put("samples", entry.getValue());
+            posInfo.put("pos", horizontalPosMap(stats.position));
+            posInfo.put("samples", stats.count);
+            posInfo.put("dominant", i < 2);
+            posInfo.put("avg_y", round(stats.averageY(), 3));
+            posInfo.put("min_y", round(stats.minY, 3));
+            posInfo.put("max_y", round(stats.maxY, 3));
             positionDetails.add(posInfo);
         }
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("window_seconds", round(OSC_SAMPLE_SIZE / 20.0, 2));
         payload.put("switches", switches);
-        payload.put("unique_positions", counts.size());
+        payload.put("unique_positions", columns.size());
+        payload.put("dominant_fraction", round(dominantSamples / (double) OSC_SAMPLE_SIZE, 3));
         payload.put("positions", positionDetails);
         payload.put("distance_between", round(distance, 3));
         payload.put("total_horizontal_path", round(horizontalPath, 3));
@@ -363,6 +383,19 @@ public class UnstuckChain extends SingleTaskChain {
         return Math.sqrt(dx * dx + dz * dz);
     }
 
+    private static double squaredHorizontalDistance(HorizontalPos a, HorizontalPos b) {
+        long dx = a.x() - b.x();
+        long dz = a.z() - b.z();
+        return dx * dx + dz * dz;
+    }
+
+    private static Map<String, Object> horizontalPosMap(HorizontalPos pos) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("x", pos.x());
+        map.put("z", pos.z());
+        return map;
+    }
+
     @Override
     public float getPriority() {
         if (mainTask instanceof GetOutOfWaterTask && mainTask.isActive()) {
@@ -425,5 +458,35 @@ public class UnstuckChain extends SingleTaskChain {
     @Override
     public String getName() {
         return "Unstuck Chain";
+    }
+
+    private static record HorizontalPos(int x, int z) {
+    }
+
+    private static final class ColumnStats {
+        private final HorizontalPos position;
+        private int count;
+        private double minY = Double.POSITIVE_INFINITY;
+        private double maxY = Double.NEGATIVE_INFINITY;
+        private double sumY = 0.0;
+
+        private ColumnStats(HorizontalPos position) {
+            this.position = position;
+        }
+
+        private void recordSample(double y) {
+            count++;
+            minY = Math.min(minY, y);
+            maxY = Math.max(maxY, y);
+            sumY += y;
+        }
+
+        private double averageY() {
+            return count == 0 ? 0.0 : sumY / count;
+        }
+
+        private int count() {
+            return count;
+        }
     }
 }
