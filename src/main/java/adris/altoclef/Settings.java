@@ -65,6 +65,11 @@ public class Settings implements IFailableConfigFile {
     private boolean hideAllWarningLogs = false;
 
     /**
+     * If true, AltoClef will write a detailed JSON line entry every time the player dies.
+     */
+    private boolean deathLogEnabled = true;
+
+    /**
      * The prefix for commands (ex. @gamer )
      */
     private String commandPrefix = "@";
@@ -507,6 +512,10 @@ public class Settings implements IFailableConfigFile {
 
     public boolean shouldHideAllWarningLogs() {
         return hideAllWarningLogs;
+    }
+
+    public boolean isDeathLogEnabled() {
+        return deathLogEnabled;
     }
 
     public String getLogLevel() {

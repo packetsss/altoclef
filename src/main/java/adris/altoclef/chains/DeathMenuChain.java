@@ -5,6 +5,7 @@ import adris.altoclef.Debug;
 import adris.altoclef.mixins.DeathScreenAccessor;
 import adris.altoclef.multiversion.ConnectScreenVer;
 import adris.altoclef.multiversion.entity.PlayerVer;
+import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskChain;
 import adris.altoclef.tasksystem.TaskRunner;
 import adris.altoclef.util.time.TimerGame;
@@ -57,6 +58,8 @@ public class DeathMenuChain extends TaskChain {
     private double randomRespawnQueuedRadius;
     private double randomRespawnQueuedAngleDeg;
     private Vec3d randomRespawnSpreadOrigin = Vec3d.ZERO;
+    private boolean deathContextLogged = false;
+    private boolean shouldLogNextRespawn = false;
 
 
     public DeathMenuChain(TaskRunner runner) {
@@ -126,13 +129,18 @@ public class DeathMenuChain extends TaskChain {
                 } else {
                     clearRandomRespawnState();
                 }
+                Text screenMessage = ((DeathScreenAccessor) screen).getMessage();
+                String deathMessage = screenMessage != null ? screenMessage.getString() : "Unknown";
+                if (!deathContextLogged) {
+                    logDeathSnapshot(mod, deathCount + 1, deathMessage);
+                    deathContextLogged = true;
+                }
                 if (shouldAutoRespawn()) {
                     deathCount++;
                     Debug.logMessage("RESPAWNING... (this is death #" + deathCount + ")");
                     assert MinecraftClient.getInstance().player != null;
-                    Text screenMessage = ((DeathScreenAccessor) screen).getMessage();
-                    String deathMessage = screenMessage != null ? screenMessage.getString() : "Unknown"; //"(not implemented yet)"; //screen.children().toString();
                     MinecraftClient.getInstance().player.requestRespawn();
+                    shouldLogNextRespawn = true;
                     MinecraftClient.getInstance().setScreen(null);
                     for (String i : mod.getModSettings().getDeathCommand().split(" & ")) {
                         String command = i.replace("{deathmessage}", deathMessage);
@@ -157,7 +165,12 @@ public class DeathMenuChain extends TaskChain {
         } else {
             if (AltoClef.inGame()) {
                 waitOnDeathScreenBeforeRespawnTimer.reset();
+                if (shouldLogNextRespawn) {
+                    logRespawnLanding(AltoClef.getInstance().getPlayer(), "normal");
+                    shouldLogNextRespawn = false;
+                }
             }
+            deathContextLogged = false;
             if (screen instanceof DisconnectedScreen) {
                 if (shouldAutoReconnect()) {
                     Debug.logMessage("RECONNECTING: Going to Multiplayer Screen");
@@ -296,6 +309,14 @@ public class DeathMenuChain extends TaskChain {
                         safePos.toShortString(),
                         loggedRadius,
                         loggedAngle), false);
+                Debug.logMessage(String.format(Locale.ROOT,
+                        "[Death] Respawn landing via integrated teleport pos=%s dimension=%s health=%.1f hunger=%d worldTime=%d",
+                        safePos.toShortString(),
+                        targetWorld.getRegistryKey().getValue(),
+                        serverPlayer.getHealth(),
+                        serverPlayer.getHungerManager().getFoodLevel(),
+                        targetWorld.getTime()), false);
+                shouldLogNextRespawn = false;
             });
 
             clearRandomRespawnState();
@@ -338,6 +359,8 @@ public class DeathMenuChain extends TaskChain {
         if (randomRespawnAwaitingSetSpawn) {
             double distanceSq = player.getPos().squaredDistanceTo(randomRespawnSpreadOrigin);
             if (distanceSq > 36) {
+                logRespawnLanding(player, "spreadplayers");
+                shouldLogNextRespawn = false;
                 PlayerVer.sendChatCommand(player, "setworldspawn ~ ~ ~");
                 Debug.logMessage(String.format(Locale.ROOT,
                         "[RandomRespawn] Set world spawn to (%d, %d, %d) (r=%.0f, θ=%.0f°)",
@@ -369,6 +392,69 @@ public class DeathMenuChain extends TaskChain {
         randomRespawnAwaitingSetSpawn = false;
         randomRespawnSpreadOrigin = Vec3d.ZERO;
         randomRespawnCommandTimeout.forceElapse();
+    }
+
+    private void logDeathSnapshot(AltoClef mod, int deathNumber, String deathMessage) {
+        if (mod == null) return;
+        ClientPlayerEntity player = mod.getPlayer();
+        Vec3d pos = player != null ? player.getPos() : Vec3d.ZERO;
+        String posString = player != null ? player.getBlockPos().toShortString() : "<unknown>";
+        String dimension = mod.getWorld() != null ? mod.getWorld().getRegistryKey().getValue().toString() : "<unknown>";
+        float health = player != null ? player.getHealth() : Float.NaN;
+        float absorption = player != null ? player.getAbsorptionAmount() : Float.NaN;
+        int hunger = player != null ? player.getHungerManager().getFoodLevel() : -1;
+        float saturation = player != null ? player.getHungerManager().getSaturationLevel() : Float.NaN;
+        int armor = player != null ? player.getArmor() : -1;
+        TaskRunner runner = mod.getTaskRunner();
+        TaskChain currentChain = runner != null ? runner.getCurrentTaskChain() : null;
+        String chainName = currentChain != null ? currentChain.getName() : "<none>";
+        String chainContext = currentChain != null ? currentChain.getDebugContext() : "<none>";
+        Task userTask = mod.getUserTaskChain() != null ? mod.getUserTaskChain().getCurrentTask() : null;
+        String userTaskInfo = userTask != null ? userTask.getClass().getSimpleName() + ":" + userTask : "<none>";
+        String runnerStatus = runner != null ? runner.statusReport.trim() : "<unknown>";
+        Debug.logMessage(String.format(Locale.ROOT,
+                "[Death] Snapshot #%d message=\"%s\" pos=%s (%.2f, %.2f, %.2f) dimension=%s health=%.1f+%.1f hunger=%d saturation=%.1f armor=%d chain=%s context=%s runner=%s userTask=%s",
+                deathNumber,
+                deathMessage,
+                posString,
+                pos.x,
+                pos.y,
+                pos.z,
+                dimension,
+                health,
+                absorption,
+                hunger,
+                saturation,
+                armor,
+                chainName,
+                chainContext,
+                runnerStatus,
+                userTaskInfo), false);
+        if (mod.getDeathLogManager() != null) {
+            mod.getDeathLogManager().recordDeath(deathNumber, deathMessage);
+        }
+    }
+
+    private void logRespawnLanding(ClientPlayerEntity player, String mode) {
+        if (player == null) {
+            Debug.logMessage(String.format(Locale.ROOT, "[Death] Respawn landing via %s could not be logged (player missing)", mode), false);
+            return;
+        }
+        AltoClef mod = AltoClef.getInstance();
+        Vec3d pos = player.getPos();
+        String dimension = mod.getWorld() != null ? mod.getWorld().getRegistryKey().getValue().toString() : "<unknown>";
+        Debug.logMessage(String.format(Locale.ROOT,
+                "[Death] Respawn landing via %s pos=%s (%.2f, %.2f, %.2f) dimension=%s health=%.1f hunger=%d saturation=%.1f armor=%d",
+                mode,
+                player.getBlockPos().toShortString(),
+                pos.x,
+                pos.y,
+                pos.z,
+                dimension,
+                player.getHealth(),
+                player.getHungerManager().getFoodLevel(),
+                player.getHungerManager().getSaturationLevel(),
+                player.getArmor()), false);
     }
 
     private BlockPos findSafeRespawnPosition(ServerWorld world, int x, int z) {

@@ -21,8 +21,10 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 public class UnstuckChain extends SingleTaskChain {
@@ -34,6 +36,7 @@ public class UnstuckChain extends SingleTaskChain {
     private TimerGame shimmyTaskTimer = new TimerGame(5);
     private boolean startedShimmying = false;
     private boolean waterTaskLogged = false;
+    private final Map<String, Long> stuckLogCooldowns = new HashMap<>();
 
     public UnstuckChain(TaskRunner runner) {
         super(runner);
@@ -70,11 +73,23 @@ public class UnstuckChain extends SingleTaskChain {
             }
         }
 
-    double stuckSeconds = posHistory.size() / 20.0;
-    posHistory.clear();
-    Debug.logMessage(String.format(Locale.ROOT,
-        "[Unstuck] Triggering GetOutOfWaterTask after %.1fs with limited movement",
-        stuckSeconds), false);
+        Vec3d pos2 = posHistory.get(99);
+        double stuckSeconds = posHistory.size() / 20.0;
+        double movementSq = pos1.squaredDistanceTo(pos2);
+        double horizontalMovementSq = Math.pow(pos1.getX() - pos2.getX(), 2) + Math.pow(pos1.getZ() - pos2.getZ(), 2);
+        double verticalMovement = Math.abs(pos1.getY() - pos2.getY());
+        String dimensionName = world != null ? world.getRegistryKey().getValue().toString() : "<unknown>";
+    logStuckEvent("WaterLimitedMovement", String.format(Locale.ROOT,
+        "trigger=GetOutOfWaterTask duration=%.1fs movementSq=%.5f horizontalSq=%.5f vertical=%.3f start=%s end=%s dimension=%s",
+                stuckSeconds,
+                movementSq,
+                horizontalMovementSq,
+                verticalMovement,
+                pos1.x + "," + pos1.y + "," + pos1.z,
+                pos2.x + "," + pos2.y + "," + pos2.z,
+                dimensionName));
+        posHistory.clear();
+    isProbablyStuck = true;
         setTask(new GetOutOfWaterTask());
     }
 
@@ -102,6 +117,9 @@ public class UnstuckChain extends SingleTaskChain {
 
             if (destroyPos != null) {
                 setTask(new DestroyBlockTask(destroyPos));
+                String dimensionName = world != null ? world.getRegistryKey().getValue().toString() : "<unknown>";
+        logStuckEvent("PowderSnow", String.format(Locale.ROOT,
+            "trigger=DestroyBlockTask target=%s dimension=%s", destroyPos.toShortString(), dimensionName));
             }
         }
     }
@@ -116,6 +134,9 @@ public class UnstuckChain extends SingleTaskChain {
 
                 // for now let's just hope the other mechanisms will take care of cases where moving forward will get us in danger
                 mod.getInputControls().tryPress(Input.MOVE_FORWARD);
+                String dimensionName = mod.getWorld() != null ? mod.getWorld().getRegistryKey().getValue().toString() : "<unknown>";
+        logStuckEvent("EndPortalFrame", String.format(Locale.ROOT,
+            "action=MoveForward pos=%s dimension=%s", mod.getPlayer().getBlockPos().toShortString(), dimensionName));
             }
         }
     }
@@ -135,12 +156,33 @@ public class UnstuckChain extends SingleTaskChain {
         }
 
         if (eatingTicks > 7*20) {
-            Debug.logMessage("the bot is probably stuck trying to eat... resetting action");
+            ClientPlayerEntity player = AltoClef.getInstance().getPlayer();
+            String dimensionName = AltoClef.getInstance().getWorld() != null ? AltoClef.getInstance().getWorld().getRegistryKey().getValue().toString() : "<unknown>";
+            int hunger = player != null ? player.getHungerManager().getFoodLevel() : -1;
+            float saturation = player != null ? player.getHungerManager().getSaturationLevel() : -1f;
+            String posInfo = player != null ? player.getBlockPos().toShortString() : "<unknown>";
+        logStuckEvent("EatingStall", String.format(Locale.ROOT,
+            "action=ResetEat durationTicks=%d hunger=%d saturation=%.1f pos=%s dimension=%s",
+                    eatingTicks,
+                    hunger,
+                    saturation,
+                    posInfo,
+                    dimensionName));
             foodChain.shouldStop(true);
 
             eatingTicks = 0;
             interruptedEating = true;
             isProbablyStuck = true;
+        }
+    }
+
+    private void logStuckEvent(String key, String details) {
+        ClientWorld world = AltoClef.getInstance().getWorld();
+        long now = world != null ? world.getTime() : System.currentTimeMillis();
+        long last = stuckLogCooldowns.getOrDefault(key, Long.MIN_VALUE);
+        if (now - last >= 40) {
+            Debug.logMessage(String.format(Locale.ROOT, "[Unstuck] %s: %s", key, details), false);
+            stuckLogCooldowns.put(key, now);
         }
     }
 

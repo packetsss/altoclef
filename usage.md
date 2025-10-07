@@ -72,3 +72,7 @@ AltoClef can expose its internal state to external camera tooling through a ligh
 - `"camBridgeFilePath"` – output path when the transport is `file` (defaults to `cambridge-events.jsonl` in the game directory).
 
 Events are emitted once per client tick with built-in coalescing, hazard debouncing, and a 64-entry in-memory ring buffer so a subscribing camera mod can build overlays without spamming chat or requiring a server plugin.
+
+### Death telemetry log
+
+For post-mortem debugging you can enable the detailed death logger (enabled by default). Set `"deathLogEnabled": true` in `altoclef_settings.json`, then reload settings. Every time the player dies, AltoClef captures a rich snapshot of the surrounding context—player stats, inventory, active tasks, nearby threats—and appends it as a JSON line under `altoclef/logs/death/`. These logs make it much easier to diagnose why the run failed without having to scroll back through chat output. Disable the feature with `"deathLogEnabled": false` if you prefer not to emit files.

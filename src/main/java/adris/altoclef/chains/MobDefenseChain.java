@@ -83,6 +83,7 @@ public class MobDefenseChain extends SingleTaskChain {
     private static final float CRITICAL_HEALTH_THRESHOLD = 8f;
     private static final double PANIC_RETREAT_MIN_HOLD_SECONDS = 2.5;
     private static final double PANIC_RETREAT_LOG_COOLDOWN_SECONDS = 0.5;
+    private static final double IMMEDIATE_THREAT_HOLD_SECONDS = 3.0;
     private static final int FAILSAFE_PILLAR_EXTRA_HEIGHT = 4;
     private static final float DEFENSE_BASE_PRIORITY = 60f;
     private static final List<Class<? extends Entity>> ignoredMobs = List.of(Entities.WARDEN, WitherEntity.class, EndermanEntity.class, BlazeEntity.class,
@@ -110,6 +111,7 @@ public class MobDefenseChain extends SingleTaskChain {
     private final TimerGame diagnosticsTimer = new TimerGame(DIAGNOSTIC_INTERVAL_SECONDS);
     private final TimerGame panicRetreatHoldTimer = new TimerGame(PANIC_RETREAT_MIN_HOLD_SECONDS);
     private final TimerGame panicRetreatLogTimer = new TimerGame(PANIC_RETREAT_LOG_COOLDOWN_SECONDS);
+    private final TimerGame immediateThreatHoldTimer = new TimerGame(IMMEDIATE_THREAT_HOLD_SECONDS);
 
     private DefenseState defenseState = DefenseState.IDLE;
     private DefenseFailsafeTask failsafeTask;
@@ -126,6 +128,7 @@ public class MobDefenseChain extends SingleTaskChain {
         super(runner);
         panicRetreatHoldTimer.forceElapse();
         panicRetreatLogTimer.forceElapse();
+        immediateThreatHoldTimer.forceElapse();
     }
 
     private enum DefenseState {
@@ -297,6 +300,7 @@ public class MobDefenseChain extends SingleTaskChain {
 
         boolean hasImmediateThreat = latestThreats.stream().anyMatch(snapshot -> snapshot.immediate);
         if (hasImmediateThreat) {
+            immediateThreatHoldTimer.reset();
             if (defenseState == DefenseState.IDLE) {
                 defenseState = DefenseState.ACTIVE;
                 defenseActiveTimer.reset();
@@ -304,9 +308,12 @@ public class MobDefenseChain extends SingleTaskChain {
                 staleTargetTimer.reset();
                 persistentThreatTimer.reset();
             }
-        } else if (shouldDropDefense(mod)) {
-            clearDefenseState();
-            return Float.NEGATIVE_INFINITY;
+        } else {
+            String dropReason = getDropDefenseReason(mod);
+            if (dropReason != null) {
+                clearDefenseState(dropReason);
+                return Float.NEGATIVE_INFINITY;
+            }
         }
 
         updateWaterProgress(mod);
@@ -665,49 +672,62 @@ public class MobDefenseChain extends SingleTaskChain {
         return snapshots;
     }
 
-    private boolean shouldDropDefense(AltoClef mod) {
+    private String getDropDefenseReason(AltoClef mod) {
         if (defenseState == DefenseState.IDLE) {
-            return true;
+            return "idle";
         }
         if (panicRetreatActive && !panicRetreatHoldTimer.elapsed()) {
-            return false;
+            return null;
+        }
+        if (!immediateThreatHoldTimer.elapsed()) {
+            return null;
         }
         if (latestThreats.isEmpty()) {
-            return true;
+            return "no-threats";
         }
         boolean lingeringThreat = latestThreats.stream().anyMatch(snapshot -> snapshot.hasLineOfSight && snapshot.distanceSq < DANGER_KEEP_DISTANCE * DANGER_KEEP_DISTANCE);
         if (lingeringThreat) {
-            return false;
+            return null;
         }
         if (defenseState == DefenseState.RETREAT) {
             boolean threatsInsideEnd = latestThreats.stream().anyMatch(snapshot -> snapshot.distanceSq < RETREAT_END_DISTANCE * RETREAT_END_DISTANCE);
             if (threatsInsideEnd) {
-                return false;
+                return null;
             }
         }
         boolean closeThreat = latestThreats.stream().anyMatch(snapshot -> snapshot.distanceSq < RETREAT_RESUME_DISTANCE * RETREAT_RESUME_DISTANCE);
         if (closeThreat) {
-            return false;
+            return null;
         }
         if (playerTookDamageThisTick || absorptionLostThisTick) {
-            return false;
+            return null;
         }
         if (!noDamageTimer.elapsed()) {
-            return false;
+            return null;
         }
         if (mod.getPlayer().isTouchingWater()) {
-            return false;
+            return null;
         }
-        return true;
+        return "timers-clear";
     }
 
     private void clearDefenseState() {
+        clearDefenseState(null);
+    }
+
+    private void clearDefenseState(@Nullable String reason) {
         boolean wasEngaged = defenseState != DefenseState.IDLE
                 || runAwayTask != null
                 || failsafeTask != null
+                || mainTask != null
                 || !latestThreats.isEmpty()
                 || needsChangeOnAttack
                 || lockedOnEntity != null;
+        int threatCount = latestThreats.size();
+        DefenseState previousState = defenseState;
+        if (mainTask != null) {
+            setTask(null);
+        }
         defenseState = DefenseState.IDLE;
         runAwayTask = null;
         failsafeTask = null;
@@ -724,8 +744,28 @@ public class MobDefenseChain extends SingleTaskChain {
         panicRetreatActive = false;
         panicRetreatHoldTimer.forceElapse();
         panicRetreatLogTimer.forceElapse();
+        immediateThreatHoldTimer.forceElapse();
+        AltoClef mod = AltoClef.inGame() ? AltoClef.getInstance() : null;
+        if (mod != null) {
+            killAura.stopShielding(mod);
+            stopShielding(mod);
+        }
         if (wasEngaged) {
-            Debug.logMessage("[MobDefense] Clearing state", false);
+            String dim = mod != null && mod.getWorld() != null
+                    ? mod.getWorld().getRegistryKey().getValue().toString()
+                    : "<unknown>";
+            Vec3d pos = mod != null && mod.getPlayer() != null ? mod.getPlayer().getPos() : Vec3d.ZERO;
+            String posShort = mod != null && mod.getPlayer() != null ? mod.getPlayer().getBlockPos().toShortString() : "<unknown>";
+            Debug.logMessage(String.format(Locale.ROOT,
+                    "[MobDefense] Clearing state reason=%s prevState=%s dim=%s pos=%s (%.1f, %.1f, %.1f) threats=%d",
+                    reason != null ? reason : "<unspecified>",
+                    previousState,
+                    dim,
+                    posShort,
+                    pos.x,
+                    pos.y,
+                    pos.z,
+                    threatCount), false);
         }
     }
 
@@ -815,28 +855,62 @@ public class MobDefenseChain extends SingleTaskChain {
         if (defenseState == DefenseState.IDLE && latestThreats.isEmpty()) {
             return;
         }
-        StringBuilder builder = new StringBuilder("[MobDefense] state=")
-                .append(defenseState)
-                .append(" threats=")
-                .append(latestThreats.size())
+    AltoClef instance = AltoClef.inGame() ? AltoClef.getInstance() : null;
+    String dimension = instance != null && instance.getWorld() != null
+        ? instance.getWorld().getRegistryKey().getValue().toString()
+        : "<unknown>";
+    Vec3d playerPos = instance != null && instance.getPlayer() != null ? instance.getPlayer().getPos() : Vec3d.ZERO;
+    BlockPos playerBlock = instance != null && instance.getPlayer() != null ? instance.getPlayer().getBlockPos() : null;
+    String runTaskName = runAwayTask != null ? runAwayTask.getClass().getSimpleName() : "<none>";
+    String failsafeInfo = failsafeTask != null ? failsafeTask.getReason() + ":" + failsafeTask.getStageName() : "<none>";
+    String targetInfo = targetEntity != null ? targetEntity.getType().getTranslationKey() : "<none>";
+    String lockedInfo = lockedOnEntity != null ? lockedOnEntity.getType().getTranslationKey() : "<none>";
+
+    StringBuilder builder = new StringBuilder("[MobDefense] state=")
+        .append(defenseState)
+        .append(" dim=")
+        .append(dimension)
+        .append(" threats=")
+        .append(latestThreats.size())
         .append(" priority=")
         .append(String.format(Locale.ROOT, "%.1f", cachedLastPriority))
-                .append(" damageTimer=")
-                .append(String.format(Locale.ROOT, "%.1f", noDamageTimer.getDuration()))
-                .append(" activeTimer=")
-                .append(String.format(Locale.ROOT, "%.1f", defenseActiveTimer.getDuration()))
-                .append(" persistentTimer=")
-                .append(String.format(Locale.ROOT, "%.1f", persistentThreatTimer.getDuration()))
-                .append(" waterTimer=")
-                .append(String.format(Locale.ROOT, "%.1f", waterStuckTimer.getDuration()));
+        .append(" damageTimer=")
+        .append(String.format(Locale.ROOT, "%.1f", noDamageTimer.getDuration()))
+        .append(" activeTimer=")
+        .append(String.format(Locale.ROOT, "%.1f", defenseActiveTimer.getDuration()))
+        .append(" persistentTimer=")
+        .append(String.format(Locale.ROOT, "%.1f", persistentThreatTimer.getDuration()))
+        .append(" waterTimer=")
+        .append(String.format(Locale.ROOT, "%.1f", waterStuckTimer.getDuration()))
+        .append(" hold=")
+        .append(String.format(Locale.ROOT, "%.1f", immediateThreatHoldTimer.getDuration()))
+        .append(" panic=")
+        .append(panicRetreatActive)
+        .append(" run=")
+        .append(runTaskName)
+        .append(" failsafe=")
+        .append(failsafeInfo)
+        .append(" target=")
+        .append(targetInfo)
+        .append(" locked=")
+        .append(lockedInfo);
 
-        latestThreats.stream().limit(3).forEach(snapshot -> builder
+    if (playerBlock != null) {
+        builder.append(" pos=")
+            .append(playerBlock.toShortString())
+            .append(String.format(Locale.ROOT, " xyz=(%.1f, %.1f, %.1f)", playerPos.x, playerPos.y, playerPos.z));
+    }
+
+    latestThreats.stream().limit(3).forEach(snapshot -> builder
                 .append(" | ")
                 .append(snapshot.entity.getType().getTranslationKey())
                 .append(" d=")
                 .append(String.format(Locale.ROOT, "%.1f", Math.sqrt(snapshot.distanceSq)))
                 .append(snapshot.reachable ? " R" : " !R")
-                .append(snapshot.hasLineOfSight ? " LoS" : " !LoS"));
+        .append(snapshot.hasLineOfSight ? " LoS" : " !LoS")
+        .append(snapshot.immediate ? " IMM" : "")
+        .append(snapshot.pathBudgetHit ? " BUDGET" : "")
+        .append(String.format(Locale.ROOT, " Δy=%.1f", snapshot.deltaY)));
 
         Debug.logMessage(builder.toString(), false);
     }

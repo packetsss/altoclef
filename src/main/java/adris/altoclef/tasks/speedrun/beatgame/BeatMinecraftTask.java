@@ -105,6 +105,7 @@ public class BeatMinecraftTask extends Task {
     private final TimerGame timer2 = new TimerGame(35);
     private final TimerGame timer3 = new TimerGame(60);
     private final List<PriorityTask> gatherResources = new LinkedList<>();
+    private boolean gatherResourcesSuspended = false;
     private final TimerGame changedTaskTimer = new TimerGame(3);
     private final TimerGame forcedTaskTimer = new TimerGame(10);
     private final List<BlockPos> blacklistedChests = new LinkedList<>();
@@ -334,6 +335,15 @@ public class BeatMinecraftTask extends Task {
         Debug.logInternal("Task is " + (taskFinished ? "finished" : "not finished"));
 
         return taskActive && !taskFinished;
+    }
+
+    private boolean needsResourceRecovery(AltoClef mod) {
+        ItemStorageTracker storage = mod.getItemStorage();
+        boolean hasWeapon = storage.hasItem(Items.DIAMOND_SWORD, Items.IRON_SWORD, Items.STONE_SWORD);
+        boolean hasPickaxe = storage.hasItem(Items.DIAMOND_PICKAXE, Items.IRON_PICKAXE, Items.STONE_PICKAXE);
+        boolean hasShield = storage.hasItem(Items.SHIELD) || storage.hasItemInOffhand(Items.SHIELD);
+        boolean hasDiamondArmorEquipped = StorageHelper.isArmorEquippedAll(COLLECT_EYE_ARMOR);
+        return !hasWeapon || !hasPickaxe || !hasShield || !hasDiamondArmorEquipped;
     }
 
     public static void throwAwayItems(AltoClef mod, Item... items) {
@@ -2085,15 +2095,22 @@ public class BeatMinecraftTask extends Task {
         // Get blaze rods + pearls...
         switch (WorldHelper.getCurrentDimension()) {
             case OVERWORLD -> {
+                if (gatherResourcesSuspended && needsResourceRecovery(mod)) {
+                    gatherResourcesSuspended = false;
+                    prevLastGather = null;
+                    lastGather = null;
+                    taskChanges.clear();
+                    forcedTaskTimer.forceElapse();
+                }
                 PriorityTask toGather = null;
                 double maxPriority = 0;
 
-                if (!gatherResources.isEmpty()) {
+                if (!gatherResourcesSuspended && !gatherResources.isEmpty()) {
                     if (!forcedTaskTimer.elapsed() && isTaskRunning(mod, lastTask) && lastGather != null && lastGather.calculatePriority(mod) > 0) {
                         return lastTask;
                     }
 
-                    if (!changedTaskTimer.elapsed() && lastTask != null && !lastGather.bypassForceCooldown && isTaskRunning(mod, lastTask)) {
+                    if (!changedTaskTimer.elapsed() && lastTask != null && lastGather != null && !lastGather.bypassForceCooldown && isTaskRunning(mod, lastTask)) {
                         return lastTask;
                     }
                     if (isTaskRunning(mod, lastTask) && lastGather != null && lastGather.shouldForce()) {
@@ -2110,10 +2127,10 @@ public class BeatMinecraftTask extends Task {
                     }
                 }
                 if (toGather != null) {
-                    boolean sameTask = lastGather == toGather;
+                    boolean sameTask = lastGather != null && lastGather == toGather;
 
                     setDebugState("Priority: " + String.format(Locale.US, "%.2f", maxPriority) + ", " + toGather);
-                    if (!sameTask && prevLastGather == toGather && lastTask != null && lastGather.calculatePriority(mod) > 0 && isTaskRunning(mod, lastTask)) {
+                    if (!sameTask && prevLastGather == toGather && lastTask != null && lastGather != null && lastGather.calculatePriority(mod) > 0 && isTaskRunning(mod, lastTask)) {
                         mod.logWarning("might be stuck or switching too much, forcing current resource for a bit more");
                         changedTaskTimer.reset();
                         prevLastGather = null; //do not force infinitely, 3 sec should be enough I hope
@@ -2204,7 +2221,10 @@ public class BeatMinecraftTask extends Task {
                 }
 
                 // DO NOT INTERRUPT GOING TO NETHER
-                gatherResources.clear();
+                gatherResourcesSuspended = true;
+                prevLastGather = null;
+                lastGather = null;
+                taskChanges.clear();
 
                 //prevents from getting stuck
                 if (!(lastTask instanceof DefaultGoToDimensionTask)) {

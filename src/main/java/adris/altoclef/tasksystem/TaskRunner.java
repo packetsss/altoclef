@@ -4,7 +4,11 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class TaskRunner {
 
@@ -103,8 +107,48 @@ public class TaskRunner {
         return cachedCurrentTaskChain;
     }
 
+    public List<ChainDiagnostics> getChainDiagnostics() {
+        List<ChainDiagnostics> diagnostics = new ArrayList<>(chains.size());
+        for (TaskChain chain : chains) {
+            List<TaskDiagnostics> taskDiagnostics = chain.getTasks().stream()
+                    .map(task -> new TaskDiagnostics(
+                            task.getClass().getName(),
+                            task.toString(),
+                            task.isFinished(),
+                            task.isActive(),
+                            task.stopped()
+                    ))
+                    .collect(Collectors.toCollection(ArrayList::new));
+            diagnostics.add(new ChainDiagnostics(
+                    chain.getName(),
+                    chain.isActive(),
+                    chain == cachedCurrentTaskChain,
+                    chain.getDebugContext(),
+                    taskDiagnostics
+            ));
+        }
+        return diagnostics;
+    }
+
     // Kinda jank ngl
     public AltoClef getMod() {
         return mod;
+    }
+
+    public record ChainDiagnostics(String name, boolean active, boolean current, String debugContext,
+                                   List<TaskDiagnostics> tasks) {
+    }
+
+    public record TaskDiagnostics(String className, String summary, boolean finished, boolean active,
+                                  boolean stopped) {
+        public Map<String, Object> asMap() {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("class", className);
+            map.put("summary", summary);
+            map.put("finished", finished);
+            map.put("active", active);
+            map.put("stopped", stopped);
+            return map;
+        }
     }
 }
