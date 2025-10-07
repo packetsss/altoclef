@@ -44,6 +44,11 @@ import net.minecraft.item.Item;
 import net.minecraft.item.Items;
 import org.lwjgl.glfw.GLFW;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.Consumer;
 
@@ -88,6 +93,12 @@ public class AltoClef implements ModInitializer {
     // Telemetry
     private DeathLogManager deathLogManager;
     private StuckLogManager stuckLogManager;
+    private boolean componentsInitialized = false;
+    private boolean autoStartTriggered = false;
+    private boolean forcedInitializationLogged = false;
+    private static final DateTimeFormatter TELEMETRY_SESSION_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
+    private String telemetrySessionId;
+    private Path telemetrySessionDir;
     // Pausing
     private boolean paused = false;
     private Task storedTask;
@@ -104,6 +115,10 @@ public class AltoClef implements ModInitializer {
      * Executes commands (ex. `@get`/`@gamer`)
      */
     public static CommandExecutor getCommandExecutor() {
+        if (instance == null) {
+            return null;
+        }
+        instance.ensureInitialized();
         return commandExecutor;
     }
 
@@ -123,8 +138,14 @@ public class AltoClef implements ModInitializer {
     public void onInitializeLoad() {
         // This code should be run after Minecraft loads everything else in.
         // This is the actual start point, controlled by a mixin.
+        if (componentsInitialized) {
+            return;
+        }
+        componentsInitialized = true;
 
         initializeBaritoneSettings();
+
+    initializeTelemetrySession();
 
         // Central Managers
         commandExecutor = new CommandExecutor(this);
@@ -171,6 +192,7 @@ public class AltoClef implements ModInitializer {
         // Load settings
         adris.altoclef.Settings.load(newSettings -> {
             settings = newSettings;
+            autoStartTriggered = false;
             if (camBridge != null) {
                 camBridge.onSettingsReload(newSettings);
             }
@@ -206,7 +228,23 @@ public class AltoClef implements ModInitializer {
             if (camBridge != null) {
                 camBridge.onClientTick();
             }
-            altoClefTickChart.pushTickNanos(System.nanoTime()-nanos);
+            altoClefTickChart.pushTickNanos(System.nanoTime() - nanos);
+
+            if (!inGame()) {
+                autoStartTriggered = false;
+            } else if (!autoStartTriggered && settings != null) {
+                String autoStart = settings.getAutoStartCommand().trim();
+                if (!autoStart.isEmpty()) {
+                    CommandExecutor executor = AltoClef.getCommandExecutor();
+                    if (executor != null) {
+                        Debug.logMessage("Auto-start executing: " + autoStart);
+                        autoStartTriggered = true;
+                        executor.executeWithPrefix(autoStart);
+                    } else {
+                        autoStartTriggered = false;
+                    }
+                }
+            }
         });
 
         // Render
@@ -256,6 +294,22 @@ public class AltoClef implements ModInitializer {
             taskRunner.getCurrentTaskChain().stop();
         }
         commandStatusOverlay.resetTimer();
+    }
+
+    public void resetAfterDeath() {
+        Debug.logMessage("[Death] Resetting cached trackers after respawn", false);
+        if (trackerManager != null) {
+            trackerManager.resetAllTrackers();
+        }
+        if (blockScanner != null) {
+            blockScanner.reset();
+        }
+        if (storageTracker != null) {
+            storageTracker.setDirty();
+        }
+        if (entityTracker != null) {
+            entityTracker.setDirty();
+        }
     }
 
     /// GETTERS AND SETTERS
@@ -484,6 +538,20 @@ public class AltoClef implements ModInitializer {
         return stuckLogManager;
     }
 
+    public Path getTelemetrySessionDir() {
+        if (telemetrySessionDir == null) {
+            initializeTelemetrySession();
+        }
+        return telemetrySessionDir;
+    }
+
+    public String getTelemetrySessionId() {
+        if (telemetrySessionId == null) {
+            initializeTelemetrySession();
+        }
+        return telemetrySessionId;
+    }
+
     /**
      * Minecraft player client access (could just be static honestly)
      */
@@ -582,6 +650,28 @@ public class AltoClef implements ModInitializer {
      */
     public void logWarning(String message, MessagePriority priority) {
         Debug.logWarning(message);
+    }
+
+    private void ensureInitialized() {
+        if (componentsInitialized) {
+            return;
+        }
+        if (!forcedInitializationLogged) {
+            Debug.logWarning("Forcing AltoClef bootstrap before TitleScreen initialization has run.");
+            forcedInitializationLogged = true;
+        }
+        onInitializeLoad();
+    }
+
+    private void initializeTelemetrySession() {
+        if (telemetrySessionDir != null) {
+            return;
+        }
+        telemetrySessionId = UUID.randomUUID().toString();
+        String folderName = String.format(Locale.ROOT, "%s-%s",
+                TELEMETRY_SESSION_FORMAT.format(LocalDateTime.now(ZoneOffset.UTC)),
+                telemetrySessionId.substring(0, 8));
+        telemetrySessionDir = Paths.get("altoclef", "logs", "session", folderName);
     }
 
     private void runEnqueuedPostInits() {

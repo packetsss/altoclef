@@ -5,6 +5,7 @@ import adris.altoclef.Debug;
 import adris.altoclef.mixins.DeathScreenAccessor;
 import adris.altoclef.multiversion.ConnectScreenVer;
 import adris.altoclef.multiversion.entity.PlayerVer;
+import adris.altoclef.tasks.speedrun.beatgame.BeatMinecraftTask;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskChain;
 import adris.altoclef.tasksystem.TaskRunner;
@@ -60,6 +61,7 @@ public class DeathMenuChain extends TaskChain {
     private Vec3d randomRespawnSpreadOrigin = Vec3d.ZERO;
     private boolean deathContextLogged = false;
     private boolean shouldLogNextRespawn = false;
+    private boolean restartBeatTaskAfterRespawn = false;
 
 
     public DeathMenuChain(TaskRunner runner) {
@@ -139,6 +141,8 @@ public class DeathMenuChain extends TaskChain {
                     deathCount++;
                     Debug.logMessage("RESPAWNING... (this is death #" + deathCount + ")");
                     assert MinecraftClient.getInstance().player != null;
+                    Task currentTask = mod.getUserTaskChain() != null ? mod.getUserTaskChain().getCurrentTask() : null;
+                    restartBeatTaskAfterRespawn = currentTask instanceof BeatMinecraftTask;
                     MinecraftClient.getInstance().player.requestRespawn();
                     shouldLogNextRespawn = true;
                     MinecraftClient.getInstance().setScreen(null);
@@ -164,10 +168,16 @@ public class DeathMenuChain extends TaskChain {
             }
         } else {
             if (AltoClef.inGame()) {
+                AltoClef mod = AltoClef.getInstance();
                 waitOnDeathScreenBeforeRespawnTimer.reset();
                 if (shouldLogNextRespawn) {
-                    logRespawnLanding(AltoClef.getInstance().getPlayer(), "normal");
+                    logRespawnLanding(mod.getPlayer(), "normal");
                     shouldLogNextRespawn = false;
+                    if (restartBeatTaskAfterRespawn) {
+                        restartBeatTaskAfterRespawn = false;
+                        Debug.logMessage("[Death] Restarting BeatMinecraftTask after respawn", false);
+                        mod.runUserTask(new BeatMinecraftTask(mod));
+                    }
                 }
             }
             deathContextLogged = false;
@@ -441,6 +451,9 @@ public class DeathMenuChain extends TaskChain {
             return;
         }
         AltoClef mod = AltoClef.getInstance();
+        if (mod != null) {
+            mod.resetAfterDeath();
+        }
         Vec3d pos = player.getPos();
         String dimension = mod.getWorld() != null ? mod.getWorld().getRegistryKey().getValue().toString() : "<unknown>";
         Debug.logMessage(String.format(Locale.ROOT,

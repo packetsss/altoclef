@@ -31,19 +31,14 @@ import net.minecraft.world.biome.Biome;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -56,21 +51,17 @@ public final class StuckLogManager {
     private static final int MAX_DROPS = 16;
     private static final int MAX_STATUS_EFFECTS = 24;
     private static final int MAX_TASKS_PER_CHAIN = 16;
-    private static final DateTimeFormatter FILE_TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
 
     private final AltoClef mod;
     private final ObjectMapper mapper = new ObjectMapper();
     private final AtomicLong sequence = new AtomicLong(0L);
-    private final String sessionId = UUID.randomUUID().toString();
-    private final Path logDir = Paths.get("altoclef", "logs", "stuck");
-    private final Path logFile;
+    private final String sessionId;
+    private final Path sessionDir;
 
     public StuckLogManager(AltoClef mod) {
         this.mod = mod;
-        String fileName = String.format(Locale.ROOT, "stuck-log-%s-%s.jsonl",
-                FILE_TIMESTAMP_FORMAT.format(LocalDateTime.now(ZoneOffset.UTC)),
-                sessionId.substring(0, 8));
-        this.logFile = logDir.resolve(fileName);
+        this.sessionId = mod.getTelemetrySessionId();
+        this.sessionDir = mod.getTelemetrySessionDir();
     }
 
     public void recordEvent(String category, Map<String, Object> details) {
@@ -84,7 +75,8 @@ public final class StuckLogManager {
         root.put("timestamp_utc", timestamp.toString());
         root.put("timestamp_epoch_ms", System.currentTimeMillis());
         root.put("session_id", sessionId);
-        root.put("sequence", sequence.incrementAndGet());
+        long entryIndex = sequence.incrementAndGet();
+        root.put("sequence", entryIndex);
         root.put("category", category);
         root.put("game_tick", WorldHelper.getTicks());
         root.put("paused", mod.isPaused());
@@ -99,7 +91,8 @@ public final class StuckLogManager {
         root.put("payload", details == null ? Map.of() : details);
 
         try {
-            writeSnapshot(root, category);
+            Path target = resolveStuckFile(entryIndex, category);
+            writeSnapshot(root, category, target, entryIndex);
         } catch (IOException ex) {
             Debug.logWarning("Failed to write stuck log entry: " + ex.getMessage());
         }
@@ -349,8 +342,8 @@ public final class StuckLogManager {
         return tasks;
     }
 
-    private void writeSnapshot(Map<String, Object> snapshot, String category) throws IOException {
-        Files.createDirectories(logDir);
+    private void writeSnapshot(Map<String, Object> snapshot, String category, Path targetFile, long index) throws IOException {
+        Files.createDirectories(sessionDir);
         String json;
         try {
             json = mapper.writeValueAsString(snapshot);
@@ -358,12 +351,23 @@ public final class StuckLogManager {
             Debug.logWarning("Failed to serialize stuck log snapshot: " + ex.getMessage());
             return;
         }
-        Files.writeString(logFile, json + System.lineSeparator(), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        Files.writeString(targetFile, json + System.lineSeparator(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         Debug.logMessage(String.format(Locale.ROOT,
                 "[StuckLog] Captured %s snapshot #%d -> %s",
                 category,
-                snapshot.getOrDefault("sequence", -1),
-                logFile.toString()), false);
+                index,
+                targetFile.toString()), false);
+    }
+
+    private Path resolveStuckFile(long index, String category) {
+        String base = category == null ? "stuck" : category;
+        String slug = base.replaceAll("[^a-zA-Z0-9-_]+", "_").replaceAll("_+", "_").trim();
+        slug = slug.replaceAll("^_+|_+$", "");
+        if (slug.isEmpty()) {
+            slug = "stuck";
+        }
+        String fileName = String.format(Locale.ROOT, "stuck-%04d-%s.json", index, slug);
+        return sessionDir.resolve(fileName);
     }
 
     private static Map<String, Object> vectorMap(Vec3d vec) {

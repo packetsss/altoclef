@@ -43,6 +43,10 @@ public class MLGBucketFallChain extends SingleTaskChain implements ITaskOverride
         AltoClef mod = AltoClef.getInstance();
 
         if (isFalling(mod)) {
+            if (!MLGBucketTask.hasAnyClutchItem(mod)) {
+                lastMLG = null;
+                return Float.NEGATIVE_INFINITY;
+            }
             tryCollectWaterTimer.reset();
             setTask(new MLGBucketTask());
             lastMLG = (MLGBucketTask) mainTask;

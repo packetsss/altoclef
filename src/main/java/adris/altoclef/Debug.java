@@ -22,7 +22,7 @@ public class Debug {
 
     private static String getLogPrefix() {
         AltoClef altoClef = AltoClef.getInstance();
-        if (altoClef != null) {
+        if (altoClef != null && altoClef.getModSettings() != null) {
             return altoClef.getModSettings().getChatLogPrefix();
         }
         return "[Alto Clef] ";
@@ -54,7 +54,7 @@ public class Debug {
         }
 
         AltoClef altoClef = AltoClef.getInstance();
-        if (altoClef != null && !altoClef.getModSettings().shouldHideAllWarningLogs()) {
+        if (altoClef != null && altoClef.getModSettings() != null && !altoClef.getModSettings().shouldHideAllWarningLogs()) {
             if (MinecraftClient.getInstance() != null && MinecraftClient.getInstance().player != null) {
                 String msg = "\u00A72\u00A7l\u00A7o" + getLogPrefix() + "\u00A7c" + message + "\u00A7r";
                 MinecraftClient.getInstance().player.sendMessage(Text.of(msg), false);

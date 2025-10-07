@@ -34,6 +34,19 @@ public class TrackerManager {
         }
     }
 
+    public void resetAllTrackers() {
+        for (Tracker tracker : _trackers) {
+            tracker.reset();
+            tracker.setDirty();
+        }
+        if (_mod.getChunkTracker() != null) {
+            _mod.getChunkTracker().reset(_mod);
+        }
+        if (_mod.getMiscBlockTracker() != null) {
+            _mod.getMiscBlockTracker().reset();
+        }
+    }
+
     public void addTracker(Tracker tracker) {
         tracker.mod = _mod;
         _trackers.add(tracker);

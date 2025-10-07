@@ -171,7 +171,7 @@ public class MLGBucketTask extends Task {
     }
 
     private Task placeMLGBucketTask(AltoClef mod, BlockPos toPlaceOn) {
-        if (!hasClutchItem(mod)) {
+        if (!hasAnyClutchItem(mod)) {
             setDebugState("No clutch item");
             return null;
         }
@@ -195,23 +195,13 @@ public class MLGBucketTask extends Task {
             setDebugState("Performing MLG");
             LookHelper.lookAt(reachable.get());
             // Try water by default
-            boolean hasClutch = (!mod.getWorld().getDimension().ultrawarm() && mod.getSlotHandler().forceEquipItem(Items.WATER_BUCKET));
-            if (!hasClutch) {
-                // Go through our "clutch" items and see if any fit
-                if (!_config.clutchItems.isEmpty()) {
-                    for (Item tryEquip : _config.clutchItems) {
-                        if (mod.getSlotHandler().forceEquipItem(tryEquip)) {
-                            hasClutch = true;
-                            break;
-                        }
-                    }
-                }
-            }
+            boolean hasClutch = tryEquipClutchItem(mod);
             // Try to capture tall grass as well...
             BlockPos[] toCheckLook = new BlockPos[]{toPlaceOn, toPlaceOn.up(), toPlaceOn.up(2)};
             if (hasClutch && Arrays.stream(toCheckLook).anyMatch(check -> mod.getClientBaritone().getPlayerContext().isLookingAt(check))) {
                 Debug.logMessage("HIT: " + willLandIn);
-                placedPos = willLandIn;
+                Item held = mod.getPlayer().getMainHandStack().getItem();
+                placedPos = held == Items.WATER_BUCKET ? willLandIn : null;
                 mod.getInputControls().tryPress(Input.CLICK_RIGHT);
                 //mod.getClientBaritone().getInputOverrideHandler().setInputForceState(Input.CLICK_RIGHT, true);
             } else {
@@ -433,11 +423,41 @@ public class MLGBucketTask extends Task {
         controls.release(Input.JUMP);
     }
 
-    private boolean hasClutchItem(AltoClef mod) {
+    private boolean tryEquipClutchItem(AltoClef mod) {
+        if (!mod.getWorld().getDimension().ultrawarm() && mod.getItemStorage().hasItem(Items.WATER_BUCKET) && mod.getSlotHandler().forceEquipItem(Items.WATER_BUCKET)) {
+            return true;
+        }
+        for (Item clutch : _config.clutchItems) {
+            if (mod.getItemStorage().hasItem(clutch) && mod.getSlotHandler().forceEquipItem(clutch)) {
+                return true;
+            }
+        }
+        for (Item boat : ItemHelper.WOOD_BOAT) {
+            if (mod.getItemStorage().hasItem(boat) && mod.getSlotHandler().forceEquipItem(boat)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean hasAnyClutchItem(AltoClef mod) {
+        if (mod == null || mod.getWorld() == null) {
+            return false;
+        }
         if (!mod.getWorld().getDimension().ultrawarm() && mod.getItemStorage().hasItem(Items.WATER_BUCKET)) {
             return true;
         }
-        return _config.clutchItems.stream().anyMatch(item -> mod.getItemStorage().hasItem(item));
+        for (Item clutch : _config.clutchItems) {
+            if (mod.getItemStorage().hasItem(clutch)) {
+                return true;
+            }
+        }
+        for (Item boat : ItemHelper.WOOD_BOAT) {
+            if (mod.getItemStorage().hasItem(boat)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -490,7 +510,7 @@ public class MLGBucketTask extends Task {
         private boolean bestBlockIsLava = false;
 
         public ConeClutchContext(AltoClef mod) {
-            hasClutchItem = hasClutchItem(mod);
+            hasClutchItem = hasAnyClutchItem(mod);
         }
 
         public void checkBlock(AltoClef mod, BlockPos check) {

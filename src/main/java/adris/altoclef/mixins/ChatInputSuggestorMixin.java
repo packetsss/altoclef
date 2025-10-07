@@ -99,7 +99,10 @@ public abstract class ChatInputSuggestorMixin {
     public void inj(String original, int firstCharacterIndex, CallbackInfoReturnable<OrderedText> cir) {
         String full = this.textField.getText();
 
-        if (!full.startsWith(AltoClef.getCommandExecutor().getCommandPrefix())) return;
+        CommandExecutor executor = AltoClef.getCommandExecutor();
+        if (executor == null) return;
+
+        if (!full.startsWith(executor.getCommandPrefix())) return;
 
         Pair<String, Integer> key = new Pair<>(original, firstCharacterIndex);
 
@@ -107,7 +110,7 @@ public abstract class ChatInputSuggestorMixin {
         if (parseCache.containsKey(key)) {
             result = parseCache.get(key);
         } else {
-            result = highlightText(original, firstCharacterIndex, full);
+            result = highlightText(original, firstCharacterIndex, full, executor);
             parseCache.put(key, result);
         }
 
@@ -132,7 +135,7 @@ public abstract class ChatInputSuggestorMixin {
     }
 
     @Unique
-    private Pair<MutableText, Optional<Pair<MutableText, Integer>>> highlightText(String original, int firstCharacterIndex, String full) {
+    private Pair<MutableText, Optional<Pair<MutableText, Integer>>> highlightText(String original, int firstCharacterIndex, String full, CommandExecutor executor) {
         MutableText text = Text.empty();
         MutableText errorMsg = null;
 
@@ -166,8 +169,9 @@ public abstract class ChatInputSuggestorMixin {
                 }
 
 
-                Pair<List<Pair<String, Style>>, Pair<Integer, MutableText>> part = getText(
-                        command.stripLeading(), original.length() + firstCharacterIndex, i + 1 < split.length
+        Pair<List<Pair<String, Style>>, Pair<Integer, MutableText>> part = getText(
+            executor,
+            command.stripLeading(), original.length() + firstCharacterIndex, i + 1 < split.length
                 );
 
                 errorSeverity = part.getRight().getLeft();
@@ -225,8 +229,7 @@ public abstract class ChatInputSuggestorMixin {
     }
 
     @Unique
-    private Pair<List<Pair<String, Style>>, Pair<Integer, MutableText>> getText(String s, int maxLen, boolean showUnfinishedErrors) throws CommandException {
-        CommandExecutor executor = AltoClef.getCommandExecutor();
+    private Pair<List<Pair<String, Style>>, Pair<Integer, MutableText>> getText(CommandExecutor executor, String s, int maxLen, boolean showUnfinishedErrors) throws CommandException {
         StringReader reader = new StringReader(s);
         String original = s;
         MutableText errorMsg = null;

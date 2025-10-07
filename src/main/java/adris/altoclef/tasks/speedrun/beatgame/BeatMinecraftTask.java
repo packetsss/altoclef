@@ -146,9 +146,24 @@ public class BeatMinecraftTask extends Task {
     private List<TaskChange> taskChanges = new ArrayList<>();
     private PriorityTask prevLastGather = null;
     private BlockPos biomePos = null;
+    private final BeatMinecraftStateStore stateStore;
+    private BeatMinecraftState lastSavedState;
+    private long lastStatePersistMs = 0L;
+    private static final long STATE_PERSIST_INTERVAL_MS = 5_000L;
 
     public BeatMinecraftTask(AltoClef mod) {
         this.mod = mod;
+
+        stateStore = new BeatMinecraftStateStore(WorldSessionIdentifier.currentWorldId());
+        stateStore.load().ifPresent(state -> {
+            restoreStateFromSnapshot(state);
+            lastSavedState = state.copy();
+            Debug.logInternal("Restored BeatMinecraft progress snapshot for world " + state.worldId);
+        });
+
+        if (lastSavedState == null) {
+            lastSavedState = snapshotProgress();
+        }
 
         locateStrongholdTask = new GoToStrongholdPortalTask(config.targetEyes);
         buildMaterialsTask = new GetBuildingMaterialsTask(config.buildMaterialCount);
@@ -210,6 +225,15 @@ public class BeatMinecraftTask extends Task {
         gatherResources.add(new CraftItemPriorityTask(400, getRecipeTarget(Items.GOLDEN_HELMET), a -> itemStorage.getItemCount(Items.GOLD_INGOT) >= 5));
 
         addSleepTask(mod);
+
+        gatherResources.add(new ActionPriorityTask(a -> {
+            Pair<Task, Double> pair = new Pair<>(TaskCatalogue.getItemTask("boat", 1), Double.NEGATIVE_INFINITY);
+            if (itemStorage.hasItem(ItemHelper.WOOD_BOAT)) {
+                return pair;
+            }
+            pair.setRight(55.0);
+            return pair;
+        }, a -> true, false, true, true));
 
         gatherResources.add(new ActionPriorityTask(a -> {
             Pair<Task, Double> pair = new Pair<>(TaskCatalogue.getItemTask(Items.WATER_BUCKET, 1), Double.NEGATIVE_INFINITY);
@@ -1192,6 +1216,12 @@ public class BeatMinecraftTask extends Task {
 
     @Override
     protected Task onTick() {
+        Task result = onTickInternal();
+        maybePersistProgress();
+        return result;
+    }
+
+    private Task onTickInternal() {
         ItemStorageTracker itemStorage = mod.getItemStorage();
 
         double blockPlacementPenalty = 10;
@@ -2384,6 +2414,53 @@ public class BeatMinecraftTask extends Task {
             case END -> throw new UnsupportedOperationException("You're in the end. Don't collect eyes here.");
         }
         return null;
+    }
+
+    private void restoreStateFromSnapshot(BeatMinecraftState state) {
+        ranStrongholdLocator = state.ranStrongholdLocator;
+        endPortalOpened = state.endPortalOpened;
+        dragonIsDead = state.dragonIsDead;
+        gotToFortress = state.gotToFortress;
+        gotToBiome = state.gotToBiome;
+        escaped = state.escapedNetherHub;
+        cachedFilledPortalFrames = state.cachedFilledPortalFrames;
+        endPortalCenterLocation = state.endPortalCenterLocation;
+        bedSpawnLocation = state.bedSpawnLocation;
+    }
+
+    private BeatMinecraftState snapshotProgress() {
+        BeatMinecraftState snapshot = new BeatMinecraftState();
+        snapshot.ranStrongholdLocator = ranStrongholdLocator;
+        snapshot.endPortalOpened = endPortalOpened;
+        snapshot.dragonIsDead = dragonIsDead;
+        snapshot.gotToFortress = gotToFortress;
+        snapshot.gotToBiome = gotToBiome;
+        snapshot.escapedNetherHub = escaped;
+        snapshot.cachedFilledPortalFrames = cachedFilledPortalFrames;
+        snapshot.endPortalCenterLocation = endPortalCenterLocation;
+        snapshot.bedSpawnLocation = bedSpawnLocation;
+        return snapshot;
+    }
+
+    private void maybePersistProgress() {
+        if (stateStore == null) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        if (now - lastStatePersistMs < STATE_PERSIST_INTERVAL_MS) {
+            return;
+        }
+        BeatMinecraftState snapshot = snapshotProgress();
+        if (snapshot == null) {
+            return;
+        }
+        if (lastSavedState != null && lastSavedState.sameProgressAs(snapshot)) {
+            lastStatePersistMs = now;
+            return;
+        }
+        stateStore.save(snapshot);
+        lastSavedState = snapshot.copy();
+        lastStatePersistMs = now;
     }
 
     private record TaskChange(PriorityTask original, PriorityTask interrupt, BlockPos pos) {

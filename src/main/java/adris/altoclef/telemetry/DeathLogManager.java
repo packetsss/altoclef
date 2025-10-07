@@ -35,19 +35,14 @@ import net.minecraft.text.Text;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -60,21 +55,17 @@ public final class DeathLogManager {
     private static final int MAX_DROPS = 16;
     private static final int MAX_STATUS_EFFECTS = 24;
     private static final int MAX_TASKS_PER_CHAIN = 16;
-    private static final DateTimeFormatter FILE_TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
 
     private final AltoClef mod;
     private final ObjectMapper mapper = new ObjectMapper();
     private final AtomicInteger sessionSequence = new AtomicInteger(0);
-    private final String sessionId = UUID.randomUUID().toString();
-    private final Path logDir = Paths.get("altoclef", "logs", "death");
-    private final Path logFile;
+    private final String sessionId;
+    private final Path sessionDir;
 
     public DeathLogManager(AltoClef mod) {
         this.mod = mod;
-    String fileName = String.format(Locale.ROOT, "death-log-%s-%s.jsonl",
-        FILE_TIMESTAMP_FORMAT.format(LocalDateTime.now(ZoneOffset.UTC)),
-        sessionId.substring(0, 8));
-    this.logFile = logDir.resolve(fileName);
+        this.sessionId = mod.getTelemetrySessionId();
+        this.sessionDir = mod.getTelemetrySessionDir();
     }
 
     public void recordDeath(int deathNumber, String deathMessage) {
@@ -87,7 +78,8 @@ public final class DeathLogManager {
         root.put("timestamp_utc", timestamp.toString());
         root.put("timestamp_epoch_ms", System.currentTimeMillis());
         root.put("session_id", sessionId);
-        root.put("session_death_index", sessionSequence.incrementAndGet());
+        int deathIndex = sessionSequence.incrementAndGet();
+        root.put("session_death_index", deathIndex);
         root.put("death_counter", deathNumber);
         root.put("death_message", deathMessage);
         root.put("game_tick", WorldHelper.getTicks());
@@ -104,7 +96,8 @@ public final class DeathLogManager {
         root.put("drops_nearby", collectNearbyDrops(player));
 
         try {
-            writeSnapshot(root);
+            Path target = resolveDeathFile(deathIndex, deathMessage);
+            writeSnapshot(root, target, deathIndex);
         } catch (IOException ex) {
             Debug.logWarning("Failed to write death log entry: " + ex.getMessage());
         }
@@ -390,8 +383,8 @@ public final class DeathLogManager {
         return drops;
     }
 
-    private void writeSnapshot(Map<String, Object> snapshot) throws IOException {
-        Files.createDirectories(logDir);
+    private void writeSnapshot(Map<String, Object> snapshot, Path targetFile, int index) throws IOException {
+        Files.createDirectories(sessionDir);
         String json;
         try {
             json = mapper.writeValueAsString(snapshot);
@@ -399,11 +392,21 @@ public final class DeathLogManager {
             Debug.logWarning("Failed to serialize death log snapshot: " + ex.getMessage());
             return;
         }
-        Files.writeString(logFile, json + System.lineSeparator(), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        Files.writeString(targetFile, json + System.lineSeparator(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         Debug.logMessage(String.format(Locale.ROOT,
                 "[DeathLog] Captured detailed death entry #%d -> %s",
-                snapshot.getOrDefault("death_counter", -1),
-                logFile.toString()), false);
+                index,
+                targetFile.toString()), false);
+    }
+
+    private Path resolveDeathFile(int index, String deathMessage) {
+        String slug = deathMessage == null ? "unknown" : deathMessage.replaceAll("[^a-zA-Z0-9-_]+", "_").replaceAll("_+", "_").trim();
+        slug = slug.replaceAll("^_+|_+$", "");
+        if (slug.isEmpty()) {
+            slug = "death";
+        }
+        String fileName = String.format(Locale.ROOT, "death-%04d-%s.json", index, slug);
+        return sessionDir.resolve(fileName);
     }
 
     private static Map<String, Object> vectorMap(Vec3d vec) {

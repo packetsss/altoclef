@@ -79,6 +79,11 @@ public class Settings implements IFailableConfigFile {
      */
     private String commandPrefix = "@";
 
+    /**
+     * Command executed automatically every time the client enters a world. Leave blank to disable.
+     */
+    private String autoStartCommand = "@gamer";
+
 
     /**
      * Sets the log level of the mod; allowed values:
@@ -533,6 +538,10 @@ public class Settings implements IFailableConfigFile {
 
     public String getCommandPrefix() {
         return commandPrefix;
+    }
+
+    public String getAutoStartCommand() {
+        return autoStartCommand == null ? "" : autoStartCommand;
     }
 
     public String getChatLogPrefix() {
