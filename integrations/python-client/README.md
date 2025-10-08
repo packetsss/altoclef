@@ -31,16 +31,25 @@ From this directory, start the sample listener in PowerShell:
 python .\cambridge_listener.py
 ```
 
-You should see formatted log lines such as:
+You should see task-centric status updates such as:
 
 ```
-[1024 @ 1727998265123] TASK_START: {"task_id": "BaritoneMineDiamond"}
+12:34:56 ▶ Overworld – Build Portal – [RUNNING @ OVERWORLD_PREP]
+12:35:10 ✅ Finished ConstructNetherPortalObsidianTask
 ```
 
 ### Optional flags
 
-- `--raw` prints the raw JSON line without formatting.
+- `--raw` prints the raw JSON line without formatting (restores the legacy behaviour).
 - `--host` / `--port` let you match a custom CamBridge endpoint if the AltoClef operator changes it.
+
+### Event fields of interest
+
+`STATUS_NOW` events now ship a `task_queue` payload so downstream tooling can distinguish combat fallbacks from the normal goal stack:
+
+- `task_queue.current` – current human-readable task summary. When the mob defense chain pre-empts the user task chain it reads `Mob Defense – Hunt nearby hostiles`.
+- `task_queue.future` – up to the next three queued tasks, useful for overlaying “coming up next” panels.
+- `task_queue.mob_defense` (and the mirrored root-level `mob_defense_active`) – boolean flag signalling that AltoClef is actively fighting mobs. Your listener can swap to combat UI or narration when this turns `true`.
 
 ## Integrating into your bot
 

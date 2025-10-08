@@ -188,6 +188,7 @@ class DoCraftInTableTask extends DoStuffInContainerTask {
     private final CollectRecipeCataloguedResourcesTask _collectTask;
     private final TimerGame _craftResetTimer = new TimerGame(CRAFT_RESET_TIMER_BONUS_SECONDS);
     private int _craftCount;
+    private final HashSet<RecipeTarget> _completedTargets = new HashSet<>();
 
     public DoCraftInTableTask(RecipeTarget[] targets, boolean collect, boolean ignoreUncataloguedSlots) {
         super(Blocks.CRAFTING_TABLE, new ItemTarget("crafting_table"));
@@ -212,6 +213,7 @@ class DoCraftInTableTask extends DoStuffInContainerTask {
         // Save the current behaviour and craft count
         mod.getBehaviour().push();
         _craftCount = 0;
+        _completedTargets.clear();
 
         // Check if there is an item in the cursor slot
         ItemStack cursorStack = StorageHelper.getItemStackInCursorSlot();
@@ -390,6 +392,11 @@ class DoCraftInTableTask extends DoStuffInContainerTask {
         for (RecipeTarget target : _targets) {
             // Check if the output item count meets the target count
             if (mod.getItemStorage().getItemCount(target.getOutputItem()) >= target.getTargetCount()) {
+                // Mark this recipe as complete if not already done
+                if (!_completedTargets.contains(target)) {
+                    _completedTargets.add(target);
+                    _craftCount++;
+                }
                 continue;
             }
 
@@ -411,6 +418,8 @@ class DoCraftInTableTask extends DoStuffInContainerTask {
             return new CraftGenericManuallyTask(target);
         }
 
+        // All targets are complete, close the container
+        StorageHelper.closeScreen();
         return null;
     }
 

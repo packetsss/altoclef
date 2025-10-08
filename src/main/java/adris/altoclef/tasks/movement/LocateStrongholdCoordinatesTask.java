@@ -3,6 +3,7 @@ package adris.altoclef.tasks.movement;
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 import adris.altoclef.TaskCatalogue;
+import adris.altoclef.tasks.construction.DestroyBlockTask;
 import adris.altoclef.multiversion.blockpos.BlockPosVer;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.Dimension;
@@ -26,6 +27,10 @@ public class LocateStrongholdCoordinatesTask extends Task {
     private static final int EYE_RETHROW_DISTANCE = 10; // target distance to stronghold guess before rethrowing
 
     private static final int SECOND_EYE_THROW_DISTANCE = 30; // target distance between first throw and second throw
+
+    private static final int REQUIRED_THROW_CLEARANCE = 12; // blocks above player that must be free before throwing
+
+    private static final int MAX_STRONGHOLD_ESTIMATE_DISTANCE = 4000; // sanity cap for triangulation result in blocks
 
     private final int _targetEyes;
     private final int _minimumEyes;
@@ -52,8 +57,19 @@ public class LocateStrongholdCoordinatesTask extends Task {
         Vec3d d1 = direction1;
         Vec3d d2 = direction2;
         // Solved for s1 + d1 * t1 = s2 + d2 * t2
-        double t2 = ((d1.z * s2.x) - (d1.z * s1.x) - (d1.x * s2.z) + (d1.x * s1.z)) / ((d1.x * d2.z) - (d1.z * d2.x));
-        BlockPos blockPos = BlockPosVer.ofFloored(start2.add(direction2.multiply(t2)));
+        double denominator = (d1.x * d2.z) - (d1.z * d2.x);
+        if (Math.abs(denominator) < 1e-6) {
+            return null;
+        }
+        double t2 = ((d1.z * s2.x) - (d1.z * s1.x) - (d1.x * s2.z) + (d1.x * s1.z)) / denominator;
+        if (!Double.isFinite(t2)) {
+            return null;
+        }
+        Vec3d intersection = start2.add(direction2.multiply(t2));
+        if (!Double.isFinite(intersection.x) || !Double.isFinite(intersection.z)) {
+            return null;
+        }
+        BlockPos blockPos = BlockPosVer.ofFloored(intersection);
         return new Vec3i(blockPos.getX(), 0, blockPos.getZ());
     }
 
@@ -130,9 +146,14 @@ public class LocateStrongholdCoordinatesTask extends Task {
                 Vec3d throwDelta = _cachedEyeDirection.getDelta();
                 Vec3d throwDelta2 = _cachedEyeDirection2.getDelta();
 
-
-                _strongholdEstimatePos = calculateIntersection(throwOrigin, throwDelta, throwOrigin2, throwDelta2); // stronghold estimate
-                Debug.logMessage("Stronghold is at " + (int) _strongholdEstimatePos.getX() + ", " + (int) _strongholdEstimatePos.getZ() + " (" + (int) mod.getPlayer().getPos().distanceTo(Vec3d.of(_strongholdEstimatePos)) + " blocks away)");
+                Vec3i estimate = calculateIntersection(throwOrigin, throwDelta, throwOrigin2, throwDelta2);
+                if (estimate != null && isEstimatePlausible(estimate, throwOrigin, throwOrigin2)) {
+                    _strongholdEstimatePos = estimate; // stronghold estimate
+                    Debug.logMessage("Stronghold is at " + (int) _strongholdEstimatePos.getX() + ", " + (int) _strongholdEstimatePos.getZ() + " (" + (int) mod.getPlayer().getPos().distanceTo(Vec3d.of(_strongholdEstimatePos)) + " blocks away)");
+                } else {
+                    Debug.logMessage("Discarding implausible stronghold estimate. Re-throwing eyes from a better vantage point.");
+                    resetEyeTracking();
+                }
             }
         }
 
@@ -156,6 +177,14 @@ public class LocateStrongholdCoordinatesTask extends Task {
             if (!mod.getItemStorage().hasItem(Items.ENDER_EYE)) {
                 setDebugState("Collecting eye of ender.");
                 return TaskCatalogue.getItemTask(Items.ENDER_EYE, 1);
+            }
+
+            if (!hasClearThrowArc(mod)) {
+                setDebugState("Moving to open sky to throw eye.");
+                Task surfaceTask = moveToSurface(mod);
+                if (surfaceTask != null) {
+                    return surfaceTask;
+                }
             }
 
             // First get to a proper throwing height
@@ -218,6 +247,60 @@ public class LocateStrongholdCoordinatesTask extends Task {
     @Override
     public boolean isFinished() {
         return _strongholdEstimatePos != null;
+    }
+
+    private void resetEyeTracking() {
+        _cachedEyeDirection = null;
+        _cachedEyeDirection2 = null;
+        _currentThrownEye = null;
+        _strongholdEstimatePos = null;
+        _throwTimer.reset();
+    }
+
+    private boolean hasClearThrowArc(AltoClef mod) {
+        return findThrowObstruction(mod, mod.getPlayer().getBlockPos()) == null;
+    }
+
+    private BlockPos findThrowObstruction(AltoClef mod, BlockPos base) {
+        int topY = mod.getWorld().getTopY();
+        int maxCheck = Math.min(topY, base.getY() + REQUIRED_THROW_CLEARANCE);
+        for (int y = base.getY() + 1; y <= maxCheck; y++) {
+            BlockPos check = new BlockPos(base.getX(), y, base.getZ());
+            if (!mod.getWorld().getBlockState(check).isAir()) {
+                return check;
+            }
+        }
+        return null;
+    }
+
+    private Task moveToSurface(AltoClef mod) {
+        BlockPos playerPos = mod.getPlayer().getBlockPos();
+        BlockPos obstruction = findThrowObstruction(mod, playerPos);
+        if (obstruction != null) {
+            return new DestroyBlockTask(obstruction);
+        }
+        int surfaceY = WorldHelper.getGroundHeight(playerPos.getX(), playerPos.getZ());
+        if (surfaceY < 0) {
+            surfaceY = playerPos.getY();
+        }
+        int desiredY = Math.max(surfaceY + 3, playerPos.getY() + 1);
+        if (playerPos.getY() >= desiredY - 1) {
+            return null;
+        }
+        return new GetToYTask(desiredY, Dimension.OVERWORLD);
+    }
+
+    private boolean isEstimatePlausible(Vec3i estimate, Vec3d origin1, Vec3d origin2) {
+        Vec3d estimatePos = Vec3d.of(estimate);
+        double dist1 = estimatePos.distanceTo(origin1);
+        double dist2 = estimatePos.distanceTo(origin2);
+        if (!Double.isFinite(dist1) || !Double.isFinite(dist2)) {
+            return false;
+        }
+        if (dist1 > MAX_STRONGHOLD_ESTIMATE_DISTANCE || dist2 > MAX_STRONGHOLD_ESTIMATE_DISTANCE) {
+            return false;
+        }
+        return true;
     }
 
     // Represents the direction we need to travel to get to the stronghold.

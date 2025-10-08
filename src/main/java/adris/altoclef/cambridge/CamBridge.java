@@ -19,6 +19,7 @@ import adris.altoclef.tasks.container.SmeltInFurnaceTask;
 import adris.altoclef.tasks.container.SmeltInSmokerTask;
 import adris.altoclef.tasks.movement.GoToStrongholdPortalTask;
 import adris.altoclef.tasksystem.Task;
+import adris.altoclef.tasksystem.TaskRunner;
 import adris.altoclef.tasks.resources.CollectBlazeRodsTask;
 import adris.altoclef.tasks.resources.KillEndermanTask;
 import adris.altoclef.tasks.resources.TradeWithPiglinsTask;
@@ -51,6 +52,7 @@ import java.util.Deque;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +67,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Runtime bridge that gathers bot telemetry and emits compact camera events.
@@ -426,7 +429,8 @@ public final class CamBridge implements AutoCloseable {
 
     private void updateStatus(ResourceSnapshot snapshot, long now) {
         StatusDescriptor descriptor = determineStatus(currentTask, snapshot, currentPhase);
-        statusTracker.tick(descriptor, currentPhase, stallActive, now);
+        StatusSupplement supplement = buildStatusSupplement(currentTask);
+        statusTracker.tick(descriptor, currentPhase, stallActive, supplement, now);
         statusTracker.pollEmit(now).ifPresent(payload -> {
             CamEvent status = CamEvent.simple(CamEventType.STATUS_NOW, nextId(), now, currentPhase, payload)
                     .withSuggestedMode("QUICK", 2);
@@ -435,12 +439,77 @@ public final class CamBridge implements AutoCloseable {
     }
 
     private StatusDescriptor determineStatus(Task task, ResourceSnapshot snapshot, CamPhase phase) {
+        if (isMobDefenseEngaged()) {
+            return StatusDescriptor.mobDefense();
+        }
         BeatMinecraftConfig config = BeatMinecraftTask.getConfig();
         StatusDescriptor fromTask = mapTaskStatus(task, snapshot, config);
         if (fromTask != null) {
             return fromTask;
         }
         return defaultStatusForPhase(phase, snapshot, config);
+    }
+
+    private StatusSupplement buildStatusSupplement(Task userTask) {
+        boolean mobDefenseActive = isMobDefenseEngaged();
+        String currentSummary = mobDefenseActive ? "Mob Defense – Hunt nearby hostiles" : sanitizeTaskSummary(userTask);
+        List<String> futureSummaries = List.of();
+
+        TaskRunner runner = mod.getTaskRunner();
+        if (runner != null) {
+            for (TaskRunner.ChainDiagnostics diagnostics : runner.getChainDiagnostics()) {
+                if ("User Tasks".equalsIgnoreCase(diagnostics.name())) {
+                    List<String> sanitized = diagnostics.tasks().stream()
+                            .map(TaskRunner.TaskDiagnostics::summary)
+                            .map(this::sanitizeTaskSummary)
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toCollection(ArrayList::new));
+                    if (!sanitized.isEmpty()) {
+                        if (!mobDefenseActive) {
+                            currentSummary = sanitized.get(0);
+                        }
+                        if (sanitized.size() > 1) {
+                            int end = Math.min(sanitized.size(), 4);
+                            futureSummaries = List.copyOf(sanitized.subList(1, end));
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        return new StatusSupplement(currentSummary, futureSummaries, mobDefenseActive);
+    }
+
+    private boolean isMobDefenseEngaged() {
+        MobDefenseChain defense = mod.getMobDefenseChain();
+        if (defense == null) {
+            return false;
+        }
+        if (defense.isShielding()) {
+            return true;
+        }
+        Task defenseTask = defense.getCurrentTask();
+        return defenseTask != null && !defenseTask.isFinished() && !defenseTask.stopped();
+    }
+
+    private String sanitizeTaskSummary(Task task) {
+        if (task == null) {
+            return null;
+        }
+        String summary = sanitizeTaskSummary(task.toString());
+        if (summary != null) {
+            return summary;
+        }
+        return task.getClass().getSimpleName();
+    }
+
+    private String sanitizeTaskSummary(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String summary = raw.replace('\n', ' ').trim();
+        return summary.isEmpty() ? null : summary;
     }
 
     private StatusDescriptor mapTaskStatus(Task task, ResourceSnapshot snapshot, BeatMinecraftConfig config) {
@@ -1067,6 +1136,16 @@ public final class CamBridge implements AutoCloseable {
         static StatusDescriptor idle() {
             return new StatusDescriptor("idle", "Idle", null);
         }
+
+        static StatusDescriptor mobDefense() {
+            return new StatusDescriptor("mob_defense", "Combat – Hunt Hostiles", null);
+        }
+    }
+
+    private record StatusSupplement(String currentSummary, List<String> futureSummaries, boolean mobDefenseActive) {
+        static StatusSupplement empty() {
+            return new StatusSupplement(null, List.of(), false);
+        }
     }
 
     private final class StatusTracker {
@@ -1080,8 +1159,9 @@ public final class CamBridge implements AutoCloseable {
         private StatusState overrideState;
         private long overrideUntilMs;
         private long rerouteUntilMs;
+        private StatusSupplement supplement = StatusSupplement.empty();
 
-        void tick(StatusDescriptor next, CamPhase nextPhase, boolean stalled, long now) {
+        void tick(StatusDescriptor next, CamPhase nextPhase, boolean stalled, StatusSupplement nextSupplement, long now) {
             if (next == null) {
                 next = StatusDescriptor.idle();
             }
@@ -1096,6 +1176,12 @@ public final class CamBridge implements AutoCloseable {
                 progress = next.progress();
                 dirty = true;
             }
+            StatusSupplement resolvedSupplement = nextSupplement == null ? StatusSupplement.empty() : nextSupplement;
+            if (!Objects.equals(supplement, resolvedSupplement)) {
+                supplement = resolvedSupplement;
+                dirty = true;
+            }
+
             if (!Objects.equals(phase, nextPhase)) {
                 phase = nextPhase;
                 dirty = true;
@@ -1144,6 +1230,7 @@ public final class CamBridge implements AutoCloseable {
             if (progress != null) {
                 payload.put("progress", progress.toJson());
             }
+            writeSupplement(payload);
             lastEmitMs = now;
             dirty = false;
             return Optional.of(payload);
@@ -1157,6 +1244,7 @@ public final class CamBridge implements AutoCloseable {
             if (progress != null) {
                 payload.put("progress", progress.toJson());
             }
+            writeSupplement(payload);
         }
 
         void onTaskFinished(boolean success, long now) {
@@ -1188,6 +1276,26 @@ public final class CamBridge implements AutoCloseable {
             overrideState = null;
             overrideUntilMs = 0L;
             rerouteUntilMs = 0L;
+            supplement = StatusSupplement.empty();
+        }
+
+        private void writeSupplement(Map<String, Object> payload) {
+            if (supplement == null) {
+                return;
+            }
+            if (supplement.currentSummary() == null && supplement.futureSummaries().isEmpty() && !supplement.mobDefenseActive()) {
+                return;
+            }
+            Map<String, Object> queue = new LinkedHashMap<>();
+            if (supplement.currentSummary() != null) {
+                queue.put("current", supplement.currentSummary());
+            }
+            if (!supplement.futureSummaries().isEmpty()) {
+                queue.put("future", supplement.futureSummaries());
+            }
+            queue.put("mob_defense", supplement.mobDefenseActive());
+            payload.put("task_queue", queue);
+            payload.put("mob_defense_active", supplement.mobDefenseActive());
         }
     }
 

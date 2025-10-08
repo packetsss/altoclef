@@ -73,6 +73,13 @@ AltoClef can expose its internal state to external camera tooling through a ligh
 
 Events are emitted once per client tick with built-in coalescing, hazard debouncing, and a 64-entry in-memory ring buffer so a subscribing camera mod can build overlays without spamming chat or requiring a server plugin.
 
+`STATUS_NOW` heartbeats include a `task_queue` block describing what the bot has on deck:
+
+- `current` – the human-readable summary of the task AltoClef is executing right now (or "Mob Defense – Hunt nearby hostiles" when the combat failsafe takes over).
+- `future` – up to the next three scheduled tasks pulled from the user chain.
+- `mob_defense` – `true` when the mob defense chain is actively hunting or shielding, signalling that downstream listeners should treat the bot as fighting mobs instead of running the normal queue.
+- `mob_defense_active` (top-level) mirrors the flag above for ease of filtering.
+
 ### Death telemetry log
 
 For post-mortem debugging you can enable the detailed death logger (enabled by default). Set `"deathLogEnabled": true` in `altoclef_settings.json`, then reload settings. Every time the player dies, AltoClef captures a rich snapshot of the surrounding context—player stats, inventory, active tasks, nearby threats—and appends it as a JSON line under `altoclef/logs/death/`. These logs make it much easier to diagnose why the run failed without having to scroll back through chat output. Disable the feature with `"deathLogEnabled": false` if you prefer not to emit files.

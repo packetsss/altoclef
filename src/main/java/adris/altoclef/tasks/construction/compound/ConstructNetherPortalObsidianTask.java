@@ -7,6 +7,8 @@ import adris.altoclef.tasks.InteractWithBlockTask;
 import adris.altoclef.tasks.construction.DestroyBlockTask;
 import adris.altoclef.tasks.construction.PlaceBlockTask;
 import adris.altoclef.tasks.construction.PlaceStructureBlockTask;
+import adris.altoclef.tasks.movement.GetToBlockTask;
+import adris.altoclef.tasks.movement.GetToYTask;
 import adris.altoclef.tasks.movement.TimeoutWanderTask;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.ItemTarget;
@@ -75,6 +77,10 @@ public class ConstructNetherPortalObsidianTask extends Task {
     };
 
     private static final Vec3i PORTALABLE_REGION_SIZE = new Vec3i(3, 6, 6);
+
+    private static final int FLOODED_ESCAPE_SEARCH_RADIUS = 8;
+    private static final int FLOODED_ESCAPE_VERTICAL_RANGE = 4;
+    private static final int FLOODED_ESCAPE_EXTRA_ASCENT = 6;
 
     private final TimerGame _areaSearchTimer = new TimerGame(5);
 
@@ -156,8 +162,15 @@ public class ConstructNetherPortalObsidianTask extends Task {
                 Debug.logMessage("(Searching for area to build portal nearby...)");
                 origin = getBuildableAreaNearby(mod);
             }
-            setDebugState("Looking for portalable area...");
-            return new TimeoutWanderTask();
+            if (origin == null) {
+                Task escapeTask = escapeFloodedCave(mod);
+                if (escapeTask != null) {
+                    setDebugState("Escaping flooded cave for portal site");
+                    return escapeTask;
+                }
+                setDebugState("Looking for portalable area...");
+                return new TimeoutWanderTask();
+            }
         }
 
         // Get flint and steel
@@ -224,6 +237,120 @@ public class ConstructNetherPortalObsidianTask extends Task {
         }
         // Flint and steel
         return new InteractWithBlockTask(new ItemTarget(Items.FLINT_AND_STEEL, 1), Direction.UP, origin.down(), true);
+    }
+
+    private Task escapeFloodedCave(AltoClef mod) {
+        if (!isPortalAreaFlooded(mod)) {
+            return null;
+        }
+
+        BlockPos dryFloor = findNearestDryFloor(mod);
+        if (dryFloor != null) {
+            return new GetToBlockTask(dryFloor.up());
+        }
+
+        int playerY = mod.getPlayer().getBlockY();
+        int targetY = WorldHelper.getGroundHeight(mod.getPlayer().getBlockX(), mod.getPlayer().getBlockZ());
+        if (targetY < 0) {
+            targetY = playerY + FLOODED_ESCAPE_EXTRA_ASCENT;
+        } else {
+            if (targetY <= playerY) {
+                targetY = playerY + FLOODED_ESCAPE_EXTRA_ASCENT;
+            } else {
+                targetY += 2;
+            }
+        }
+
+        World world = mod.getWorld();
+        if (world != null) {
+            targetY = Math.min(targetY, world.getTopY() - 2);
+            targetY = Math.max(targetY, world.getBottomY() + 1);
+        }
+
+        if (targetY <= playerY) {
+            targetY = playerY + 1;
+        }
+
+        return new GetToYTask(targetY);
+    }
+
+    private boolean isPortalAreaFlooded(AltoClef mod) {
+        if (mod.getPlayer().isTouchingWater() || mod.getPlayer().isSubmergedInWater() || mod.getPlayer().isInLava()) {
+            return true;
+        }
+
+        World world = mod.getWorld();
+        if (world == null) {
+            return false;
+        }
+
+        BlockPos center = mod.getPlayer().getBlockPos();
+        BlockPos min = center.add(-1, -1, -1);
+        BlockPos max = center.add(1, 3, 2);
+
+        for (BlockPos check : WorldHelper.scanRegion(min, max)) {
+            if (!world.getFluidState(check).isEmpty()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private BlockPos findNearestDryFloor(AltoClef mod) {
+        World world = mod.getWorld();
+        if (world == null) {
+            return null;
+        }
+
+        BlockPos base = mod.getPlayer().getBlockPos();
+        BlockPos currentFloor = base.down();
+
+        for (int radius = 0; radius <= FLOODED_ESCAPE_SEARCH_RADIUS; radius++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
+                        continue;
+                    }
+                    for (int dy = -FLOODED_ESCAPE_VERTICAL_RANGE; dy <= FLOODED_ESCAPE_VERTICAL_RANGE; dy++) {
+                        BlockPos floor = base.add(dx, dy, dz);
+
+                        if (floor.getY() <= world.getBottomY() || floor.getY() >= world.getTopY()) {
+                            continue;
+                        }
+
+                        if (!WorldHelper.isSolidBlock(floor)) {
+                            continue;
+                        }
+                        if (!world.getFluidState(floor).isEmpty()) {
+                            continue;
+                        }
+
+                        if (floor.equals(currentFloor)) {
+                            continue;
+                        }
+
+                        BlockPos feet = floor.up();
+                        BlockPos head = feet.up();
+
+                        if (feet.getY() >= world.getTopY() || head.getY() >= world.getTopY()) {
+                            continue;
+                        }
+
+                        if (!world.getBlockState(feet).isAir() || !world.getFluidState(feet).isEmpty()) {
+                            continue;
+                        }
+                        if (!world.getBlockState(head).isAir() || !world.getFluidState(head).isEmpty()) {
+                            continue;
+                        }
+
+                        return floor;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     private boolean surroundedByAir(World world, BlockPos pos) {
