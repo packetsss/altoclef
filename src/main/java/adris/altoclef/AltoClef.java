@@ -29,6 +29,7 @@ import adris.altoclef.ui.MessagePriority;
 import adris.altoclef.ui.MessageSender;
 import adris.altoclef.util.helpers.InputHelper;
 import adris.altoclef.util.helpers.StorageHelper;
+import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.telemetry.DeathLogManager;
 import adris.altoclef.telemetry.StuckLogManager;
 import baritone.Baritone;
@@ -42,6 +43,7 @@ import net.minecraft.client.network.ClientPlayerInteractionManager;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.item.Item;
 import net.minecraft.item.Items;
+import net.minecraft.util.math.Vec3d;
 import org.lwjgl.glfw.GLFW;
 
 import java.nio.file.Path;
@@ -102,6 +104,19 @@ public class AltoClef implements ModInitializer {
     // Pausing
     private boolean paused = false;
     private Task storedTask;
+    private Vec3d idleMonitorAnchorPos = null;
+    private long idleMonitorAnchorTick = -1;
+    private long lastIdleLogTick = -1;
+    private long smeltingSuppressionExpiryTick = -1;
+    private static final int IDLE_STALL_TICKS = 12 * 20;
+    private static final int IDLE_STALL_COOLDOWN_TICKS = 30 * 20;
+    private static final int SMELTING_SUPPRESSION_GRACE_TICKS = 8 * 20;
+    private static final double IDLE_STALL_DISTANCE_SQ = 1.25 * 1.25;
+    private static final Set<String> SMELTING_TASK_CLASSES = Set.of(
+        "adris.altoclef.tasks.container.SmeltInFurnaceTask",
+        "adris.altoclef.tasks.container.SmeltInSmokerTask",
+        "adris.altoclef.tasks.container.SmeltInBlastFurnaceTask"
+    );
 
     private static AltoClef instance;
     private CamBridge camBridge;
@@ -232,18 +247,21 @@ public class AltoClef implements ModInitializer {
 
             if (!inGame()) {
                 autoStartTriggered = false;
-            } else if (!autoStartTriggered && settings != null) {
-                String autoStart = settings.getAutoStartCommand().trim();
-                if (!autoStart.isEmpty()) {
-                    CommandExecutor executor = AltoClef.getCommandExecutor();
-                    if (executor != null) {
-                        Debug.logMessage("Auto-start executing: " + autoStart);
-                        autoStartTriggered = true;
-                        executor.executeWithPrefix(autoStart);
-                    } else {
-                        autoStartTriggered = false;
+                resetIdleMovementTelemetry();
+            } else {
+                if (!autoStartTriggered && settings != null) {
+                    String autoStart = settings.getAutoStartCommand();
+                    autoStart = autoStart == null ? "" : autoStart.trim();
+                    if (!autoStart.isEmpty()) {
+                        CommandExecutor executor = AltoClef.getCommandExecutor();
+                        if (executor != null) {
+                            Debug.logMessage("Auto-start executing: " + autoStart);
+                            executor.executeWithPrefix(autoStart);
+                            autoStartTriggered = true;
+                        }
                     }
                 }
+                updateIdleMovementTelemetry();
             }
         });
 
@@ -680,6 +698,127 @@ public class AltoClef implements ModInitializer {
                 _postInitQueue.poll().accept(this);
             }
         }
+    }
+
+    private void updateIdleMovementTelemetry() {
+        if (stuckLogManager == null || settings == null || !settings.isStuckLogEnabled()) {
+            resetIdleMovementTelemetry();
+            return;
+        }
+        if (paused || taskRunner == null || !taskRunner.isActive()) {
+            resetIdleMovementTelemetry();
+            return;
+        }
+
+        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        if (player == null) {
+            resetIdleMovementTelemetry();
+            return;
+        }
+
+        long currentTick = WorldHelper.getTicks();
+
+        if (suppressIdleTelemetry(currentTick)) {
+            idleMonitorAnchorPos = player.getPos();
+            idleMonitorAnchorTick = currentTick;
+            return;
+        }
+
+        Vec3d currentPos = player.getPos();
+        if (idleMonitorAnchorPos == null) {
+            idleMonitorAnchorPos = currentPos;
+            idleMonitorAnchorTick = currentTick;
+            return;
+        }
+
+        double distanceSq = currentPos.squaredDistanceTo(idleMonitorAnchorPos);
+        if (distanceSq > IDLE_STALL_DISTANCE_SQ) {
+            idleMonitorAnchorPos = currentPos;
+            idleMonitorAnchorTick = currentTick;
+            return;
+        }
+
+        long elapsedTicks = currentTick - idleMonitorAnchorTick;
+        boolean cooledDown = lastIdleLogTick == -1 || currentTick - lastIdleLogTick >= IDLE_STALL_COOLDOWN_TICKS;
+
+        if (elapsedTicks >= IDLE_STALL_TICKS && cooledDown) {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("elapsed_ticks", elapsedTicks);
+            payload.put("elapsed_seconds", Math.round((elapsedTicks / 20.0) * 100.0) / 100.0);
+            payload.put("distance", Math.sqrt(distanceSq));
+            payload.put("anchor_pos", vectorMap(idleMonitorAnchorPos));
+            payload.put("current_pos", vectorMap(currentPos));
+            payload.put("runner_status", taskRunner != null ? taskRunner.statusReport : "<none>");
+            stuckLogManager.recordEvent("PlayerIdleStall", payload);
+            lastIdleLogTick = currentTick;
+            idleMonitorAnchorPos = currentPos;
+            idleMonitorAnchorTick = currentTick;
+        }
+    }
+
+    private void resetIdleMovementTelemetry() {
+        idleMonitorAnchorPos = null;
+        idleMonitorAnchorTick = -1;
+    }
+
+    private boolean suppressIdleTelemetry(long currentTick) {
+        if (isSmeltingContextActiveNow()) {
+            smeltingSuppressionExpiryTick = currentTick + SMELTING_SUPPRESSION_GRACE_TICKS;
+            return true;
+        }
+        if (smeltingSuppressionExpiryTick != -1 && currentTick <= smeltingSuppressionExpiryTick) {
+            return true;
+        }
+        if (smeltingSuppressionExpiryTick != -1 && currentTick > smeltingSuppressionExpiryTick) {
+            smeltingSuppressionExpiryTick = -1;
+        }
+        return false;
+    }
+
+    private boolean isSmeltingContextActiveNow() {
+        if (StorageHelper.isFurnaceOpen() || StorageHelper.isSmokerOpen() || StorageHelper.isBlastFurnaceOpen()) {
+            return true;
+        }
+        if (taskRunner == null) {
+            return false;
+        }
+        for (TaskRunner.ChainDiagnostics chain : taskRunner.getChainDiagnostics()) {
+            if (!chain.active()) {
+                continue;
+            }
+            for (TaskRunner.TaskDiagnostics task : chain.tasks()) {
+                if (!task.active()) {
+                    continue;
+                }
+                String className = task.className();
+                if (SMELTING_TASK_CLASSES.contains(className)) {
+                    return true;
+                }
+                if (className != null && className.toLowerCase(Locale.ROOT).contains("smelt")) {
+                    return true;
+                }
+                if (containsSmeltKeywords(task.summary())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean containsSmeltKeywords(String value) {
+        if (value == null || value.isEmpty()) {
+            return false;
+        }
+        String lower = value.toLowerCase(Locale.ROOT);
+        return lower.contains("smelt") || lower.contains("furnace") || lower.contains("blast furnace") || lower.contains("campfire");
+    }
+
+    private Map<String, Object> vectorMap(Vec3d vec) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("x", Math.round(vec.x * 1000.0) / 1000.0);
+        map.put("y", Math.round(vec.y * 1000.0) / 1000.0);
+        map.put("z", Math.round(vec.z * 1000.0) / 1000.0);
+        return map;
     }
 
 }

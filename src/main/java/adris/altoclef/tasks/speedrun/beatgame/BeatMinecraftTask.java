@@ -1878,7 +1878,7 @@ public class BeatMinecraftTask extends Task {
         boolean endermanFound = mod.getEntityTracker().entityFound(EndermanEntity.class);
         boolean pearlDropped = mod.getEntityTracker().itemDropped(Items.ENDER_PEARL);
 
-        // Check if we have found an Enderman or Ender Pearl and have enough Twisting Vines.
+        // If we can see or reach an enderman, hunt it down immediately.
         if (endermanFound || pearlDropped) {
             Optional<Entity> toKill = mod.getEntityTracker().getClosestEntity(EndermanEntity.class);
             if (toKill.isPresent() && mod.getEntityTracker().isEntityReachable(toKill.get())) {
@@ -1886,9 +1886,9 @@ public class BeatMinecraftTask extends Task {
             }
         }
 
-        // Search for Ender Pearls within the warped forest biome.
-        setDebugState("Waiting for endermen to spawn... ");
-        return null;
+        // No endermen in sight yet—actively hunt by relocating to a warped forest and waiting there.
+        setDebugState("Hunting in warped forest for pearls");
+        return new KillEndermanTask(count);
     }
 
     /**

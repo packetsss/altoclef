@@ -307,6 +307,8 @@ public final class StuckLogManager {
         }
         tasks.put("chains", chains);
         tasks.put("stored_task", mod.getStoredTask() != null ? mod.getStoredTask().toString() : null);
+    tasks.put("recent_transitions", runner.getRecentTaskTransitions());
+    tasks.put("recent_completed_tasks", runner.getRecentCompletedTasks());
 
         EntityTracker tracker = mod.getEntityTracker();
         ClientPlayerEntity player = mod.getPlayer();

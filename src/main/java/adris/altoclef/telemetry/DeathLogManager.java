@@ -328,6 +328,8 @@ public final class DeathLogManager {
         }
         tasks.put("chains", chains);
         tasks.put("stored_task", mod.getStoredTask() != null ? mod.getStoredTask().toString() : null);
+        tasks.put("recent_transitions", runner.getRecentTaskTransitions());
+        tasks.put("recent_completed_tasks", runner.getRecentCompletedTasks());
 
         return tasks;
     }

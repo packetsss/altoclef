@@ -5,6 +5,7 @@ import adris.altoclef.Debug;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.helpers.ItemHelper;
 import adris.altoclef.util.helpers.StorageHelper;
+import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.slots.CursorSlot;
 import adris.altoclef.util.slots.PlayerSlot;
 import adris.altoclef.util.slots.Slot;
@@ -13,11 +14,14 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.item.*;
 import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.util.math.Vec3d;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 
 public class SlotHandler {
@@ -26,6 +30,16 @@ public class SlotHandler {
 
     private final TimerGame slotActionTimer = new TimerGame(0);
     private boolean overrideTimerOnce = false;
+    private static final int INVENTORY_SHUFFLE_ACTION_THRESHOLD = 80;
+    private static final int INVENTORY_SHUFFLE_MIN_TICKS = 40;
+    private static final int INVENTORY_SHUFFLE_RESET_TICKS = 60;
+    private static final int INVENTORY_SHUFFLE_LOG_COOLDOWN_TICKS = 200;
+    private static final double INVENTORY_SHUFFLE_MOVEMENT_THRESHOLD_SQ = 1.5 * 1.5;
+    private int slotActionBurstCount = 0;
+    private long slotActionBurstStartTick = -1;
+    private long lastSlotActionTick = -1;
+    private long lastInventoryShuffleLogTick = -1;
+    private Vec3d slotActionBurstStartPos = null;
 
     public SlotHandler(AltoClef mod) {
         this.mod = mod;
@@ -47,6 +61,74 @@ public class SlotHandler {
     public void registerSlotAction() {
         mod.getItemStorage().registerSlotAction();
         slotActionTimer.reset();
+        monitorInventoryShuffle();
+    }
+
+    private void monitorInventoryShuffle() {
+        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        if (player == null) {
+            slotActionBurstCount = 0;
+            slotActionBurstStartTick = -1;
+            slotActionBurstStartPos = null;
+            lastSlotActionTick = -1;
+            return;
+        }
+
+        long currentTick = WorldHelper.getTicks();
+
+        if (lastSlotActionTick == -1 || currentTick - lastSlotActionTick > INVENTORY_SHUFFLE_RESET_TICKS) {
+            slotActionBurstCount = 0;
+            slotActionBurstStartTick = currentTick;
+            slotActionBurstStartPos = player.getPos();
+        }
+
+        slotActionBurstCount++;
+        if (slotActionBurstStartTick == -1) {
+            slotActionBurstStartTick = currentTick;
+        }
+        if (slotActionBurstStartPos == null) {
+            slotActionBurstStartPos = player.getPos();
+        }
+
+        long elapsedTicks = currentTick - slotActionBurstStartTick;
+        double travelledSq = player.getPos().squaredDistanceTo(slotActionBurstStartPos);
+
+        boolean meetsThreshold = slotActionBurstCount >= INVENTORY_SHUFFLE_ACTION_THRESHOLD
+                && elapsedTicks >= INVENTORY_SHUFFLE_MIN_TICKS
+                && travelledSq <= INVENTORY_SHUFFLE_MOVEMENT_THRESHOLD_SQ;
+
+        boolean cooledDown = lastInventoryShuffleLogTick == -1
+                || currentTick - lastInventoryShuffleLogTick >= INVENTORY_SHUFFLE_LOG_COOLDOWN_TICKS;
+
+        if (meetsThreshold && cooledDown && mod.getStuckLogManager() != null) {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("slot_actions", slotActionBurstCount);
+            payload.put("elapsed_ticks", elapsedTicks);
+            payload.put("distance", Math.sqrt(travelledSq));
+            payload.put("cursor_stack", describeStack(StorageHelper.getItemStackInSlot(CursorSlot.SLOT)));
+            payload.put("selected_slot", player.getInventory().selectedSlot);
+            payload.put("main_hand", describeStack(player.getMainHandStack()));
+            mod.getStuckLogManager().recordEvent("InventoryShuffleStall", payload);
+            lastInventoryShuffleLogTick = currentTick;
+            slotActionBurstCount = 0;
+            slotActionBurstStartTick = currentTick;
+            slotActionBurstStartPos = player.getPos();
+        }
+
+        lastSlotActionTick = currentTick;
+    }
+
+    private Map<String, Object> describeStack(ItemStack stack) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        if (stack == null || stack.isEmpty()) {
+            data.put("empty", true);
+            return data;
+        }
+        data.put("item", stack.getItem().getTranslationKey());
+        data.put("count", stack.getCount());
+        data.put("damage", stack.getDamage());
+        data.put("max_damage", stack.getMaxDamage());
+        return data;
     }
 
 

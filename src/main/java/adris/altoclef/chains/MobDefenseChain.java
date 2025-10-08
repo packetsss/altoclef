@@ -460,6 +460,22 @@ public class MobDefenseChain extends SingleTaskChain {
             return 85;
         }
 
+        boolean projectileThreatPresent = projectileIncoming || latestThreats.stream().anyMatch(snapshot -> snapshot.projectile && snapshot.hasLineOfSight);
+        if (!hasShield(mod) && projectileThreatPresent && mod.getModSettings().isDodgeProjectiles() && !panicRetreatActive) {
+            doingFunkyStuff = true;
+            defenseState = DefenseState.RETREAT;
+            staleTargetTimer.reset();
+            if (StorageHelper.getNumberOfThrowawayBlocks(mod) > 0) {
+                if (!(mainTask instanceof ProjectileProtectionWallTask)) {
+                    setTask(new ProjectileProtectionWallTask(mod));
+                }
+                return 70;
+            }
+            runAwayTask = new DodgeProjectilesTask(ARROW_KEEP_DISTANCE_HORIZONTAL, ARROW_KEEP_DISTANCE_VERTICAL);
+            setTask(runAwayTask);
+            return 65;
+        }
+
         if (targetIsNonHostile
                 && !hasImmediateThreat
                 && blowingUp == null
@@ -512,17 +528,7 @@ public class MobDefenseChain extends SingleTaskChain {
         doForceField(mod);
 
         // Dodge projectiles
-        if (mod.getPlayer().getHealth() <= 10 && !hasShield(mod)) {
-
-            if (StorageHelper.getNumberOfThrowawayBlocks(mod) > 0 && !mod.getFoodChain().needsToEat()
-                    && mod.getModSettings().isDodgeProjectiles() && isProjectileClose(mod)) {
-                doingFunkyStuff = true;
-                setTask(new ProjectileProtectionWallTask(mod));
-                defenseState = DefenseState.RETREAT;
-                staleTargetTimer.reset();
-                return 65;
-            }
-
+        if (mod.getPlayer().getHealth() <= 10 && !hasShield(mod) && projectileThreatPresent) {
             runAwayTask = new DodgeProjectilesTask(ARROW_KEEP_DISTANCE_HORIZONTAL, ARROW_KEEP_DISTANCE_VERTICAL);
             defenseState = DefenseState.RETREAT;
             staleTargetTimer.reset();

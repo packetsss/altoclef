@@ -2,12 +2,19 @@ package adris.altoclef.tasksystem;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
+import adris.altoclef.util.helpers.WorldHelper;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class TaskRunner {
@@ -18,6 +25,13 @@ public class TaskRunner {
 
     private TaskChain cachedCurrentTaskChain = null;
     private float cachedCurrentPriority = Float.NEGATIVE_INFINITY;
+
+    private final Deque<TaskTimelineEntry> taskTransitions = new ArrayDeque<>();
+    private final Deque<Map<String, Object>> completedTaskHistory = new ArrayDeque<>();
+    private final Map<Task, TaskLifetime> activeTaskLifetimes = new IdentityHashMap<>();
+
+    private static final int MAX_TRANSITION_HISTORY = 64;
+    private static final int MAX_COMPLETED_HISTORY = 128;
 
     public String statusReport = " (no chain running) ";
 
@@ -45,7 +59,7 @@ public class TaskRunner {
         }
         boolean chainChanged = cachedCurrentTaskChain != maxChain;
 
-    if (chainChanged) {
+        if (chainChanged) {
             String prevName = cachedCurrentTaskChain != null ? cachedCurrentTaskChain.getName() : "<none>";
             String prevContext = cachedCurrentTaskChain != null ? cachedCurrentTaskChain.getDebugContext() : "";
             float prevPriority = cachedCurrentTaskChain != null ? cachedCurrentPriority : Float.NEGATIVE_INFINITY;
@@ -59,6 +73,7 @@ public class TaskRunner {
             maxPriority,
             prevContext,
             nextContext), false);
+            recordTransition(prevName, prevPriority, prevContext, nextName, maxPriority, nextContext);
         }
 
         if (cachedCurrentTaskChain != null && maxChain != cachedCurrentTaskChain) {
@@ -71,8 +86,10 @@ public class TaskRunner {
         if (maxChain != null) {
             statusReport = "Chain: "+maxChain.getName() + ", priority: "+maxPriority;
             maxChain.tick();
+            updateTaskLifetimes(maxChain);
         } else {
             statusReport = " (no chain running) ";
+            updateTaskLifetimes(null);
         }
     }
 
@@ -149,6 +166,95 @@ public class TaskRunner {
             map.put("active", active);
             map.put("stopped", stopped);
             return map;
+        }
+    }
+
+    public List<Map<String, Object>> getRecentTaskTransitions() {
+        return taskTransitions.stream()
+                .map(entry -> {
+                    Map<String, Object> map = new LinkedHashMap<>();
+                    map.put("tick", entry.tick());
+                    map.put("from_chain", entry.fromChain());
+                    map.put("from_priority", entry.fromPriority());
+                    map.put("from_context", entry.fromContext());
+                    map.put("to_chain", entry.toChain());
+                    map.put("to_priority", entry.toPriority());
+                    map.put("to_context", entry.toContext());
+                    return map;
+                })
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    public List<Map<String, Object>> getRecentCompletedTasks() {
+        return new ArrayList<>(completedTaskHistory);
+    }
+
+    private void recordTransition(String fromChain, float fromPriority, String fromContext,
+                                  String toChain, float toPriority, String toContext) {
+        long tick = WorldHelper.getTicks();
+        taskTransitions.addLast(new TaskTimelineEntry(tick, fromChain, fromPriority, fromContext, toChain, toPriority, toContext));
+        while (taskTransitions.size() > MAX_TRANSITION_HISTORY) {
+            taskTransitions.removeFirst();
+        }
+    }
+
+    private void updateTaskLifetimes(TaskChain activeChain) {
+        long currentTick = WorldHelper.getTicks();
+        Set<Task> currentTasks = new HashSet<>();
+        if (activeChain != null) {
+            String chainName = activeChain.getName();
+            for (Task task : activeChain.getTasks()) {
+                currentTasks.add(task);
+                activeTaskLifetimes.computeIfAbsent(task, key -> new TaskLifetime(currentTick, chainName, task.getClass().getName()))
+                        .updateLastKnownContext(task.toString(), chainName);
+            }
+        }
+
+        Iterator<Map.Entry<Task, TaskLifetime>> iterator = activeTaskLifetimes.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<Task, TaskLifetime> entry = iterator.next();
+            Task task = entry.getKey();
+            TaskLifetime lifetime = entry.getValue();
+            if (!currentTasks.contains(task)) {
+                Map<String, Object> summary = new LinkedHashMap<>();
+                summary.put("task", lifetime.lastContext != null ? lifetime.lastContext : task.toString());
+                summary.put("class", lifetime.className);
+                summary.put("chain", lifetime.lastKnownChain != null ? lifetime.lastKnownChain : lifetime.declaredChain);
+                summary.put("started_tick", lifetime.startTick);
+                summary.put("ended_tick", currentTick);
+                summary.put("duration_ticks", Math.max(0, currentTick - lifetime.startTick));
+                completedTaskHistory.addLast(summary);
+                while (completedTaskHistory.size() > MAX_COMPLETED_HISTORY) {
+                    completedTaskHistory.removeFirst();
+                }
+                iterator.remove();
+            }
+        }
+    }
+
+    private record TaskTimelineEntry(long tick, String fromChain, float fromPriority, String fromContext,
+                                     String toChain, float toPriority, String toContext) {
+    }
+
+    private static final class TaskLifetime {
+        private final long startTick;
+        private final String declaredChain;
+        private final String className;
+        private String lastContext;
+        private String lastKnownChain;
+
+        private TaskLifetime(long startTick, String chainName, String className) {
+            this.startTick = startTick;
+            this.declaredChain = chainName;
+            this.className = className;
+            this.lastKnownChain = chainName;
+        }
+
+        private void updateLastKnownContext(String context, String chain) {
+            this.lastContext = context;
+            if (chain != null) {
+                this.lastKnownChain = chain;
+            }
         }
     }
 }

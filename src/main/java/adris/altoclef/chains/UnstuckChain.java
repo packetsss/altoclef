@@ -12,14 +12,18 @@ import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.time.TimerGame;
 import baritone.api.utils.input.Input;
-import net.minecraft.block.BlockState;
 import net.minecraft.block.EndPortalFrameBlock;
+import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.fluid.FluidState;
+import net.minecraft.registry.Registries;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.registry.tag.FluidTags;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -73,19 +77,27 @@ public class UnstuckChain extends SingleTaskChain {
         ClientWorld world = AltoClef.getInstance().getWorld();
         ClientPlayerEntity player = AltoClef.getInstance().getPlayer();
 
-        // is not in water
-        if (!world.getBlockState(player.getSteppingPos()).getBlock().equals(Blocks.WATER)
-                && !world.getBlockState(player.getSteppingPos().down()).getBlock().equals(Blocks.WATER))
-            return;
+        BlockPos feet = player.getSteppingPos();
+        BlockState feetState = world.getBlockState(feet);
+        FluidState feetFluid = feetState.getFluidState();
+        boolean waterAtFeet = feetState.getBlock().equals(Blocks.WATER) || feetFluid.isIn(FluidTags.WATER);
+        boolean waterBelow = world.getFluidState(feet.down()).isIn(FluidTags.WATER) || world.getBlockState(feet.down()).getBlock().equals(Blocks.WATER);
+        boolean waterAtHead = world.getFluidState(feet.up()).isIn(FluidTags.WATER) || world.getBlockState(feet.up()).getFluidState().isIn(FluidTags.WATER);
+        boolean touchingWater = player.isTouchingWater() || waterAtFeet || waterBelow;
 
-        // everything should be fine
-        if (player.isOnGround()) {
-            posHistory.clear();
+        if (!touchingWater) {
             return;
         }
 
-        // do NOT do anything if underwater
         if (player.getAir() < player.getMaxAir()) {
+            return;
+        }
+
+        Vec3d velocity = player.getVelocity();
+        double horizontalSpeedSq = velocity.x * velocity.x + velocity.z * velocity.z;
+
+        if (player.isOnGround() && !waterAtFeet && horizontalSpeedSq > 0.01) {
+            posHistory.clear();
             return;
         }
 
@@ -112,6 +124,20 @@ public class UnstuckChain extends SingleTaskChain {
         payload.put("start_pos", vectorMap(pos1));
         payload.put("end_pos", vectorMap(pos2));
         payload.put("dimension", dimensionName);
+        payload.put("on_ground", player.isOnGround());
+        payload.put("touching_water", player.isTouchingWater());
+        payload.put("head_in_water", waterAtHead);
+        payload.put("horizontal_speed", round(Math.sqrt(horizontalSpeedSq), 4));
+        payload.put("velocity", vectorMap(velocity));
+        payload.put("ground_block", describeBlock(world.getBlockState(feet)));
+        Direction facing = player.getHorizontalFacing();
+        BlockPos frontPos = feet.offset(facing);
+        payload.put("front_block", describeBlock(world.getBlockState(frontPos)));
+        payload.put("front_block_pos", blockPosMap(frontPos));
+        List<Map<String, Object>> nearbyWater = collectNearbyWater(world, feet);
+        if (!nearbyWater.isEmpty()) {
+            payload.put("nearby_water", nearbyWater);
+        }
         logStuckEvent("WaterLimitedMovement", 200, payload);
         posHistory.clear();
         isProbablyStuck = true;
@@ -394,6 +420,33 @@ public class UnstuckChain extends SingleTaskChain {
         map.put("x", pos.x());
         map.put("z", pos.z());
         return map;
+    }
+
+    private static List<Map<String, Object>> collectNearbyWater(ClientWorld world, BlockPos center) {
+        List<Map<String, Object>> samples = new ArrayList<>();
+        BlockPos.Mutable mutable = new BlockPos.Mutable();
+        for (int dy = -1; dy <= 1; dy++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    mutable.set(center.getX() + dx, center.getY() + dy, center.getZ() + dz);
+                    FluidState fluid = world.getFluidState(mutable);
+                    if (fluid.isIn(FluidTags.WATER)) {
+                        samples.add(blockPosMap(mutable.toImmutable()));
+                        if (samples.size() >= 8) {
+                            return samples;
+                        }
+                    }
+                }
+            }
+        }
+        return samples;
+    }
+
+    private static String describeBlock(BlockState state) {
+        if (state == null) {
+            return "<null>";
+        }
+        return Registries.BLOCK.getId(state.getBlock()).toString();
     }
 
     @Override
