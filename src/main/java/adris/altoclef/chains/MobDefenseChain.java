@@ -628,6 +628,20 @@ public class MobDefenseChain extends SingleTaskChain {
         if (engagePriority != null) {
             return engagePriority;
         }
+
+        if ((playerTookDamageThisTick || absorptionLostThisTick)
+                && (latestThreats.isEmpty() || latestThreats.stream().noneMatch(snapshot -> snapshot.immediate))) {
+            if (!(runAwayTask instanceof RunAwayFromHostilesTask) || runAwayTask.isFinished()) {
+                runAwayTask = new RunAwayFromHostilesTask(DANGER_KEEP_DISTANCE, true);
+            }
+            defenseState = DefenseState.RETREAT;
+            staleTargetTimer.reset();
+            persistentThreatTimer.reset();
+            immediateThreatHoldTimer.reset();
+            Debug.logMessage("[MobDefense] Damage detected without tracked immediate threats, forcing retreat.", false);
+            setTask(runAwayTask);
+            return 80;
+        }
         if (handleDefenseIdleStall(mod)) {
             return 80;
         }

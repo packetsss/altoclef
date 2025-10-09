@@ -146,6 +146,7 @@ public class BeatMinecraftTask extends Task {
     private List<TaskChange> taskChanges = new ArrayList<>();
     private PriorityTask prevLastGather = null;
     private BlockPos biomePos = null;
+    private final LocateBiomeCommandHelper warpedForestLocator;
     private final BeatMinecraftStateStore stateStore;
     private BeatMinecraftState lastSavedState;
     private long lastStatePersistMs = 0L;
@@ -170,6 +171,13 @@ public class BeatMinecraftTask extends Task {
         uselessItems = new UselessItems(config);
 
         SetGammaCommand.changeGamma(20d);
+
+    warpedForestLocator = new LocateBiomeCommandHelper(mod,
+        "minecraft:warped_forest",
+        "Warped Forest",
+        Dimension.NETHER,
+        45,
+        10);
 
         if (mod.getWorld().getDifficulty() != Difficulty.EASY) {
             mod.logWarning("Detected that the difficulty is other than easy!");
@@ -2264,6 +2272,8 @@ public class BeatMinecraftTask extends Task {
                 return goToNetherTask;
             }
             case NETHER -> {
+                warpedForestLocator.tick();
+
                 if (isTaskRunning(mod, safeNetherPortalTask)) {
                     return safeNetherPortalTask;
                 }
@@ -2313,9 +2323,29 @@ public class BeatMinecraftTask extends Task {
 
                 double rodDistance = mod.getBlockScanner().distanceToClosest(Blocks.NETHER_BRICKS);
                 double pearlDistance = mod.getBlockScanner().distanceToClosest(Blocks.TWISTING_VINES, Blocks.TWISTING_VINES_PLANT, Blocks.WARPED_HYPHAE, Blocks.WARPED_NYLIUM);
+                Optional<BlockPos> locatedWarped = warpedForestLocator.getLocatedPosition();
+                locatedWarped.ifPresent(located -> {
+                    if (!mod.getBlockScanner().anyFound(Blocks.TWISTING_VINES, Blocks.TWISTING_VINES_PLANT, Blocks.WARPED_HYPHAE, Blocks.WARPED_NYLIUM)) {
+                        ClientPlayerEntity player = mod.getPlayer();
+                        if (player != null) {
+                            biomePos = new BlockPos(located.getX(), player.getBlockY(), located.getZ());
+                            gotToBiome = false;
+                        }
+                    }
+                });
 
                 if (pearlDistance == Double.POSITIVE_INFINITY && rodDistance == Double.POSITIVE_INFINITY) {
-                    setDebugState("Neither fortress or warped forest found... wandering");
+                    if (locatedWarped.isPresent()) {
+                        BlockPos target = locatedWarped.get();
+                        setDebugState("Locate warped forest at " + target.toShortString());
+                        return new GetToXZTask(target.getX(), target.getZ(), Dimension.NETHER);
+                    }
+
+                    if (!warpedForestLocator.isUnsupported()) {
+                        setDebugState("Locating warped forest biome...");
+                    } else {
+                        setDebugState("Neither fortress or warped forest found... wandering");
+                    }
                     if (isTaskRunning(mod, searchTask)) {
                         return searchTask;
                     }
@@ -2384,6 +2414,14 @@ public class BeatMinecraftTask extends Task {
 
 
                 if (!mod.getBlockScanner().anyFound(Blocks.TWISTING_VINES, Blocks.TWISTING_VINES_PLANT, Blocks.WARPED_HYPHAE, Blocks.WARPED_NYLIUM)) {
+                    if (locatedWarped.isPresent()) {
+                        BlockPos target = locatedWarped.get();
+                        setDebugState("Moving to located warped forest at " + target.toShortString());
+                        return new GetToXZTask(target.getX(), target.getZ(), Dimension.NETHER);
+                    }
+                    if (!warpedForestLocator.isUnsupported()) {
+                        setDebugState("Searching warped forest (locate pending)");
+                    }
                     return new TimeoutWanderTask();
                 }
 
