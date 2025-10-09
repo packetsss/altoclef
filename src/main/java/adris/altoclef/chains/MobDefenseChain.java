@@ -546,7 +546,7 @@ public class MobDefenseChain extends SingleTaskChain {
             }
         }
 
-        if (mod.getModSettings().shouldDealWithAnnoyingHostiles()) {
+    if (mod.getModSettings().shouldDealWithAnnoyingHostiles()) {
             List<ThreatSnapshot> annoyanceCandidates = latestThreats.stream()
                     .filter(snapshot -> snapshot.hasLineOfSight)
                     .filter(snapshot -> snapshot.distanceSq < (hasShield(mod) ? 35 * 35 : 25 * 25))
@@ -623,6 +623,10 @@ public class MobDefenseChain extends SingleTaskChain {
                     return 80;
                 }
             }
+        }
+        Float engagePriority = tryEngagePrimaryThreat(mod);
+        if (engagePriority != null) {
+            return engagePriority;
         }
         if (handleDefenseIdleStall(mod)) {
             return 80;
@@ -1025,6 +1029,60 @@ public class MobDefenseChain extends SingleTaskChain {
             defenseState = DefenseState.RETREAT;
             setTask(runAwayTask);
         }
+    }
+
+    private Float tryEngagePrimaryThreat(AltoClef mod) {
+        if (defenseState == DefenseState.FAILSAFE || defenseState == DefenseState.RETREAT || panicRetreatActive) {
+            return null;
+        }
+        if (mod.getPlayer() == null || latestThreats.isEmpty()) {
+            return null;
+        }
+
+        Optional<ThreatSnapshot> primaryThreat = latestThreats.stream()
+                .filter(snapshot -> snapshot.immediate)
+                .filter(snapshot -> snapshot.reachable)
+                .findFirst();
+
+        if (primaryThreat.isEmpty()) {
+            return null;
+        }
+
+        Entity threat = primaryThreat.get().entity;
+        if (threat == null || !threat.isAlive()) {
+            return null;
+        }
+
+        boolean alreadyLocked = lockedOnEntity != null && lockedOnEntity.getUuid().equals(threat.getUuid());
+        if (alreadyLocked && mainTask != null && !mainTask.isFinished()) {
+            return null;
+        }
+
+        if (mainTask != null && !mainTask.isFinished()) {
+            if (mainTask instanceof KillEntityTask killTask) {
+                if (killTask.equals(new KillEntityTask(threat))) {
+                    return null;
+                }
+            }
+            if (mainTask instanceof KillEntitiesTask && alreadyLocked) {
+                return null;
+            }
+        }
+
+        stopShielding(mod);
+        killAura.stopShielding(mod);
+        lockedOnEntity = threat;
+        needsChangeOnAttack = true;
+        runAwayTask = null;
+        doingFunkyStuff = false;
+        defenseState = DefenseState.ACTIVE;
+        staleTargetTimer.reset();
+        setTask(new KillEntityTask(threat));
+        Debug.logMessage(String.format(Locale.ROOT,
+                "[MobDefense] Engaging primary threat %s distance=%.1f",
+                threat.getType().getTranslationKey(),
+                mod.getPlayer().distanceTo(threat)), false);
+        return 75f;
     }
 
     private Map<String, Object> summarizeThreat(ThreatSnapshot snapshot) {

@@ -15,6 +15,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.item.Item;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.registry.tag.FluidTags;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -29,6 +30,8 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
     private static final long STALL_DETECTION_TICKS = 12 * 20;
     private static final long STALL_LOG_COOLDOWN_TICKS = 35 * 20;
     private static final double STALL_DISTANCE_THRESHOLD_SQ = 1.25 * 1.25;
+    private int dryTicks = 0;
+    private static final int REQUIRED_DRY_TICKS = 20;
 
     @Override
     protected void onStart() {
@@ -39,6 +42,7 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
     protected Task onTick() {
         AltoClef mod = AltoClef.getInstance();
         updateWaterStallTelemetry(mod);
+        updateDrynessCounter(mod);
 
         // get on the surface first
         if (mod.getPlayer().getAir() < mod.getPlayer().getMaxAir() || mod.getPlayer().isSubmergedInWater()) {
@@ -100,7 +104,28 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
 
     @Override
     public boolean isFinished() {
-        return !AltoClef.getInstance().getPlayer().isTouchingWater() && AltoClef.getInstance().getPlayer().isOnGround();
+        AltoClef mod = AltoClef.getInstance();
+        if (mod.getPlayer() == null || mod.getWorld() == null) return true;
+
+        Goal goal = cachedGoal != null ? cachedGoal : newGoal(mod);
+        if (goal != null && goal.isInGoal(mod.getPlayer().getBlockPos())) {
+            return true;
+        }
+
+        if (!mod.getPlayer().isOnGround()) {
+            return false;
+        }
+
+        if (mod.getPlayer().isTouchingWater()) {
+            return false;
+        }
+
+        if (dryTicks >= REQUIRED_DRY_TICKS && isLocalAreaDry(mod)) {
+            Debug.logInternal("[GetOutOfWater] Finishing after sustained dryness.");
+            return true;
+        }
+
+        return false;
     }
 
     private void updateWaterStallTelemetry(AltoClef mod) {
@@ -150,6 +175,7 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
         stallAnchorPos = null;
         stallAnchorTick = -1;
         lastStallLogTick = -1;
+        dryTicks = 0;
     }
 
     private static Map<String, Object> vectorMap(Vec3d vec) {
@@ -158,6 +184,36 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
         map.put("y", Math.round(vec.y * 1000.0) / 1000.0);
         map.put("z", Math.round(vec.z * 1000.0) / 1000.0);
         return map;
+    }
+
+    private void updateDrynessCounter(AltoClef mod) {
+        if (mod.getPlayer() == null) {
+            dryTicks = 0;
+            return;
+        }
+
+        if (!mod.getPlayer().isTouchingWater() && mod.getPlayer().isOnGround() && isLocalAreaDry(mod)) {
+            dryTicks++;
+        } else {
+            dryTicks = 0;
+        }
+    }
+
+    private boolean isLocalAreaDry(AltoClef mod) {
+        if (mod.getPlayer() == null || mod.getWorld() == null) return true;
+
+        BlockPos base = mod.getPlayer().getBlockPos();
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    BlockPos check = base.add(dx, dy, dz);
+                    if (mod.getWorld().getFluidState(check).isIn(FluidTags.WATER)) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
     }
 
     private static class EscapeFromWaterGoal implements Goal {

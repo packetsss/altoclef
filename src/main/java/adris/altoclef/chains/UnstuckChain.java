@@ -451,12 +451,21 @@ public class UnstuckChain extends SingleTaskChain {
 
     @Override
     public float getPriority() {
-        if (mainTask instanceof GetOutOfWaterTask && mainTask.isActive()) {
-            if (!waterTaskLogged) {
-                Debug.logMessage("[Unstuck] Continuing GetOutOfWaterTask", false);
-                waterTaskLogged = true;
+        if (mainTask instanceof GetOutOfWaterTask) {
+            if (mainTask.isFinished() || !mainTask.isActive()) {
+                Debug.logInternal("[Unstuck] Clearing completed GetOutOfWaterTask during priority evaluation.");
+                setTask(null);
+                waterTaskLogged = false;
+                startedShimmying = false;
+                isProbablyStuck = false;
+                posHistory.clear();
+            } else {
+                if (!waterTaskLogged) {
+                    Debug.logMessage("[Unstuck] Continuing GetOutOfWaterTask", false);
+                    waterTaskLogged = true;
+                }
+                return 55;
             }
-            return 55;
         }
         waterTaskLogged = false;
 
@@ -505,7 +514,14 @@ public class UnstuckChain extends SingleTaskChain {
 
     @Override
     protected void onTaskFinish(AltoClef mod) {
-
+        if (mainTask != null) {
+            Debug.logInternal("[Unstuck] Task finished callback, clearing main task: " + mainTask);
+            setTask(null);
+        }
+        startedShimmying = false;
+        isProbablyStuck = false;
+        waterTaskLogged = false;
+        posHistory.clear();
     }
 
     @Override
