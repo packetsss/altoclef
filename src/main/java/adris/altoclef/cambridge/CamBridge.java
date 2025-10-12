@@ -101,6 +101,8 @@ public final class CamBridge implements AutoCloseable {
     private final Map<ActivityKind, ActivityState> activityStates = new EnumMap<>(ActivityKind.class);
     private final StatusTracker statusTracker = new StatusTracker();
 
+    private CamBridgeMode mode = CamBridgeMode.STATUS_ONLY;
+
     private CamBridgeTransport transport;
     private boolean enabled;
     private long lastBigEventMs = Long.MIN_VALUE;
@@ -162,6 +164,10 @@ public final class CamBridge implements AutoCloseable {
         }
 
         swapTransport(newTransport);
+        mode = settings.getCamBridgeMode();
+        if (mode.isStatusOnly()) {
+            deferredBigEvents.clear();
+        }
         enabled = true;
     }
 
@@ -169,7 +175,11 @@ public final class CamBridge implements AutoCloseable {
         if (!enabled) {
             return;
         }
-        tryDispatchDeferred();
+        if (mode.isFull()) {
+            tryDispatchDeferred();
+        } else {
+            deferredBigEvents.clear();
+        }
 
         if (!AltoClef.inGame()) {
             resetState();
@@ -183,11 +193,15 @@ public final class CamBridge implements AutoCloseable {
         updateDimension(currentSnapshot, now);
         updatePhase(currentSnapshot, now);
         updateTaskLifecycle(now);
-        updateMilestones(currentSnapshot, now);
-        updateHazards(currentSnapshot, now);
-        updateStallState(now);
-        updateActivities(currentSnapshot, now);
-    updateStatus(currentSnapshot, now);
+        if (mode.isFull()) {
+            updateMilestones(currentSnapshot, now);
+            updateHazards(currentSnapshot, now);
+            updateStallState(now);
+            updateActivities(currentSnapshot, now);
+        } else {
+            stallActive = false;
+        }
+        updateStatus(currentSnapshot, now);
         emitHeartbeatIfDue(currentSnapshot, now);
 
         lastResources = currentSnapshot;
@@ -946,6 +960,9 @@ public final class CamBridge implements AutoCloseable {
 
     private void emitEvent(CamEvent event, long now) {
         if (event == null) return;
+        if (!shouldEmit(event)) {
+            return;
+        }
         if (event.hasFullInspectSuggestion()) {
             if (now - lastFullInspectMs < FULL_INSPECT_COOLDOWN_MS) {
                 event = event.withoutSuggestion();
@@ -961,6 +978,16 @@ public final class CamBridge implements AutoCloseable {
             lastBigEventMs = now;
         }
         recordEvent(event);
+    }
+
+    private boolean shouldEmit(CamEvent event) {
+        if (mode.isFull()) {
+            return true;
+        }
+        return switch (event.type) {
+            case STATUS_NOW, TASK_START, TASK_END, HEARTBEAT -> true;
+            default -> false;
+        };
     }
 
     private void tryDispatchDeferred() {

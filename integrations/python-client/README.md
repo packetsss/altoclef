@@ -21,7 +21,10 @@ This directory contains a reference UDP listener that consumes CamBridge telemet
    "camBridgeMirrorUdpPorts": [36667]
    ```
 
-3. Save the file and run `@reload_settings` in-game (or restart AltoClef) to apply the changes.
+3. (Optional) When you only consume the stream outside the in-game camera, set
+   `"camBridgeMode": "status-only"` to suppress the heavier camera events and keep the
+   lightweight task updates for overlays.
+4. Save the file and run `@reload_settings` in-game (or restart AltoClef) to apply the changes.
 
 ## Run the listener
 

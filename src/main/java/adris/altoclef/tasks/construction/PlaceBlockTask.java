@@ -24,6 +24,7 @@ import net.minecraft.item.Item;
 import net.minecraft.util.math.BlockPos;
 import org.apache.commons.lang3.ArrayUtils;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -104,23 +105,9 @@ public class PlaceBlockTask extends Task implements ITaskRequiresGrounded {
             return wanderTask;
         }
 
-        if (autoCollectStructureBlocks) {
-            if (materialTask != null && materialTask.isActive() && !materialTask.isFinished()) {
-                setDebugState("No structure items, collecting cobblestone + dirt as default.");
-                if (getMaterialCount(mod) < PREFERRED_MATERIALS) {
-                    return materialTask;
-                } else {
-                    materialTask = null;
-                }
-            }
-
-            //Item[] items = Util.toArray(Item.class, mod.getClientBaritoneSettings().acceptableThrowawayItems.value);
-            if (getMaterialCount(mod) < MIN_MATERIALS) {
-                // TODO: Mine items, extract their resource key somehow.
-                materialTask = getMaterialTask(PREFERRED_MATERIALS);
-                progressChecker.reset();
-                return materialTask;
-            }
+        Task gatherMaterials = ensureMaterials(mod);
+        if (gatherMaterials != null) {
+            return gatherMaterials;
         }
 
 
@@ -184,6 +171,48 @@ public class PlaceBlockTask extends Task implements ITaskRequiresGrounded {
 
     private boolean tryingAlternativeWay() {
         return failCount % 4 == 3;
+    }
+
+    private Task ensureMaterials(AltoClef mod) {
+        int materialCount = getMaterialCount(mod);
+
+        if (materialCount >= MIN_MATERIALS) {
+            if (materialTask != null && materialTask.isActive() && !materialTask.isFinished()) {
+                return materialTask;
+            }
+            materialTask = null;
+            return null;
+        }
+
+        if (materialTask != null && materialTask.isActive() && !materialTask.isFinished()) {
+            setDebugState("Collecting blocks to place.");
+            return materialTask;
+        }
+
+        progressChecker.reset();
+
+        if (autoCollectStructureBlocks || useThrowaways) {
+            setDebugState("No structure items, collecting cobblestone + dirt as default.");
+            materialTask = getMaterialTask(PREFERRED_MATERIALS);
+            return materialTask;
+        }
+
+        Item[] candidateItems = ItemHelper.blocksToItems(toPlace);
+        List<ItemTarget> targets = new ArrayList<>();
+        for (Item item : candidateItems) {
+            if (item == null || item == net.minecraft.item.Items.AIR) {
+                continue;
+            }
+            targets.add(new ItemTarget(item, MIN_MATERIALS));
+        }
+
+        if (!targets.isEmpty()) {
+            setDebugState("Collecting required blocks for placement.");
+            materialTask = TaskCatalogue.getSquashedItemTask(targets.toArray(ItemTarget[]::new));
+            return materialTask;
+        }
+
+        return null;
     }
 
     private class PlaceStructureSchematic extends AbstractSchematic {

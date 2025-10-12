@@ -1,5 +1,6 @@
 package adris.altoclef;
 
+import adris.altoclef.cambridge.CamBridgeMode;
 import adris.altoclef.control.KillAura;
 import adris.altoclef.multiversion.versionedfields.Items;
 import adris.altoclef.tasks.movement.DefaultGoToDimensionTask;
@@ -338,6 +339,12 @@ public class Settings implements IFailableConfigFile {
     private String camBridgeFilePath = "cambridge-events.jsonl";
 
     /**
+     * Controls the volume of telemetry emitted by CamBridge. "full" preserves the legacy
+     * camera-focused stream while "status-only" keeps just the lightweight task updates for overlays.
+     */
+    private String camBridgeMode = "status-only";
+
+    /**
      * This setting lets you configure what the bot should do if it needs to go to the nether
      * but can't find a nether portal immediately.
      * <p>
@@ -622,6 +629,10 @@ public class Settings implements IFailableConfigFile {
 
     public String getCamBridgeHost() {
         return camBridgeHost == null ? "127.0.0.1" : camBridgeHost;
+    }
+
+    public CamBridgeMode getCamBridgeMode() {
+        return CamBridgeMode.fromString(camBridgeMode);
     }
 
     public int getCamBridgePort() {

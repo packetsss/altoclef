@@ -73,6 +73,7 @@ public class AltoClef implements ModInitializer {
     private FoodChain foodChain;
     private MobDefenseChain mobDefenseChain;
     private MLGBucketFallChain mlgBucketChain;
+    private WorldBootstrapChain worldBootstrapChain;
     // Trackers
     private ItemStorageTracker storageTracker;
     private ContainerSubTracker containerSubTracker;
@@ -182,6 +183,8 @@ public class AltoClef implements ModInitializer {
         new PreEquipItemChain(taskRunner);
         new WorldSurvivalChain(taskRunner);
         foodChain = new FoodChain(taskRunner);
+    worldBootstrapChain = new WorldBootstrapChain(taskRunner);
+    worldBootstrapChain.requestBootstrap("initial-load");
 
         // Trackers
         storageTracker = new ItemStorageTracker(this, trackerManager, container -> containerSubTracker = container);
@@ -327,6 +330,9 @@ public class AltoClef implements ModInitializer {
         }
         if (entityTracker != null) {
             entityTracker.setDirty();
+        }
+        if (worldBootstrapChain != null) {
+            worldBootstrapChain.requestBootstrap("respawn");
         }
     }
 
@@ -648,6 +654,10 @@ public class AltoClef implements ModInitializer {
         return mlgBucketChain;
     }
 
+    public WorldBootstrapChain getWorldBootstrapChain() {
+        return worldBootstrapChain;
+    }
+
     public void log(String message) {
         log(message, MessagePriority.TIMELY);
     }
@@ -706,6 +716,10 @@ public class AltoClef implements ModInitializer {
             return;
         }
         if (paused || taskRunner == null || !taskRunner.isActive()) {
+            resetIdleMovementTelemetry();
+            return;
+        }
+        if (worldBootstrapChain != null && worldBootstrapChain.isBootstrapActive()) {
             resetIdleMovementTelemetry();
             return;
         }

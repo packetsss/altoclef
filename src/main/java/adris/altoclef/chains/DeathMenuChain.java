@@ -28,6 +28,8 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.Heightmap;
 import net.minecraft.world.chunk.ChunkStatus;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Locale;
 import java.util.Random;
 import java.util.UUID;
@@ -62,6 +64,7 @@ public class DeathMenuChain extends TaskChain {
     private boolean deathContextLogged = false;
     private boolean shouldLogNextRespawn = false;
     private boolean restartBeatTaskAfterRespawn = false;
+    private final Deque<String> pendingDeathCommands = new ArrayDeque<>();
 
 
     public DeathMenuChain(TaskRunner runner) {
@@ -93,6 +96,7 @@ public class DeathMenuChain extends TaskChain {
 
     @Override
     public float getPriority() {
+        processPendingDeathCommands();
         if (randomRespawnQueued && !randomRespawnAttempted && AltoClef.inGame()) {
             attemptRandomRespawnTeleport();
         }
@@ -148,17 +152,8 @@ public class DeathMenuChain extends TaskChain {
                     MinecraftClient.getInstance().setScreen(null);
                     for (String i : mod.getModSettings().getDeathCommand().split(" & ")) {
                         String command = i.replace("{deathmessage}", deathMessage);
-                        String prefix = mod.getModSettings().getCommandPrefix();
-                        while (MinecraftClient.getInstance().player.isAlive()) ;
                         if (!command.isEmpty()) {
-                            if (command.startsWith(prefix)) {
-                                AltoClef.getCommandExecutor().execute(command, () -> {
-                                }, Throwable::printStackTrace);
-                            } else if (command.startsWith("/")) {
-                                PlayerVer.sendChatCommand(MinecraftClient.getInstance().player, command.substring(1));
-                            } else {
-                                PlayerVer.sendChatMessage(MinecraftClient.getInstance().player, command);
-                            }
+                            pendingDeathCommands.add(command);
                         }
                     }
                 } else {
@@ -208,6 +203,31 @@ public class DeathMenuChain extends TaskChain {
         if (screen != null)
             prevScreen = screen.getClass();
         return Float.NEGATIVE_INFINITY;
+    }
+
+    private void processPendingDeathCommands() {
+        if (pendingDeathCommands.isEmpty() || !AltoClef.inGame()) {
+            return;
+        }
+        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        if (player == null || !player.isAlive()) {
+            return;
+        }
+        String prefix = AltoClef.getInstance().getModSettings().getCommandPrefix();
+        while (!pendingDeathCommands.isEmpty()) {
+            String command = pendingDeathCommands.pollFirst();
+            if (command == null || command.isEmpty()) {
+                continue;
+            }
+            if (command.startsWith(prefix)) {
+                AltoClef.getCommandExecutor().execute(command, () -> {
+                }, Throwable::printStackTrace);
+            } else if (command.startsWith("/")) {
+                PlayerVer.sendChatCommand(player, command.substring(1));
+            } else {
+                PlayerVer.sendChatMessage(player, command);
+            }
+        }
     }
 
     @Override

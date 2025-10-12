@@ -46,6 +46,9 @@ public class UnstuckChain extends SingleTaskChain {
     private boolean startedShimmying = false;
     private boolean waterTaskLogged = false;
     private final Map<String, Long> stuckLogCooldowns = new HashMap<>();
+    private long priorityHoldStartTick = -1;
+    private Vec3d priorityAnchor = null;
+    private boolean priorityGiveupLogged = false;
 
     private static final int IDLE_SAMPLE_SIZE = 220;
     private static final double IDLE_DISPLACEMENT_THRESHOLD = 0.6;
@@ -57,6 +60,12 @@ public class UnstuckChain extends SingleTaskChain {
     private static final int OSC_SWITCH_THRESHOLD = 45;
     private static final long OSC_LOG_COOLDOWN_TICKS = 400;
     private static final double OSC_DOMINANT_FRACTION = 0.85;
+    private static final float UNSTUCK_PRIORITY_BASE = 55f;
+    private static final float UNSTUCK_PRIORITY_MIN = 15f;
+    private static final double UNSTUCK_PRIORITY_GRACE_SECONDS = 12.0;
+    private static final double UNSTUCK_PRIORITY_DECAY_RATE = 2.0;
+    private static final double UNSTUCK_PRIORITY_GIVEUP_SECONDS = 60.0;
+    private static final double UNSTUCK_PRIORITY_RESET_DISTANCE_SQ = 2.25;
 
     public UnstuckChain(TaskRunner runner) {
         super(runner);
@@ -449,6 +458,64 @@ public class UnstuckChain extends SingleTaskChain {
         return Registries.BLOCK.getId(state.getBlock()).toString();
     }
 
+    private void updatePriorityHoldState(boolean active, Vec3d currentPos) {
+        if (!active) {
+            priorityHoldStartTick = -1;
+            priorityAnchor = null;
+            priorityGiveupLogged = false;
+            return;
+        }
+        long currentTick = WorldHelper.getTicks();
+        if (priorityHoldStartTick < 0) {
+            priorityHoldStartTick = currentTick;
+            priorityAnchor = currentPos;
+            priorityGiveupLogged = false;
+            return;
+        }
+        if (priorityAnchor != null && priorityAnchor.squaredDistanceTo(currentPos) > UNSTUCK_PRIORITY_RESET_DISTANCE_SQ) {
+            priorityHoldStartTick = currentTick;
+            priorityAnchor = currentPos;
+            priorityGiveupLogged = false;
+        }
+    }
+
+    private float computeActivePriority(Vec3d currentPos) {
+        updatePriorityHoldState(true, currentPos);
+        if (priorityHoldStartTick < 0) {
+            return UNSTUCK_PRIORITY_BASE;
+        }
+        long elapsedTicks = WorldHelper.getTicks() - priorityHoldStartTick;
+        double elapsedSeconds = elapsedTicks / 20.0;
+        if (elapsedSeconds >= UNSTUCK_PRIORITY_GRACE_SECONDS + UNSTUCK_PRIORITY_GIVEUP_SECONDS) {
+            if (!priorityGiveupLogged) {
+                Debug.logMessage(String.format(Locale.ROOT,
+                        "[Unstuck] Priority decay relinquishing control after %.1fs", elapsedSeconds), false);
+                priorityGiveupLogged = true;
+            }
+            return Float.NEGATIVE_INFINITY;
+        }
+        double effectiveSeconds = Math.max(0.0, elapsedSeconds - UNSTUCK_PRIORITY_GRACE_SECONDS);
+        float decay = (float) (effectiveSeconds * UNSTUCK_PRIORITY_DECAY_RATE);
+        float priority = UNSTUCK_PRIORITY_BASE - decay;
+        if (priority < UNSTUCK_PRIORITY_MIN) {
+            priority = UNSTUCK_PRIORITY_MIN;
+        }
+        return priority;
+    }
+
+    private float resolvePriorityWithDecay(Vec3d currentPos) {
+        float priority = computeActivePriority(currentPos);
+        if (Float.isInfinite(priority) && priority < 0) {
+            updatePriorityHoldState(false, currentPos);
+            startedShimmying = false;
+            if (mainTask != null) {
+                setTask(null);
+            }
+            return Float.NEGATIVE_INFINITY;
+        }
+        return priority;
+    }
+
     @Override
     public float getPriority() {
         if (mainTask instanceof GetOutOfWaterTask) {
@@ -481,7 +548,8 @@ public class UnstuckChain extends SingleTaskChain {
         }
 
         PlayerEntity player = mod.getPlayer();
-        posHistory.addFirst(player.getPos());
+        Vec3d currentPos = player.getPos();
+        posHistory.addFirst(currentPos);
         if (posHistory.size() > 500) {
             posHistory.removeLast();
         }
@@ -495,13 +563,18 @@ public class UnstuckChain extends SingleTaskChain {
 
 
         if (isProbablyStuck) {
-            return 55;
+            return resolvePriorityWithDecay(currentPos);
         }
 
         if (startedShimmying && !shimmyTaskTimer.elapsed()) {
             setTask(new SafeRandomShimmyTask());
-            return 55;
+            return resolvePriorityWithDecay(currentPos);
         }
+        boolean taskActive = mainTask != null && mainTask.isActive();
+        if (taskActive) {
+            return resolvePriorityWithDecay(currentPos);
+        }
+        updatePriorityHoldState(false, currentPos);
         startedShimmying = false;
 
         return Float.NEGATIVE_INFINITY;
