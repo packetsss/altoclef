@@ -15,7 +15,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.item.Item;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.registry.tag.FluidTags;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -120,7 +119,7 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
             return false;
         }
 
-        if (dryTicks >= REQUIRED_DRY_TICKS && isLocalAreaDry(mod)) {
+        if (dryTicks >= REQUIRED_DRY_TICKS) {
             Debug.logInternal("[GetOutOfWater] Finishing after sustained dryness.");
             return true;
         }
@@ -192,28 +191,11 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
             return;
         }
 
-        if (!mod.getPlayer().isTouchingWater() && mod.getPlayer().isOnGround() && isLocalAreaDry(mod)) {
+        if (!mod.getPlayer().isTouchingWater() && mod.getPlayer().isOnGround()) {
             dryTicks++;
         } else {
             dryTicks = 0;
         }
-    }
-
-    private boolean isLocalAreaDry(AltoClef mod) {
-        if (mod.getPlayer() == null || mod.getWorld() == null) return true;
-
-        BlockPos base = mod.getPlayer().getBlockPos();
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dy = -1; dy <= 1; dy++) {
-                for (int dz = -1; dz <= 1; dz++) {
-                    BlockPos check = base.add(dx, dy, dz);
-                    if (mod.getWorld().getFluidState(check).isIn(FluidTags.WATER)) {
-                        return false;
-                    }
-                }
-            }
-        }
-        return true;
     }
 
     private static class EscapeFromWaterGoal implements Goal {
@@ -223,23 +205,18 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
             return MovementHelper.isWater(MinecraftClient.getInstance().world.getBlockState(new BlockPos(x, y, z)));
         }
 
-        private static boolean isWaterAdjacent(int x, int y, int z) {
-            return isWater(x + 1, y, z) || isWater(x - 1, y, z) || isWater(x, y, z + 1) || isWater(x, y, z - 1)
-                    || isWater(x + 1, y, z - 1) || isWater(x + 1, y, z + 1) || isWater(x - 1, y, z - 1)
-                    || isWater(x - 1, y, z + 1);
-        }
-
         @Override
         public boolean isInGoal(int x, int y, int z) {
-            return !isWater(x, y, z) && !isWaterAdjacent(x, y, z);
+            if (MinecraftClient.getInstance().world == null) return true;
+            BlockPos pos = new BlockPos(x, y, z);
+            return !MovementHelper.isWater(MinecraftClient.getInstance().world.getBlockState(pos))
+                    && !MovementHelper.isWater(MinecraftClient.getInstance().world.getBlockState(pos.up()));
         }
 
         @Override
         public double heuristic(int x, int y, int z) {
             if (isWater(x, y, z)) {
                 return 1;
-            } else if (isWaterAdjacent(x, y, z)) {
-                return 0.5f;
             }
 
             return 0;

@@ -295,7 +295,7 @@ public class Settings implements IFailableConfigFile {
      * If enabled, a new respawn point will be rolled on every death.
      * The bot will pick a random overworld coordinate in the configured range, set its spawn there, and relocate after respawning.
      */
-    private boolean randomRespawnEnabled = true;
+    private boolean randomRespawnEnabled = false;
 
     /**
      * The minimum radial distance (in blocks) from world origin used for random respawn rolls.

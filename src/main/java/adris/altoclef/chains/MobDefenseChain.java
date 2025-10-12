@@ -93,6 +93,8 @@ public class MobDefenseChain extends SingleTaskChain {
     private static final int FAILSAFE_PILLAR_EXTRA_HEIGHT = 4;
     private static final float DEFENSE_BASE_PRIORITY = 60f;
     private static final long IGNORED_LOG_COOLDOWN_TICKS = 100;
+    private static final Item[] AXE_WEAPONS = new Item[]{Items.NETHERITE_AXE, Items.DIAMOND_AXE, Items.IRON_AXE,
+        Items.GOLDEN_AXE, Items.STONE_AXE, Items.WOODEN_AXE};
     private static final List<Class<? extends Entity>> ignoredMobs = List.of(Entities.WARDEN, WitherEntity.class, EndermanEntity.class,
             WitherSkeletonEntity.class, HoglinEntity.class, ZoglinEntity.class, PiglinBruteEntity.class, VindicatorEntity.class, MagmaCubeEntity.class);
 
@@ -178,6 +180,22 @@ public class MobDefenseChain extends SingleTaskChain {
             this.hasLineOfSight = hasLineOfSight;
             this.acrossWater = acrossWater;
             this.immediate = immediate;
+        }
+    }
+
+    private static class CombatAssessment {
+        final boolean hasShield;
+        final boolean hasMeleeWeapon;
+        final int armorValue;
+        final float totalHealth;
+        final boolean lowGear;
+
+        CombatAssessment(boolean hasShield, boolean hasMeleeWeapon, int armorValue, float totalHealth, boolean lowGear) {
+            this.hasShield = hasShield;
+            this.hasMeleeWeapon = hasMeleeWeapon;
+            this.armorValue = armorValue;
+            this.totalHealth = totalHealth;
+            this.lowGear = lowGear;
         }
     }
 
@@ -628,20 +646,6 @@ public class MobDefenseChain extends SingleTaskChain {
         if (engagePriority != null) {
             return engagePriority;
         }
-
-        if ((playerTookDamageThisTick || absorptionLostThisTick)
-                && (latestThreats.isEmpty() || latestThreats.stream().noneMatch(snapshot -> snapshot.immediate))) {
-            if (!(runAwayTask instanceof RunAwayFromHostilesTask) || runAwayTask.isFinished()) {
-                runAwayTask = new RunAwayFromHostilesTask(DANGER_KEEP_DISTANCE, true);
-            }
-            defenseState = DefenseState.RETREAT;
-            staleTargetTimer.reset();
-            persistentThreatTimer.reset();
-            immediateThreatHoldTimer.reset();
-            Debug.logMessage("[MobDefense] Damage detected without tracked immediate threats, forcing retreat.", false);
-            setTask(runAwayTask);
-            return 80;
-        }
         if (handleDefenseIdleStall(mod)) {
             return 80;
         }
@@ -730,11 +734,12 @@ public class MobDefenseChain extends SingleTaskChain {
 
         snapshots.sort(Comparator.comparingDouble(threat -> threat.distanceSq));
 
-        Entity newPrimary = snapshots.stream()
-                .filter(threat -> threat.immediate && threat.reachable)
-                .map(threat -> threat.entity)
-                .findFirst()
-                .orElse(null);
+    Entity newPrimary = snapshots.stream()
+        .filter(threat -> threat.immediate)
+        .filter(threat -> canDirectlyEngage(mod, threat))
+        .map(threat -> threat.entity)
+        .findFirst()
+        .orElse(null);
 
         if (newPrimary != null) {
             if (lastPrimaryThreat == null || !lastPrimaryThreat.getUuid().equals(newPrimary.getUuid())) {
@@ -1024,25 +1029,130 @@ public class MobDefenseChain extends SingleTaskChain {
     private void forceAttackOrRetreat(AltoClef mod) {
         Optional<ThreatSnapshot> attackCandidate = latestThreats.stream()
                 .filter(snapshot -> snapshot.immediate)
-                .filter(snapshot -> snapshot.reachable)
+                .filter(snapshot -> canDirectlyEngage(mod, snapshot))
                 .findFirst();
+        CombatAssessment assessment = assessCombatReadiness(mod);
         defenseActiveTimer.reset();
         persistentThreatTimer.reset();
         staleTargetTimer.reset();
         if (attackCandidate.isPresent()) {
-            Entity target = attackCandidate.get().entity;
+            ThreatSnapshot snapshot = attackCandidate.get();
+            Entity target = snapshot.entity;
+            if (shouldAvoidDirectFight(mod, snapshot, assessment)) {
+                triggerEmergencyRetreat(mod, snapshot, assessment, "StallAvoid", 85f);
+                return;
+            }
             lockedOnEntity = target;
             needsChangeOnAttack = true;
             runAwayTask = null;
             doingFunkyStuff = false;
             setTask(new KillEntityTask(target));
             defenseState = DefenseState.ACTIVE;
+            if (!snapshot.reachable) {
+                Debug.logMessage(String.format(Locale.ROOT,
+                        "[MobDefense] Forcing attack on close threat without path %s distance=%.1f",
+                        target.getType().getTranslationKey(),
+                        mod.getPlayer().distanceTo(target)), false);
+            }
         } else {
             doingFunkyStuff = true;
             runAwayTask = new RunAwayFromHostilesTask(DANGER_KEEP_DISTANCE, true);
             defenseState = DefenseState.RETREAT;
             setTask(runAwayTask);
         }
+    }
+
+    private CombatAssessment assessCombatReadiness(AltoClef mod) {
+        PlayerEntity player = mod.getPlayer();
+        if (player == null) {
+            return new CombatAssessment(false, false, 0, 0, true);
+        }
+        boolean shield = hasShield(mod);
+        boolean meleeWeapon = hasMeleeWeapon(mod);
+        int armorValue = player.getArmor();
+        float totalHealth = player.getHealth() + player.getAbsorptionAmount();
+        boolean lowGear = (!shield && !meleeWeapon) || armorValue < 5;
+        if (totalHealth <= CRITICAL_HEALTH_THRESHOLD && !shield) {
+            lowGear = true;
+        }
+        return new CombatAssessment(shield, meleeWeapon, armorValue, totalHealth, lowGear);
+    }
+
+    private boolean hasMeleeWeapon(AltoClef mod) {
+        if (getBestSword(mod) != null) {
+            return true;
+        }
+        for (Item axe : AXE_WEAPONS) {
+            if (mod.getItemStorage().hasItem(axe)) {
+                return true;
+            }
+        }
+        ItemStack mainHand = mod.getPlayer().getInventory().getMainHandStack();
+        return mainHand.getItem() instanceof SwordItem
+                || Arrays.stream(AXE_WEAPONS).anyMatch(item -> item == mainHand.getItem());
+    }
+
+    private boolean shouldAvoidDirectFight(AltoClef mod, ThreatSnapshot snapshot, CombatAssessment assessment) {
+        if (!snapshot.entity.isAlive()) {
+            return false;
+        }
+        if (!assessment.lowGear && assessment.hasShield && assessment.hasMeleeWeapon) {
+            return false;
+        }
+        double distance = Math.sqrt(snapshot.distanceSq);
+        long immediateCount = latestThreats.stream().filter(threat -> threat.immediate).count();
+        boolean multipleThreats = immediateCount > 1;
+        boolean lowHealth = assessment.totalHealth <= CRITICAL_HEALTH_THRESHOLD;
+        boolean noWeapon = !assessment.hasMeleeWeapon;
+        if (noWeapon && distance > 1.5) {
+            return true;
+        }
+        if (assessment.lowGear && (snapshot.projectile || distance > CLOSE_FORCE_DISTANCE)) {
+            return true;
+        }
+        if (multipleThreats && assessment.lowGear) {
+            return true;
+        }
+        if (lowHealth && (snapshot.projectile || !assessment.hasShield)) {
+            return true;
+        }
+        if (!snapshot.reachable && (assessment.lowGear || noWeapon)) {
+            return true;
+        }
+        return false;
+    }
+
+    private Float triggerEmergencyRetreat(AltoClef mod, ThreatSnapshot snapshot, CombatAssessment assessment, String reason, float priority) {
+        doingFunkyStuff = true;
+        runAwayTask = null;
+        stopShielding(mod);
+        killAura.stopShielding(mod);
+    boolean projectile = snapshot.projectile;
+        boolean dodgeProjectiles = projectile && mod.getModSettings().isDodgeProjectiles();
+        if (dodgeProjectiles && !assessment.hasShield) {
+            if (StorageHelper.getNumberOfThrowawayBlocks(mod) > 0) {
+                setTask(new ProjectileProtectionWallTask(mod));
+            } else {
+                runAwayTask = new DodgeProjectilesTask(ARROW_KEEP_DISTANCE_HORIZONTAL, ARROW_KEEP_DISTANCE_VERTICAL);
+                setTask(runAwayTask);
+            }
+        } else {
+            runAwayTask = new RunAwayFromHostilesTask(DANGER_KEEP_DISTANCE, true);
+            setTask(runAwayTask);
+        }
+        defenseState = DefenseState.RETREAT;
+        staleTargetTimer.reset();
+        Debug.logMessage(String.format(Locale.ROOT,
+                "[MobDefense] Emergency retreat (%s) from %s distance=%.1f lowGear=%s shield=%s weapon=%s armor=%d health=%.1f",
+                reason,
+                snapshot.entity.getType().getTranslationKey(),
+                mod.getPlayer().distanceTo(snapshot.entity),
+                assessment.lowGear,
+                assessment.hasShield,
+                assessment.hasMeleeWeapon,
+                assessment.armorValue,
+                assessment.totalHealth), false);
+        return priority;
     }
 
     private Float tryEngagePrimaryThreat(AltoClef mod) {
@@ -1055,16 +1165,22 @@ public class MobDefenseChain extends SingleTaskChain {
 
         Optional<ThreatSnapshot> primaryThreat = latestThreats.stream()
                 .filter(snapshot -> snapshot.immediate)
-                .filter(snapshot -> snapshot.reachable)
+                .filter(snapshot -> canDirectlyEngage(mod, snapshot))
                 .findFirst();
 
         if (primaryThreat.isEmpty()) {
             return null;
         }
 
-        Entity threat = primaryThreat.get().entity;
+        ThreatSnapshot snapshot = primaryThreat.get();
+        Entity threat = snapshot.entity;
         if (threat == null || !threat.isAlive()) {
             return null;
+        }
+
+        CombatAssessment assessment = assessCombatReadiness(mod);
+        if (shouldAvoidDirectFight(mod, snapshot, assessment)) {
+            return triggerEmergencyRetreat(mod, snapshot, assessment, "PrimaryAvoid", 82f);
         }
 
         boolean alreadyLocked = lockedOnEntity != null && lockedOnEntity.getUuid().equals(threat.getUuid());
@@ -1092,6 +1208,12 @@ public class MobDefenseChain extends SingleTaskChain {
         defenseState = DefenseState.ACTIVE;
         staleTargetTimer.reset();
         setTask(new KillEntityTask(threat));
+        if (!snapshot.reachable) {
+            Debug.logMessage(String.format(Locale.ROOT,
+                    "[MobDefense] Engaging close threat despite unreachable path %s distance=%.1f",
+                    threat.getType().getTranslationKey(),
+                    mod.getPlayer().distanceTo(threat)), false);
+        }
         Debug.logMessage(String.format(Locale.ROOT,
                 "[MobDefense] Engaging primary threat %s distance=%.1f",
                 threat.getType().getTranslationKey(),
@@ -1344,6 +1466,22 @@ public class MobDefenseChain extends SingleTaskChain {
             reachabilityCache.put(entity.getUuid(), cached);
         }
         return cached;
+    }
+
+    private boolean canDirectlyEngage(AltoClef mod, ThreatSnapshot snapshot) {
+        if (snapshot.reachable) {
+            return true;
+        }
+        if (snapshot.distanceSq <= CLOSE_FORCE_DISTANCE * CLOSE_FORCE_DISTANCE) {
+            return true;
+        }
+        if (!snapshot.projectile && snapshot.hasLineOfSight && snapshot.distanceSq <= SAFE_KEEP_DISTANCE * SAFE_KEEP_DISTANCE) {
+            return true;
+        }
+        if (mod.getPlayer() != null && snapshot.entity.getBoundingBox().expand(0.6).intersects(mod.getPlayer().getBoundingBox())) {
+            return true;
+        }
+        return false;
     }
 
     private static boolean hasShield(AltoClef mod) {
