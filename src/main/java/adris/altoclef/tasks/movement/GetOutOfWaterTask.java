@@ -33,6 +33,9 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
     private static final int WATER_HORIZONTAL_RADIUS = 2;
     private static final int WATER_VERTICAL_RADIUS = 2;
     private static final int WATER_REGION_MERGE_RADIUS_SQ = 9;
+    private static final int WATER_RADIUS_ESCALATION_LIMIT = 4;
+    private static final int WATER_VERTICAL_ESCALATION_LIMIT = 3;
+    private static final long WATER_DURATION_ESCALATION_SECONDS = 30L;
     private static final List<WaterAvoidRegion> ACTIVE_WATER_AVOID_REGIONS = new ArrayList<>();
     private static boolean waterAvoidancePredicateRegistered = false;
 
@@ -50,6 +53,8 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
     private static final int REQUIRED_DRY_TICKS = 20;
     private BlockPos lastKnownWaterPos = null;
     private boolean avoidanceRegionRegisteredForCurrentStuck = false;
+    private int stallEscalationLevel = 0;
+    private long lastAvoidanceRegisterTick = -1;
 
     @Override
     protected void onStart() {
@@ -76,8 +81,7 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
                 lastKnownWaterPos = mod.getPlayer().getBlockPos();
                 avoidanceRegionRegisteredForCurrentStuck = false;
             } else if (!avoidanceRegionRegisteredForCurrentStuck && dryTicks > 0 && lastKnownWaterPos != null) {
-                registerWaterAvoidanceRegion(mod, lastKnownWaterPos);
-                avoidanceRegionRegisteredForCurrentStuck = true;
+                registerWaterAvoidanceForCurrentStuck(mod, lastKnownWaterPos, false);
             }
         }
 
@@ -199,10 +203,12 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
             payload.put("on_ground", mod.getPlayer().isOnGround());
             payload.put("throwaway_blocks", StorageHelper.getNumberOfThrowawayBlocks(mod));
             payload.put("started_shimmy", startedShimmying);
+            payload.put("stall_escalation_level", stallEscalationLevel);
             mod.getStuckLogManager().recordEvent("GetOutOfWaterStall", payload);
             lastStallLogTick = currentTick;
             stallAnchorPos = currentPos;
             stallAnchorTick = currentTick;
+            handleWaterStallDetected(mod);
         }
     }
 
@@ -211,6 +217,8 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
         stallAnchorTick = -1;
         lastStallLogTick = -1;
         dryTicks = 0;
+        stallEscalationLevel = 0;
+        lastAvoidanceRegisterTick = -1;
     }
 
     private static Map<String, Object> vectorMap(Vec3d vec) {
@@ -250,6 +258,9 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
         if (mod == null || mod.getWorld() == null) {
             return false;
         }
+        if (mod.getPlayer() != null && pos.equals(mod.getPlayer().getBlockPos())) {
+            return false;
+        }
         if (pos.getY() >= mod.getWorld().getSeaLevel()) {
             return false;
         }
@@ -268,22 +279,48 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
         return false;
     }
 
-    private void registerWaterAvoidanceRegion(AltoClef mod, BlockPos anchor) {
-        if (mod.getWorld() == null || anchor == null) {
+    private void registerWaterAvoidanceForCurrentStuck(AltoClef mod, BlockPos anchor, boolean escalated) {
+        if (anchor == null) {
             return;
+        }
+        long now = WorldHelper.getTicks();
+        if (lastAvoidanceRegisterTick != -1 && now - lastAvoidanceRegisterTick < 10) {
+            return;
+        }
+        int horizontal = WATER_HORIZONTAL_RADIUS;
+        int vertical = WATER_VERTICAL_RADIUS;
+        long duration = WATER_AVOIDANCE_DURATION_TICKS;
+        int mergeRadiusSq = WATER_REGION_MERGE_RADIUS_SQ;
+        if (escalated) {
+            int radiusBoost = Math.min(stallEscalationLevel, WATER_RADIUS_ESCALATION_LIMIT);
+            int verticalBoost = Math.min(stallEscalationLevel, WATER_VERTICAL_ESCALATION_LIMIT);
+            horizontal += radiusBoost;
+            vertical += verticalBoost;
+            duration += stallEscalationLevel * WATER_DURATION_ESCALATION_SECONDS * 20L;
+            mergeRadiusSq += radiusBoost * radiusBoost;
+        }
+        if (registerWaterAvoidanceRegion(mod, anchor, horizontal, vertical, duration, mergeRadiusSq)) {
+            avoidanceRegionRegisteredForCurrentStuck = true;
+            lastAvoidanceRegisterTick = now;
+        }
+    }
+
+    private boolean registerWaterAvoidanceRegion(AltoClef mod, BlockPos anchor, int horizontalRadius, int verticalRadius, long durationTicks, int mergeRadiusSq) {
+        if (mod.getWorld() == null || anchor == null) {
+            return false;
         }
         ClientWorld world = mod.getWorld();
         if (anchor.getY() >= world.getSeaLevel()) {
-            return;
+            return false;
         }
-        Set<BlockPos> blocked = collectWaterMarginBlocks(world, anchor, WATER_HORIZONTAL_RADIUS, WATER_VERTICAL_RADIUS);
+        Set<BlockPos> blocked = collectWaterMarginBlocks(world, anchor, horizontalRadius, verticalRadius);
         if (blocked.isEmpty()) {
-            return;
+            return false;
         }
-        long expireTick = WorldHelper.getTicks() + WATER_AVOIDANCE_DURATION_TICKS;
+        long expireTick = WorldHelper.getTicks() + durationTicks;
         boolean merged = false;
         for (WaterAvoidRegion region : ACTIVE_WATER_AVOID_REGIONS) {
-            if (region.isNearby(anchor, WATER_REGION_MERGE_RADIUS_SQ)) {
+            if (region.isNearby(anchor, mergeRadiusSq)) {
                 region.merge(blocked, expireTick);
                 merged = true;
                 break;
@@ -292,6 +329,7 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
         if (!merged) {
             ACTIVE_WATER_AVOID_REGIONS.add(new WaterAvoidRegion(anchor.toImmutable(), blocked, expireTick, world.getSeaLevel()));
         }
+        return true;
     }
 
     private static Set<BlockPos> collectWaterMarginBlocks(ClientWorld world, BlockPos anchor, int horizontalRadius, int verticalRadius) {
@@ -303,7 +341,7 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
                     if (candidate.getY() >= world.getSeaLevel()) {
                         continue;
                     }
-                    if (isWaterOrTouchesWater(world, candidate)) {
+                    if (shouldAvoidCandidate(world, candidate)) {
                         result.add(candidate.toImmutable());
                     }
                 }
@@ -312,16 +350,28 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
         return result;
     }
 
-    private static boolean isWaterOrTouchesWater(ClientWorld world, BlockPos pos) {
-        if (world.getFluidState(pos).isIn(FluidTags.WATER)) {
+    private static boolean shouldAvoidCandidate(ClientWorld world, BlockPos pos) {
+        boolean isWater = world.getFluidState(pos).isIn(FluidTags.WATER);
+        if (isWater) {
             return true;
         }
-        for (Direction direction : Direction.values()) {
-            if (world.getFluidState(pos.offset(direction)).isIn(FluidTags.WATER)) {
-                return true;
+        if (!world.getBlockState(pos).isSolidBlock(world, pos)) {
+            for (Direction direction : Direction.values()) {
+                if (world.getFluidState(pos.offset(direction)).isIn(FluidTags.WATER)) {
+                    return true;
+                }
             }
         }
         return false;
+    }
+
+    private void handleWaterStallDetected(AltoClef mod) {
+        stallEscalationLevel++;
+        BlockPos targetAnchor = lastKnownWaterPos;
+        if (targetAnchor == null && mod.getPlayer() != null) {
+            targetAnchor = mod.getPlayer().getBlockPos();
+        }
+        registerWaterAvoidanceForCurrentStuck(mod, targetAnchor, true);
     }
 
     private static class WaterAvoidRegion {

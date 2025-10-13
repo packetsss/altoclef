@@ -186,7 +186,7 @@ public class Settings implements IFailableConfigFile {
      * <p>
      * This is mainly here because alto-clef does NOT know how to deal with oceans
      */
-    private boolean avoidOceanBlocks = false;
+    private boolean avoidOceanBlocks = true;
 
     /**
      * How close we must be to attack/interact with an entity.
