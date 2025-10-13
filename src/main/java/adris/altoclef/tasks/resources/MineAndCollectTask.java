@@ -204,11 +204,10 @@ public class MineAndCollectTask extends ResourceTask {
                 closestDrop = mod.getEntityTracker().getClosestItemDrop(pos, items);
             }
 
-            return new Pair<>(
-                    // + 5 to make the bot stop mining a bit less
-                    closestDrop.map(itemEntity -> itemEntity.squaredDistanceTo(pos) + 10).orElse(Double.POSITIVE_INFINITY),
-                    closestDrop
-            );
+        return new Pair<>(
+            closestDrop.map(itemEntity -> Math.max(0.0, itemEntity.squaredDistanceTo(pos) - 4)).orElse(Double.POSITIVE_INFINITY),
+            closestDrop
+        );
         }
 
         public static Pair<Double,Optional<BlockPos> > getClosestBlock(AltoClef mod,Vec3d pos ,Block... blocks) {

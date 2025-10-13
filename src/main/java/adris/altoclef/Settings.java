@@ -326,12 +326,12 @@ public class Settings implements IFailableConfigFile {
     /**
      * CamBridge UDP port on localhost.
      */
-    private int camBridgePort = 36666;
+    private int camBridgePort = 36667;
 
     /**
      * Additional UDP ports on the same host that mirror CamBridge events (useful for multiple consumers).
      */
-    private List<Integer> camBridgeMirrorUdpPorts = Collections.singletonList(36667);
+    private List<Integer> camBridgeMirrorUdpPorts = Collections.emptyList();
 
     /**
      * Filesystem path used when CamBridge transport is set to "file".

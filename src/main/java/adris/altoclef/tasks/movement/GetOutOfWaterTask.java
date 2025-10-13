@@ -12,14 +12,31 @@ import baritone.api.utils.input.Input;
 import baritone.pathing.movement.MovementHelper;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.world.ClientWorld;
 import net.minecraft.item.Item;
+import net.minecraft.registry.tag.FluidTags;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
+
+    private static final long WATER_AVOIDANCE_DURATION_TICKS = 45 * 20;
+    private static final int WATER_HORIZONTAL_RADIUS = 2;
+    private static final int WATER_VERTICAL_RADIUS = 2;
+    private static final int WATER_REGION_MERGE_RADIUS_SQ = 9;
+    private static final List<WaterAvoidRegion> ACTIVE_WATER_AVOID_REGIONS = new ArrayList<>();
+    private static boolean waterAvoidancePredicateRegistered = false;
+
+    private static final java.util.function.Predicate<BlockPos> WATER_AVOIDANCE_PREDICATE = GetOutOfWaterTask::shouldAvoidWaterNode;
 
     private boolean startedShimmying = false;
     private final TimerGame shimmyTaskTimer = new TimerGame(5);
@@ -31,10 +48,21 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
     private static final double STALL_DISTANCE_THRESHOLD_SQ = 1.25 * 1.25;
     private int dryTicks = 0;
     private static final int REQUIRED_DRY_TICKS = 20;
+    private BlockPos lastKnownWaterPos = null;
+    private boolean avoidanceRegionRegisteredForCurrentStuck = false;
 
     @Override
     protected void onStart() {
+        super.onStart();
+        ensureWaterAvoidancePredicateInstalled();
         resetStallTelemetry();
+        AltoClef mod = AltoClef.getInstance();
+        if (mod.getPlayer() != null && mod.getPlayer().isTouchingWater()) {
+            lastKnownWaterPos = mod.getPlayer().getBlockPos();
+        } else {
+            lastKnownWaterPos = null;
+        }
+        avoidanceRegionRegisteredForCurrentStuck = false;
     }
 
     @Override
@@ -42,6 +70,16 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
         AltoClef mod = AltoClef.getInstance();
         updateWaterStallTelemetry(mod);
         updateDrynessCounter(mod);
+
+        if (mod.getPlayer() != null) {
+            if (mod.getPlayer().isTouchingWater()) {
+                lastKnownWaterPos = mod.getPlayer().getBlockPos();
+                avoidanceRegionRegisteredForCurrentStuck = false;
+            } else if (!avoidanceRegionRegisteredForCurrentStuck && dryTicks > 0 && lastKnownWaterPos != null) {
+                registerWaterAvoidanceRegion(mod, lastKnownWaterPos);
+                avoidanceRegionRegisteredForCurrentStuck = true;
+            }
+        }
 
         // get on the surface first
         if (mod.getPlayer().getAir() < mod.getPlayer().getMaxAir() || mod.getPlayer().isSubmergedInWater()) {
@@ -83,7 +121,10 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
 
     @Override
     protected void onStop(Task interruptTask) {
+        super.onStop(interruptTask);
         resetStallTelemetry();
+        lastKnownWaterPos = null;
+        avoidanceRegionRegisteredForCurrentStuck = false;
     }
 
     @Override
@@ -105,11 +146,6 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
     public boolean isFinished() {
         AltoClef mod = AltoClef.getInstance();
         if (mod.getPlayer() == null || mod.getWorld() == null) return true;
-
-        Goal goal = cachedGoal != null ? cachedGoal : newGoal(mod);
-        if (goal != null && goal.isInGoal(mod.getPlayer().getBlockPos())) {
-            return true;
-        }
 
         if (!mod.getPlayer().isOnGround()) {
             return false;
@@ -195,6 +231,127 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
             dryTicks++;
         } else {
             dryTicks = 0;
+        }
+    }
+
+    private static void ensureWaterAvoidancePredicateInstalled() {
+        if (waterAvoidancePredicateRegistered) {
+            return;
+        }
+        AltoClef mod = AltoClef.getInstance();
+        if (mod.getBehaviour() != null) {
+            mod.getBehaviour().avoidWalkingThrough(WATER_AVOIDANCE_PREDICATE);
+            waterAvoidancePredicateRegistered = true;
+        }
+    }
+
+    private static boolean shouldAvoidWaterNode(BlockPos pos) {
+        AltoClef mod = AltoClef.getInstance();
+        if (mod == null || mod.getWorld() == null) {
+            return false;
+        }
+        if (pos.getY() >= mod.getWorld().getSeaLevel()) {
+            return false;
+        }
+        long currentTick = WorldHelper.getTicks();
+        Iterator<WaterAvoidRegion> iterator = ACTIVE_WATER_AVOID_REGIONS.iterator();
+        while (iterator.hasNext()) {
+            WaterAvoidRegion region = iterator.next();
+            if (region.isExpired(currentTick)) {
+                iterator.remove();
+                continue;
+            }
+            if (region.contains(pos)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void registerWaterAvoidanceRegion(AltoClef mod, BlockPos anchor) {
+        if (mod.getWorld() == null || anchor == null) {
+            return;
+        }
+        ClientWorld world = mod.getWorld();
+        if (anchor.getY() >= world.getSeaLevel()) {
+            return;
+        }
+        Set<BlockPos> blocked = collectWaterMarginBlocks(world, anchor, WATER_HORIZONTAL_RADIUS, WATER_VERTICAL_RADIUS);
+        if (blocked.isEmpty()) {
+            return;
+        }
+        long expireTick = WorldHelper.getTicks() + WATER_AVOIDANCE_DURATION_TICKS;
+        boolean merged = false;
+        for (WaterAvoidRegion region : ACTIVE_WATER_AVOID_REGIONS) {
+            if (region.isNearby(anchor, WATER_REGION_MERGE_RADIUS_SQ)) {
+                region.merge(blocked, expireTick);
+                merged = true;
+                break;
+            }
+        }
+        if (!merged) {
+            ACTIVE_WATER_AVOID_REGIONS.add(new WaterAvoidRegion(anchor.toImmutable(), blocked, expireTick, world.getSeaLevel()));
+        }
+    }
+
+    private static Set<BlockPos> collectWaterMarginBlocks(ClientWorld world, BlockPos anchor, int horizontalRadius, int verticalRadius) {
+        Set<BlockPos> result = new HashSet<>();
+        for (int dx = -horizontalRadius; dx <= horizontalRadius; dx++) {
+            for (int dy = -verticalRadius; dy <= verticalRadius; dy++) {
+                for (int dz = -horizontalRadius; dz <= horizontalRadius; dz++) {
+                    BlockPos candidate = anchor.add(dx, dy, dz);
+                    if (candidate.getY() >= world.getSeaLevel()) {
+                        continue;
+                    }
+                    if (isWaterOrTouchesWater(world, candidate)) {
+                        result.add(candidate.toImmutable());
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    private static boolean isWaterOrTouchesWater(ClientWorld world, BlockPos pos) {
+        if (world.getFluidState(pos).isIn(FluidTags.WATER)) {
+            return true;
+        }
+        for (Direction direction : Direction.values()) {
+            if (world.getFluidState(pos.offset(direction)).isIn(FluidTags.WATER)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static class WaterAvoidRegion {
+        private final BlockPos anchor;
+        private final Set<BlockPos> blockedPositions;
+        private final int seaLevel;
+        private long expireTick;
+
+        private WaterAvoidRegion(BlockPos anchor, Set<BlockPos> blockedPositions, long expireTick, int seaLevel) {
+            this.anchor = anchor;
+            this.blockedPositions = new HashSet<>(blockedPositions);
+            this.expireTick = expireTick;
+            this.seaLevel = seaLevel;
+        }
+
+        private boolean isExpired(long currentTick) {
+            return currentTick > expireTick;
+        }
+
+        private boolean contains(BlockPos pos) {
+            return pos.getY() < seaLevel && blockedPositions.contains(pos);
+        }
+
+        private boolean isNearby(BlockPos other, int radiusSq) {
+            return anchor.getSquaredDistance(other) <= radiusSq;
+        }
+
+        private void merge(Set<BlockPos> additionalPositions, long newExpireTick) {
+            blockedPositions.addAll(additionalPositions);
+            expireTick = Math.max(expireTick, newExpireTick);
         }
     }
 

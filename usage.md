@@ -67,11 +67,11 @@ AltoClef can expose its internal state to external camera tooling through a ligh
 
 - `"camBridgeEnabled": true` – activates the bridge runtime.
 - `"camBridgeTransport": "udp"` – emit JSON lines over loopback UDP (default). Set to `"file"` to write events to disk.
-- `"camBridgeHost"` / `"camBridgePort"` – loopback endpoint used when the transport is `udp` (defaults to `127.0.0.1:36666`).
-- `"camBridgeMirrorUdpPorts"` – optional list of extra loopback UDP ports that receive mirrored events (defaults to `[36667]` for the Python client).
+- `"camBridgeHost"` / `"camBridgePort"` – loopback endpoint used when the transport is `udp` (defaults to `127.0.0.1:36667`).
+- `"camBridgeMirrorUdpPorts"` – optional list of extra loopback UDP ports that receive mirrored events (disabled by default; add ports if you need additional consumers).
 - `"camBridgeFilePath"` – output path when the transport is `file` (defaults to `cambridge-events.jsonl` in the game directory).
 
-Events are emitted once per client tick with built-in coalescing, hazard debouncing, and a 64-entry in-memory ring buffer so a subscribing camera mod can build overlays without spamming chat or requiring a server plugin.
+Events are emitted once per client tick with built-in coalescing, hazard debouncing, and a 64-entry in-memory ring buffer so a subscribing camera mod can build overlays without spamming chat or requiring a server plugin. In the default "status-only" mode the stream is limited to queue information.
 
 `STATUS_NOW` heartbeats include a `task_queue` block describing what the bot has on deck:
 

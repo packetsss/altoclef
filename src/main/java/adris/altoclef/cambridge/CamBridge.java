@@ -169,6 +169,7 @@ public final class CamBridge implements AutoCloseable {
             deferredBigEvents.clear();
         }
         enabled = true;
+
     }
 
     public void onClientTick() {
@@ -585,16 +586,8 @@ public final class CamBridge implements AutoCloseable {
     }
 
     private void emitHeartbeatIfDue(ResourceSnapshot snapshot, long now) {
-        if (now - lastHeartbeatMs < HEARTBEAT_INTERVAL_MS) {
-            return;
-        }
+        // Heartbeats suppressed while emitting queue-only telemetry.
         lastHeartbeatMs = now;
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("phase", currentPhase != null ? currentPhase.name() : "UNKNOWN");
-        payload.put("brief", snapshot.brief());
-        statusTracker.appendHeartbeat(payload);
-        CamEvent hb = CamEvent.simple(CamEventType.HEARTBEAT, nextId(), now, currentPhase, payload);
-        emitEvent(hb, now);
     }
 
     private void updateActivities(ResourceSnapshot snapshot, long now) {
@@ -981,13 +974,7 @@ public final class CamBridge implements AutoCloseable {
     }
 
     private boolean shouldEmit(CamEvent event) {
-        if (mode.isFull()) {
-            return true;
-        }
-        return switch (event.type) {
-            case STATUS_NOW, TASK_START, TASK_END, HEARTBEAT -> true;
-            default -> false;
-        };
+        return event.type == CamEventType.STATUS_NOW;
     }
 
     private void tryDispatchDeferred() {
@@ -1025,15 +1012,21 @@ public final class CamBridge implements AutoCloseable {
             pendingSend.clear();
             return;
         }
-        Collection<String> serialized = pendingSend.stream().map(this::toJsonLine).toList();
+        List<String> serialized = pendingSend.stream().map(this::toJsonLine).toList();
         pendingSend.clear();
-        dispatcher.submit(() -> {
+        CamBridgeTransport target = active;
+        Runnable sender = () -> {
             try {
-                active.sendBatch(serialized);
+                target.sendBatch(serialized);
             } catch (IOException ex) {
                 logTransportError("CamBridge send failed", ex);
             }
-        });
+        };
+        if (target instanceof FileCamBridgeTransport) {
+            sender.run();
+        } else {
+            dispatcher.submit(sender);
+        }
     }
 
     private void logTransportError(String message, Exception ex) {
@@ -1245,32 +1238,35 @@ public final class CamBridge implements AutoCloseable {
         }
 
         Optional<Map<String, Object>> pollEmit(long now) {
-            if (!dirty || now - lastEmitMs < STATUS_MIN_INTERVAL_MS) {
+            long elapsed;
+            if (lastEmitMs == Long.MIN_VALUE) {
+                elapsed = Long.MAX_VALUE;
+            } else {
+                elapsed = now - lastEmitMs;
+                if (elapsed < 0L) {
+                    elapsed = Long.MAX_VALUE;
+                }
+            }
+
+            if (!dirty || elapsed < STATUS_MIN_INTERVAL_MS) {
                 return Optional.empty();
             }
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("phase", phase != null ? phase.name() : "UNKNOWN");
-            payload.put("task_key", descriptor.taskKey());
-            payload.put("hint", descriptor.hint());
-            payload.put("state", state.wire());
-            payload.put("started_at", Instant.ofEpochMilli(startedAtMs).toString());
-            if (progress != null) {
-                payload.put("progress", progress.toJson());
-            }
+            Map<String, Object> payload = new LinkedHashMap<>();
             writeSupplement(payload);
+            if (!payload.containsKey("task_queue")) {
+                Map<String, Object> queue = new LinkedHashMap<>();
+                queue.put("current", null);
+                queue.put("future", List.of());
+                queue.put("mob_defense", false);
+                payload.put("task_queue", queue);
+                payload.put("mob_defense_active", false);
+            }
             lastEmitMs = now;
             dirty = false;
             return Optional.of(payload);
         }
 
         void appendHeartbeat(Map<String, Object> payload) {
-            payload.put("task_key", descriptor.taskKey());
-            payload.put("state", state.wire());
-            payload.put("hint", descriptor.hint());
-            payload.put("started_at", Instant.ofEpochMilli(startedAtMs).toString());
-            if (progress != null) {
-                payload.put("progress", progress.toJson());
-            }
             writeSupplement(payload);
         }
 

@@ -26,6 +26,8 @@ import net.minecraft.entity.mob.PillagerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
+import net.minecraft.block.LadderBlock;
 
 import java.util.Locale;
 import java.util.Optional;
@@ -188,6 +190,31 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
         return task;
     }
 
+    private BlockPos getBlockingLadderPos(AltoClef mod) {
+        if (!mod.getPlayer().isClimbing()) {
+            return null;
+        }
+        // Check feet and head positions in case we're between ladder blocks.
+        BlockPos[] ladderPositions = new BlockPos[]{
+                mod.getPlayer().getBlockPos(),
+                mod.getPlayer().getBlockPos().up()
+        };
+        for (BlockPos ladderPos : ladderPositions) {
+            BlockState ladderState = mod.getWorld().getBlockState(ladderPos);
+            if (ladderState.getBlock() != Blocks.LADDER) {
+                continue;
+            }
+            if (!ladderState.contains(LadderBlock.FACING)) {
+                continue;
+            }
+            BlockPos attachedBlock = ladderPos.offset(ladderState.get(LadderBlock.FACING).getOpposite());
+            if (attachedBlock.equals(pos) && !ladderPos.equals(pos)) {
+                return ladderPos;
+            }
+        }
+        return null;
+    }
+
     /**
      * This method is called when the mod starts.
      * It cancels any ongoing pathing behavior, resets move checker and stuck check.
@@ -257,6 +284,13 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
         AltoClef mod = AltoClef.getInstance();
         BlockState targetState = mod.getWorld().getBlockState(pos);
         String blockName = targetState.getBlock().getName().getString();
+
+        // When we're climbing a ladder attached to our target block, destroy the ladder first so we can stand safely.
+        BlockPos blockingLadder = getBlockingLadderPos(mod);
+        if (blockingLadder != null) {
+            setDebugState("Clearing ladder to reach block");
+            return new DestroyBlockTask(blockingLadder);
+        }
 
         MiningRequirement requirement = MiningRequirement.getMinimumRequirementForBlock(targetState.getBlock());
         if (!StorageHelper.miningRequirementMet(requirement)) {
@@ -345,8 +379,11 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
             }
         }
 
-        Optional<Rotation> reach = LookHelper.getReach(pos);
-        if (reach.isPresent() && (mod.getPlayer().isTouchingWater() || mod.getPlayer().isOnGround()) && !mod.getFoodChain().needsToEat() && !WorldHelper.isInNetherPortal()) {
+    Optional<Rotation> reach = LookHelper.getReach(pos);
+    boolean hasStableFooting = mod.getPlayer().isTouchingWater()
+        || mod.getPlayer().isOnGround()
+        || mod.getPlayer().isClimbing();
+    if (reach.isPresent() && hasStableFooting && !mod.getFoodChain().needsToEat() && !WorldHelper.isInNetherPortal()) {
             if (!mod.getClientBaritone().getPathingBehavior().isSafeToCancel()) {
                 if (reachPauseTimer.elapsed()) {
                     Debug.logMessage(String.format(Locale.ROOT,
