@@ -16,8 +16,5 @@ subprojects {
 }
 
 preprocess {
-    val mc12101 = createNode("1.21.1", 12101, "yarn")
-    val mc12100 = createNode("1.21", 12100, "yarn")
-
-    mc12101.link(mc12100)
+    createNode("1.21.1", 12101, "yarn")
 }

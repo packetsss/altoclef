@@ -46,6 +46,8 @@ import net.minecraft.item.Items;
 import net.minecraft.util.math.Vec3d;
 import org.lwjgl.glfw.GLFW;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
@@ -70,6 +72,7 @@ public class AltoClef implements ModInitializer {
     private PlayerExtraController extraController;
     // Task chains
     private UserTaskChain userTaskChain;
+    private DeathMenuChain deathMenuChain;
     private FoodChain foodChain;
     private MobDefenseChain mobDefenseChain;
     private MLGBucketFallChain mlgBucketChain;
@@ -174,9 +177,9 @@ public class AltoClef implements ModInitializer {
     camBridge = new CamBridge(this);
 
         // Task chains
-        userTaskChain = new UserTaskChain(taskRunner);
-        mobDefenseChain = new MobDefenseChain(taskRunner);
-        new DeathMenuChain(taskRunner);
+    userTaskChain = new UserTaskChain(taskRunner);
+    mobDefenseChain = new MobDefenseChain(taskRunner);
+    deathMenuChain = new DeathMenuChain(taskRunner);
         new PlayerInteractionFixChain(taskRunner);
         mlgBucketChain = new MLGBucketFallChain(taskRunner);
         new UnstuckChain(taskRunner);
@@ -558,6 +561,10 @@ public class AltoClef implements ModInitializer {
         return deathLogManager;
     }
 
+    public DeathMenuChain getDeathMenuChain() {
+        return deathMenuChain;
+    }
+
     public StuckLogManager getStuckLogManager() {
         return stuckLogManager;
     }
@@ -699,7 +706,17 @@ public class AltoClef implements ModInitializer {
         String folderName = String.format(Locale.ROOT, "%s-%s",
                 TELEMETRY_SESSION_FORMAT.format(LocalDateTime.now(ZoneOffset.UTC)),
                 telemetrySessionId.substring(0, 8));
-        telemetrySessionDir = Paths.get("altoclef", "logs", "session", folderName);
+        Path runDirectory = MinecraftClient.getInstance().runDirectory.toPath();
+        Path sessionRoot = runDirectory.resolve(Paths.get("altoclef", "logs", "session"));
+        telemetrySessionDir = sessionRoot.resolve(folderName);
+        try {
+            Files.createDirectories(telemetrySessionDir);
+        } catch (IOException ex) {
+            Debug.logWarning(String.format(Locale.ROOT,
+                    "Failed to prepare telemetry session directory %s: %s",
+                    telemetrySessionDir,
+                    ex.getMessage()));
+        }
     }
 
     private void runEnqueuedPostInits() {

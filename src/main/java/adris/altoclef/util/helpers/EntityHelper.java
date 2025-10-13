@@ -39,7 +39,8 @@ public class EntityHelper {
                 return piglin.isAttacking() && !isTradingPiglin(mob) && piglin.isAdult();
             }
             if (mob instanceof EndermanEntity enderman) {
-                return enderman.isAngry();
+                LivingEntity target = enderman.getTarget();
+                return enderman.isAngry() && target != null && target.equals(mod.getPlayer());
             }
             if (mob instanceof ZombifiedPiglinEntity zombifiedPiglin) {
                 return zombifiedPiglin.isAttacking();

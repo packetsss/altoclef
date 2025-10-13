@@ -69,7 +69,17 @@ public final class DeathLogManager {
     }
 
     public void recordDeath(int deathNumber, String deathMessage) {
-        if (mod == null || mod.getModSettings() == null || !mod.getModSettings().isDeathLogEnabled()) {
+        if (mod == null) {
+            return;
+        }
+
+        if (!isDeathLoggingEnabled()) {
+            return;
+        }
+
+        Path activeSessionDir = getActiveSessionDir();
+        if (activeSessionDir == null) {
+            Debug.logWarning("Failed to capture death log: telemetry session directory unavailable.");
             return;
         }
 
@@ -88,7 +98,7 @@ public final class DeathLogManager {
         ClientPlayerEntity player = mod.getPlayer();
         ClientWorld world = mod.getWorld();
 
-    root.put("player", collectPlayerContext(player, world));
+        root.put("player", collectPlayerContext(player, world));
         root.put("world", collectWorldContext(player, world));
         root.put("inventory", collectInventoryContext(player));
         root.put("tasks", collectTaskContext());
@@ -96,8 +106,8 @@ public final class DeathLogManager {
         root.put("drops_nearby", collectNearbyDrops(player));
 
         try {
-            Path target = resolveDeathFile(deathIndex, deathMessage);
-            writeSnapshot(root, target, deathIndex);
+            Path target = resolveDeathFile(activeSessionDir, deathIndex, deathMessage);
+            writeSnapshot(root, activeSessionDir, target, deathIndex);
         } catch (IOException ex) {
             Debug.logWarning("Failed to write death log entry: " + ex.getMessage());
         }
@@ -111,7 +121,7 @@ public final class DeathLogManager {
         }
         playerMap.put("present", true);
         playerMap.put("uuid", player.getUuidAsString());
-    playerMap.put("name", player.getName().getString());
+        playerMap.put("name", player.getName().getString());
         playerMap.put("dimension", world != null ? world.getRegistryKey().getValue().toString() : "<unknown>");
         playerMap.put("alto_dimension", WorldHelper.getCurrentDimension().name());
 
@@ -385,8 +395,12 @@ public final class DeathLogManager {
         return drops;
     }
 
-    private void writeSnapshot(Map<String, Object> snapshot, Path targetFile, int index) throws IOException {
-        Files.createDirectories(sessionDir);
+    private void writeSnapshot(Map<String, Object> snapshot, Path sessionDirectory, Path targetFile, int index) throws IOException {
+        Files.createDirectories(sessionDirectory);
+        Path parent = targetFile.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
         String json;
         try {
             json = mapper.writeValueAsString(snapshot);
@@ -401,14 +415,32 @@ public final class DeathLogManager {
                 targetFile.toString()), false);
     }
 
-    private Path resolveDeathFile(int index, String deathMessage) {
+    private Path resolveDeathFile(Path sessionDirectory, int index, String deathMessage) {
         String slug = deathMessage == null ? "unknown" : deathMessage.replaceAll("[^a-zA-Z0-9-_]+", "_").replaceAll("_+", "_").trim();
         slug = slug.replaceAll("^_+|_+$", "");
         if (slug.isEmpty()) {
             slug = "death";
         }
         String fileName = String.format(Locale.ROOT, "death-%04d-%s.json", index, slug);
-        return sessionDir.resolve(fileName);
+        return sessionDirectory.resolve(fileName);
+    }
+
+    private boolean isDeathLoggingEnabled() {
+        if (mod == null) {
+            return false;
+        }
+        adris.altoclef.Settings modSettings = mod.getModSettings();
+        if (modSettings == null) {
+            return true;
+        }
+        return modSettings.isDeathLogEnabled();
+    }
+
+    private Path getActiveSessionDir() {
+        if (sessionDir != null) {
+            return sessionDir;
+        }
+        return mod != null ? mod.getTelemetrySessionDir() : null;
     }
 
     private static Map<String, Object> vectorMap(Vec3d vec) {

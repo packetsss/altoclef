@@ -9,6 +9,9 @@ import adris.altoclef.tasks.speedrun.beatgame.BeatMinecraftTask;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskChain;
 import adris.altoclef.tasksystem.TaskRunner;
+import adris.altoclef.eventbus.EventBus;
+import adris.altoclef.eventbus.Subscription;
+import adris.altoclef.eventbus.events.ChatMessageEvent;
 import adris.altoclef.util.time.TimerGame;
 import adris.altoclef.util.time.TimerReal;
 import net.minecraft.block.BlockState;
@@ -18,15 +21,19 @@ import net.minecraft.client.gui.screen.multiplayer.*;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.network.ServerAddress;
 import net.minecraft.client.network.ServerInfo;
+import net.minecraft.client.world.ClientWorld;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.registry.RegistryKey;
 import net.minecraft.world.Heightmap;
 import net.minecraft.world.chunk.ChunkStatus;
+import net.minecraft.world.World;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -64,11 +71,15 @@ public class DeathMenuChain extends TaskChain {
     private boolean deathContextLogged = false;
     private boolean shouldLogNextRespawn = false;
     private boolean restartBeatTaskAfterRespawn = false;
+    private boolean pendingDeathWithoutScreen = false;
     private final Deque<String> pendingDeathCommands = new ArrayDeque<>();
+    private final Subscription<ChatMessageEvent> baritoneDeathSubscription;
+    private RegistryKey<World> lastKnownWorldKey = null;
 
 
     public DeathMenuChain(TaskRunner runner) {
         super(runner);
+        baritoneDeathSubscription = EventBus.subscribe(ChatMessageEvent.class, this::handleBaritoneChatMessage);
     }
 
     private boolean shouldAutoRespawn() {
@@ -109,6 +120,16 @@ public class DeathMenuChain extends TaskChain {
         //MinecraftClient.getInstance().getCurrentServerEntry().address;
 //        MinecraftClient.getInstance().
         Screen screen = MinecraftClient.getInstance().currentScreen;
+        AltoClef modInstance = AltoClef.getInstance();
+        ClientPlayerEntity clientPlayer = MinecraftClient.getInstance().player;
+
+        monitorSilentDeathIndicators(modInstance, clientPlayer);
+
+        if (modInstance != null && clientPlayer != null && !(screen instanceof DeathScreen)
+                && isPlayerCurrentlyDead(clientPlayer) && !deathContextLogged) {
+            String deathMessage = resolveImmediateDeathMessage(clientPlayer);
+            handleImmediateDeath(modInstance, clientPlayer, deathMessage);
+        }
 
         // This might fix Weird fail to respawn that happened only once
         if (prevScreen == DeathScreen.class) {
@@ -126,7 +147,8 @@ public class DeathMenuChain extends TaskChain {
         }
 
         if (screen instanceof DeathScreen) {
-            AltoClef mod = AltoClef.getInstance();
+            AltoClef mod = modInstance;
+            if (mod == null) return Float.NEGATIVE_INFINITY;
 
             if (waitOnDeathScreenBeforeRespawnTimer.elapsed()) {
                 waitOnDeathScreenBeforeRespawnTimer.reset();
@@ -142,7 +164,9 @@ public class DeathMenuChain extends TaskChain {
                     deathContextLogged = true;
                 }
                 if (shouldAutoRespawn()) {
-                    deathCount++;
+                    if (!pendingDeathWithoutScreen) {
+                        deathCount++;
+                    }
                     Debug.logMessage("RESPAWNING... (this is death #" + deathCount + ")");
                     assert MinecraftClient.getInstance().player != null;
                     Task currentTask = mod.getUserTaskChain() != null ? mod.getUserTaskChain().getCurrentTask() : null;
@@ -150,12 +174,8 @@ public class DeathMenuChain extends TaskChain {
                     MinecraftClient.getInstance().player.requestRespawn();
                     shouldLogNextRespawn = true;
                     MinecraftClient.getInstance().setScreen(null);
-                    for (String i : mod.getModSettings().getDeathCommand().split(" & ")) {
-                        String command = i.replace("{deathmessage}", deathMessage);
-                        if (!command.isEmpty()) {
-                            pendingDeathCommands.add(command);
-                        }
-                    }
+                    enqueueDeathCommands(mod, deathMessage);
+                    pendingDeathWithoutScreen = false;
                 } else {
                     // Cancel if we die and are not auto-respawning.
                     mod.cancelUserTask();
@@ -163,9 +183,9 @@ public class DeathMenuChain extends TaskChain {
             }
         } else {
             if (AltoClef.inGame()) {
-                AltoClef mod = AltoClef.getInstance();
+                AltoClef mod = modInstance;
                 waitOnDeathScreenBeforeRespawnTimer.reset();
-                if (shouldLogNextRespawn) {
+                if (shouldLogNextRespawn && mod != null) {
                     logRespawnLanding(mod.getPlayer(), "normal");
                     shouldLogNextRespawn = false;
                     if (restartBeatTaskAfterRespawn) {
@@ -175,7 +195,13 @@ public class DeathMenuChain extends TaskChain {
                     }
                 }
             }
-            deathContextLogged = false;
+            if (clientPlayer == null || !isPlayerCurrentlyDead(clientPlayer)) {
+                deathContextLogged = false;
+                pendingDeathWithoutScreen = false;
+            }
+            if (clientPlayer == null) {
+                lastKnownWorldKey = null;
+            }
             if (screen instanceof DisconnectedScreen) {
                 if (shouldAutoReconnect()) {
                     Debug.logMessage("RECONNECTING: Going to Multiplayer Screen");
@@ -365,7 +391,7 @@ public class DeathMenuChain extends TaskChain {
 
         int separation = Math.max(16, randomRespawnSpreadMinSeparation);
         int range = Math.max(separation + 32, randomRespawnSpreadRange);
-    String targetName = player.getGameProfile().getName();
+        String targetName = player.getGameProfile().getName();
         String spreadCommand = String.format(Locale.ROOT,
                 "spreadplayers %d %d %d %d false %s",
                 randomRespawnSpreadCenterX,
@@ -422,6 +448,97 @@ public class DeathMenuChain extends TaskChain {
         randomRespawnAwaitingSetSpawn = false;
         randomRespawnSpreadOrigin = Vec3d.ZERO;
         randomRespawnCommandTimeout.forceElapse();
+    }
+
+    private boolean isPlayerCurrentlyDead(ClientPlayerEntity player) {
+        return player != null && (!player.isAlive() || player.getHealth() <= 0.0f);
+    }
+
+    private String resolveImmediateDeathMessage(ClientPlayerEntity player) {
+        if (player == null) {
+            return "You died";
+        }
+        DamageSource source = player.getRecentDamageSource();
+        if (source != null) {
+            Text message = source.getDeathMessage(player);
+            if (message != null) {
+                return message.getString();
+            }
+        }
+        return player.getName().getString() + " died";
+    }
+
+    private void enqueueDeathCommands(AltoClef mod, String deathMessage) {
+        if (mod == null) return;
+        String configured = mod.getModSettings().getDeathCommand();
+        if (configured == null || configured.isEmpty()) return;
+        for (String entry : configured.split(" & ")) {
+            String command = entry.replace("{deathmessage}", deathMessage);
+            if (!command.isEmpty()) {
+                pendingDeathCommands.add(command);
+            }
+        }
+    }
+
+    private void handleBaritoneChatMessage(ChatMessageEvent event) {
+        String raw = event.messageContent();
+        if (raw == null) {
+            return;
+        }
+        String normalized = raw.trim();
+        if (normalized.isEmpty()) {
+            return;
+        }
+        String lowered = normalized.toLowerCase(Locale.ROOT);
+        if (!lowered.contains("baritone") || !lowered.contains("death position saved")) {
+            return;
+        }
+        AltoClef mod = AltoClef.getInstance();
+        ClientPlayerEntity clientPlayer = MinecraftClient.getInstance().player;
+        if (mod == null || clientPlayer == null) {
+            return;
+        }
+        if (deathContextLogged) {
+            return;
+        }
+        Debug.logMessage("[Death] Detected Baritone death marker; forcing snapshot capture.", false);
+        String deathMessage = resolveImmediateDeathMessage(clientPlayer);
+        handleImmediateDeath(mod, clientPlayer, deathMessage);
+    }
+
+    private void handleImmediateDeath(AltoClef mod, ClientPlayerEntity clientPlayer, String deathMessage) {
+        if (mod == null || clientPlayer == null) {
+            return;
+        }
+        if (deathContextLogged) {
+            return;
+        }
+        String resolvedMessage = deathMessage != null && !deathMessage.isBlank() ? deathMessage : resolveImmediateDeathMessage(clientPlayer);
+        logDeathSnapshot(mod, deathCount + 1, resolvedMessage);
+        deathContextLogged = true;
+        pendingDeathWithoutScreen = true;
+        deathCount++;
+        shouldLogNextRespawn = true;
+        Task userTask = mod.getUserTaskChain() != null ? mod.getUserTaskChain().getCurrentTask() : null;
+        restartBeatTaskAfterRespawn = userTask instanceof BeatMinecraftTask;
+        if (shouldAutoRespawn()) {
+            clientPlayer.requestRespawn();
+            MinecraftClient.getInstance().setScreen(null);
+            enqueueDeathCommands(mod, resolvedMessage);
+        } else {
+            mod.cancelUserTask();
+        }
+    }
+
+    public void notifyDeathFromClient(DamageSource source) {
+        AltoClef mod = AltoClef.getInstance();
+        ClientPlayerEntity clientPlayer = MinecraftClient.getInstance().player;
+        if (mod == null || clientPlayer == null) {
+            return;
+        }
+        Text message = source != null ? source.getDeathMessage(clientPlayer) : null;
+        String deathMessage = message != null ? message.getString() : resolveImmediateDeathMessage(clientPlayer);
+        handleImmediateDeath(mod, clientPlayer, deathMessage);
     }
 
     private void logDeathSnapshot(AltoClef mod, int deathNumber, String deathMessage) {
@@ -532,5 +649,34 @@ public class DeathMenuChain extends TaskChain {
             return false;
         }
         return feetState.getFluidState().isEmpty() && headState.getFluidState().isEmpty();
+    }
+
+    private void monitorSilentDeathIndicators(AltoClef mod, ClientPlayerEntity player) {
+        if (!AltoClef.inGame() || mod == null || player == null) {
+            lastKnownWorldKey = null;
+            return;
+        }
+        ClientWorld world = mod.getWorld();
+        if (world == null) {
+            return;
+        }
+
+        RegistryKey<World> currentKey = world.getRegistryKey();
+        if (currentKey != null) {
+            if (lastKnownWorldKey != null && !currentKey.equals(lastKnownWorldKey) && isLimboDimension(currentKey) && !deathContextLogged) {
+                String baseMessage = resolveImmediateDeathMessage(player);
+                String formatted = String.format(Locale.ROOT,
+                        "%s [dimension change %s -> %s]",
+                        baseMessage,
+                        lastKnownWorldKey.getValue(),
+                        currentKey.getValue());
+                handleImmediateDeath(mod, player, formatted);
+            }
+            lastKnownWorldKey = currentKey;
+        }
+    }
+
+    private boolean isLimboDimension(RegistryKey<World> key) {
+        return key != null && "fahare:limbo".equals(key.getValue().toString());
     }
 }

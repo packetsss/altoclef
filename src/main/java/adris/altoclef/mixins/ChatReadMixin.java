@@ -7,6 +7,7 @@ import com.mojang.authlib.GameProfile;
 import net.minecraft.client.network.message.MessageHandler;
 import net.minecraft.network.message.MessageType;
 import net.minecraft.network.message.SignedMessage;
+import net.minecraft.text.Text;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -21,6 +22,12 @@ public final class ChatReadMixin {
     )
     private void onChatMessage(SignedMessage message, GameProfile sender, MessageType.Parameters params, CallbackInfo ci) {
         ChatMessageEvent evt = new ChatMessageEvent(message.getContent().getString(), sender.getName(), MessageTypeVer.getMessageType(params));
+        EventBus.publish(evt);
+    }
+
+    @Inject(method = "onGameMessage", at = @At("HEAD"))
+    private void onGameMessage(Text message, boolean overlay, CallbackInfo ci) {
+        ChatMessageEvent evt = new ChatMessageEvent(message.getString(), null, null);
         EventBus.publish(evt);
     }
 }

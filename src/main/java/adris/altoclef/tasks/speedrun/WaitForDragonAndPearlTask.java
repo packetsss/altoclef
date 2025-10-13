@@ -69,6 +69,10 @@ public class WaitForDragonAndPearlTask extends Task {
 
     public void setPerchState(boolean perching) {
         dragonIsPerching = perching;
+        if (!perching && targetToPearl != null && throwPearlTask != null && throwPearlTask.isFinished()) {
+            // Allow the pearl task to be reused on the next perch without carrying stale finished state.
+            throwPearlTask = new ThrowEnderPearlSimpleProjectileTask(targetToPearl);
+        }
     }
 
     @Override
@@ -129,10 +133,7 @@ public class WaitForDragonAndPearlTask extends Task {
         if (mod.getPlayer().getBlockPos().getY() < minHeight) {
             if (mod.getEntityTracker().entityFound(entity ->
                     mod.getPlayer().getPos().isInRange(entity.getPos(), 4), AreaEffectCloudEntity.class)) {
-                if (mod.getEntityTracker().getClosestEntity(EnderDragonEntity.class).isPresent() &&
-                        !mod.getClientBaritone().getPathingBehavior().isPathing()) {
-                    LookHelper.lookAt(mod, mod.getEntityTracker().getClosestEntity(EnderDragonEntity.class).get().getEyePos());
-                }
+                trackDragonIfSafe(mod);
                 return null;
             }
             if (heightPillarTask != null && heightPillarTask.isActive() && !heightPillarTask.isFinished()) {
@@ -147,10 +148,7 @@ public class WaitForDragonAndPearlTask extends Task {
                                 if (mod.getPlayer().getBlockPos().getY() < minHeight) {
                                     return heightPillarTask;
                                 } else {
-                                    if (mod.getEntityTracker().getClosestEntity(EnderDragonEntity.class).isPresent() &&
-                                            !mod.getClientBaritone().getPathingBehavior().isPathing()) {
-                                        LookHelper.lookAt(mod, mod.getEntityTracker().getClosestEntity(EnderDragonEntity.class).get().getEyePos());
-                                    }
+                                    trackDragonIfSafe(mod);
                                     return null;
                                 }
                             },
@@ -177,29 +175,20 @@ public class WaitForDragonAndPearlTask extends Task {
                             if (mod.getPlayer().getBlockPos().getY() < minHeight) {
                                 return heightPillarTask;
                             } else {
-                                if (mod.getEntityTracker().getClosestEntity(EnderDragonEntity.class).isPresent() &&
-                                        !mod.getClientBaritone().getPathingBehavior().isPathing()) {
-                                    LookHelper.lookAt(mod, mod.getEntityTracker().getClosestEntity(EnderDragonEntity.class).get().getEyePos());
-                                }
+                                trackDragonIfSafe(mod);
                                 return null;
                             }
                         },
                         EndCrystalEntity.class
                 );
             }
-            if (mod.getEntityTracker().getClosestEntity(EnderDragonEntity.class).isPresent() &&
-                    !mod.getClientBaritone().getPathingBehavior().isPathing()) {
-                LookHelper.lookAt(mod, mod.getEntityTracker().getClosestEntity(EnderDragonEntity.class).get().getEyePos());
-            }
+            trackDragonIfSafe(mod);
             return null;
         }
         if (!WorldHelper.inRangeXZ(mod.getPlayer(), targetToPearl, XZ_RADIUS_TOO_FAR) && mod.getPlayer().getPos().getY() < minHeight && !_hasPillar) {
             if (mod.getEntityTracker().entityFound(entity ->
                     mod.getPlayer().getPos().isInRange(entity.getPos(), 4), AreaEffectCloudEntity.class)) {
-                if (mod.getEntityTracker().getClosestEntity(EnderDragonEntity.class).isPresent() &&
-                        !mod.getClientBaritone().getPathingBehavior().isPathing()) {
-                    LookHelper.lookAt(mod, mod.getEntityTracker().getClosestEntity(EnderDragonEntity.class).get().getEyePos());
-                }
+                trackDragonIfSafe(mod);
                 return null;
             }
             setDebugState("Moving in (too far, might hit pillars)");
@@ -211,6 +200,32 @@ public class WaitForDragonAndPearlTask extends Task {
         }
         heightPillarTask = new GetToBlockTask(new BlockPos(0, minHeight, Y_COORDINATE));
         return heightPillarTask;
+    }
+
+    private void trackDragonIfSafe(AltoClef mod) {
+        if (shouldAvoidEndermanEyeContact(mod)) {
+            return;
+        }
+        if (mod.getClientBaritone().getPathingBehavior().isPathing()) {
+            return;
+        }
+        mod.getEntityTracker().getClosestEntity(EnderDragonEntity.class)
+                .ifPresent(dragon -> LookHelper.lookAt(mod, dragon.getEyePos()));
+    }
+
+    private boolean shouldAvoidEndermanEyeContact(AltoClef mod) {
+        Optional<Entity> closestEnderman = mod.getEntityTracker().getClosestEntity(EndermanEntity.class);
+        if (closestEnderman.isEmpty()) {
+            return false;
+        }
+        EndermanEntity enderman = (EndermanEntity) closestEnderman.get();
+        if (!enderman.isAlive() || enderman.isAngry()) {
+            return false;
+        }
+        if (!enderman.isInRange(mod.getPlayer(), 13)) {
+            return false;
+        }
+        return mod.getPlayer().canSee(enderman);
     }
 
     // basically same as LookHelper.cleanLineOfSight but edited so it has a small distance toleration
@@ -260,9 +275,20 @@ public class WaitForDragonAndPearlTask extends Task {
 
     @Override
     public boolean isFinished() {
-        return dragonIsPerching
-                && ((throwPearlTask == null || (throwPearlTask.isActive() && throwPearlTask.isFinished()))
-                || WorldHelper.inRangeXZ(AltoClef.getInstance().getPlayer(), targetToPearl, CLOSE_ENOUGH_DISTANCE));
+        if (!dragonIsPerching) {
+            return false;
+        }
+
+        boolean pearlCycleResolved = throwPearlTask == null
+                || throwPearlTask.isFinished()
+                || !throwPearlTask.isActive();
+
+        if (pearlCycleResolved) {
+            return true;
+        }
+
+    return targetToPearl != null
+        && WorldHelper.inRangeXZ(AltoClef.getInstance().getPlayer(), targetToPearl, CLOSE_ENOUGH_DISTANCE);
     }
 
     @Override

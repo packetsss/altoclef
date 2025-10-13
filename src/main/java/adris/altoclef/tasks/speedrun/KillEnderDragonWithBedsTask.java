@@ -4,6 +4,7 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 import adris.altoclef.tasks.construction.DestroyBlockTask;
 import adris.altoclef.tasks.construction.PlaceBlockTask;
+import adris.altoclef.tasks.entity.KillEntityTask;
 import adris.altoclef.tasks.movement.GetToBlockTask;
 import adris.altoclef.tasks.movement.GetToXZTask;
 import adris.altoclef.tasksystem.Task;
@@ -14,12 +15,14 @@ import adris.altoclef.util.time.TimerGame;
 import baritone.api.utils.input.Input;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.boss.dragon.EnderDragonEntity;
 import net.minecraft.entity.boss.dragon.EnderDragonPart;
 import net.minecraft.entity.boss.dragon.phase.LandingApproachPhase;
 import net.minecraft.entity.boss.dragon.phase.LandingPhase;
 import net.minecraft.entity.boss.dragon.phase.Phase;
 import net.minecraft.entity.boss.dragon.phase.PhaseType;
+import net.minecraft.entity.mob.EndermanEntity;
 import net.minecraft.item.Items;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
@@ -27,6 +30,7 @@ import net.minecraft.util.math.Vec3d;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 public class KillEnderDragonWithBedsTask extends Task {
     private final WaitForDragonAndPearlTask whenNotPerchingTask;
@@ -162,6 +166,17 @@ public class KillEnderDragonWithBedsTask extends Task {
         }
         // do not let shield fuck up our moment :3
         mod.getSlotHandler().forceEquipItemToOffhand(Items.AIR);
+
+        Optional<Entity> closestEnderman = mod.getEntityTracker().getClosestEntity(EndermanEntity.class);
+        if (closestEnderman.isPresent()) {
+            EndermanEntity enderman = (EndermanEntity) closestEnderman.get();
+            boolean targetingUs = enderman.isAngry() && enderman.getTarget() != null && enderman.getTarget().equals(mod.getPlayer());
+            if (targetingUs && enderman.isInRange(mod.getPlayer(), 16)) {
+                setDebugState("Clearing angry enderman before bed strat");
+                mod.getMobDefenseChain().setTargetEntity(enderman);
+                return new KillEntityTask(enderman);
+            }
+        }
 
         BlockPos endPortalTop = KillEnderDragonWithBedsTask.locateExitPortalTop(mod).up();
         BlockPos obsidian = null;

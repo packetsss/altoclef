@@ -66,6 +66,9 @@ public class Butler {
 
     private static boolean shouldAccept(MessageType messageType) {
         //#if MC >= 11904
+        if (messageType == null) {
+            return false;
+        }
         return messageType.chat().style().isItalic()
                 && messageType.chat().style().getColor() != null
                 && Objects.equals(messageType.chat().style().getColor().getName(), "gray");

@@ -21,8 +21,7 @@ rootProject.name = "altoclef"
 rootProject.buildFileName = "root.gradle.kts"
 
 listOf(
-    "1.21.1",
-    "1.21"
+    "1.21.1"
 ).forEach { version ->
     include(":$version")
     project(":$version").apply {

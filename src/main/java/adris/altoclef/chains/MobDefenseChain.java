@@ -95,7 +95,7 @@ public class MobDefenseChain extends SingleTaskChain {
     private static final long IGNORED_LOG_COOLDOWN_TICKS = 100;
     private static final Item[] AXE_WEAPONS = new Item[]{Items.NETHERITE_AXE, Items.DIAMOND_AXE, Items.IRON_AXE,
         Items.GOLDEN_AXE, Items.STONE_AXE, Items.WOODEN_AXE};
-    private static final List<Class<? extends Entity>> ignoredMobs = List.of(Entities.WARDEN, WitherEntity.class, EndermanEntity.class,
+    private static final List<Class<? extends Entity>> ignoredMobs = List.of(Entities.WARDEN, WitherEntity.class,
             WitherSkeletonEntity.class, HoglinEntity.class, ZoglinEntity.class, PiglinBruteEntity.class, VindicatorEntity.class, MagmaCubeEntity.class);
 
     private static boolean shielding = false;
