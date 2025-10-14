@@ -5,8 +5,10 @@ import adris.altoclef.Debug;
 import adris.altoclef.commandsystem.exception.CommandException;
 import adris.altoclef.commandsystem.exception.RuntimeCommandException;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.function.Consumer;
 
 public class CommandExecutor {
@@ -46,17 +48,32 @@ public class CommandExecutor {
             return;
         }
         Command command = commands[index];
-        String part = parts[index];
+        String part = parts[index] == null ? "" : parts[index];
         try {
             if (command == null) {
                 getException.accept(new RuntimeCommandException("Invalid command:" + part));
                 executeRecursive(commands, parts, index + 1, onFinish, getException);
             } else {
-                command.run(mod, part.strip(), () -> executeRecursive(commands, parts, index + 1, onFinish, getException));
+                String cleaned = part.strip();
+                if (!cleaned.isEmpty() && mod.getTaskPersistenceManager() != null) {
+                    mod.getTaskPersistenceManager().notifyCommandStart(cleaned);
+                }
+                String finalCleaned = cleaned;
+                command.run(mod, cleaned, () -> {
+                    if (!finalCleaned.isEmpty() && mod.getTaskPersistenceManager() != null) {
+                        mod.getTaskPersistenceManager().notifyCommandComplete(finalCleaned, true, null);
+                    }
+                    executeRecursive(commands, parts, index + 1, onFinish, getException);
+                });
             }
         } catch (CommandException ae) {
+            String cleaned = part.strip();
+            if (!cleaned.isEmpty() && mod.getTaskPersistenceManager() != null) {
+                mod.getTaskPersistenceManager().notifyCommandComplete(cleaned, false, ae.getMessage());
+            }
             try {
                 getException.accept(new RuntimeCommandException(ae.getMessage() + "\nUsage: " + command.getHelpRepresentation(new StringReader(part).nextOrEmpty()), ae));
+                executeRecursive(commands, parts, index + 1, onFinish, getException);
             } catch (RuntimeCommandException e) {
                 throw new IllegalStateException("Should not happen!");
             }
@@ -67,19 +84,31 @@ public class CommandExecutor {
         if (!isClientCommand(line)) return;
         line = line.substring(getCommandPrefix().length());
         // Run commands separated by ;
-        String[] parts = line.split(";");
-        Command[] commands = new Command[parts.length];
+        String[] rawParts = line.split(";");
+        Command[] commands = new Command[rawParts.length];
+        String[] parts = new String[rawParts.length];
         try {
-            for (int i = 0; i < parts.length; ++i) {
-                String part = parts[i].strip();
+            for (int i = 0; i < rawParts.length; ++i) {
+                String part = rawParts[i].strip();
                 if (part.startsWith(getCommandPrefix())) {
                     part = part.substring(getCommandPrefix().length());
                 }
-
-                commands[i] = getCommand(part);
+                parts[i] = part;
+                commands[i] = part.isEmpty() ? null : getCommand(part);
             }
         } catch (CommandException e) {
             getException.accept(e);
+        }
+        if (mod.getTaskPersistenceManager() != null && parts.length > 0) {
+            List<String> tracked = new ArrayList<>();
+            for (int i = 0; i < parts.length; i++) {
+                if (commands[i] != null && parts[i] != null && !parts[i].isBlank()) {
+                    tracked.add(parts[i]);
+                }
+            }
+            if (!tracked.isEmpty()) {
+                mod.getTaskPersistenceManager().enqueueCommands(tracked);
+            }
         }
         executeRecursive(commands, parts, 0, onFinish, getException);
     }

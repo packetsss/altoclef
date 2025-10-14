@@ -164,6 +164,9 @@ public class InventorySubTracker extends Tracker {
     }
 
     private void registerItem(ItemStack stack, Slot slot, boolean isSlotPlayerInventory) {
+        if (stack == null) {
+            stack = ItemStack.EMPTY;
+        }
         Item item = stack.getItem();
         int count = stack.getCount();
         if (stack.isEmpty()) {
@@ -177,12 +180,10 @@ public class InventorySubTracker extends Tracker {
         } else {
             itemCountsContainer.put(item, itemCountsContainer.getOrDefault(item, 0) + count);
         }
-
         if (slot != null) {
             HashMap<Item, List<Slot>> toAdd = isSlotPlayerInventory ? itemToSlotPlayer : itemToSlotContainer;
-            if (!toAdd.containsKey(item))
-                toAdd.put(item, new ArrayList<>());
-            toAdd.get(item).add(slot);
+            List<Slot> slots = toAdd.computeIfAbsent(item, ignored -> new ArrayList<>());
+            slots.add(slot);
         }
     }
 

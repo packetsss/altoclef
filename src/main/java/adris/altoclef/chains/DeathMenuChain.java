@@ -12,6 +12,7 @@ import adris.altoclef.tasksystem.TaskRunner;
 import adris.altoclef.eventbus.EventBus;
 import adris.altoclef.eventbus.Subscription;
 import adris.altoclef.eventbus.events.ChatMessageEvent;
+import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.time.TimerGame;
 import adris.altoclef.util.time.TimerReal;
 import net.minecraft.block.BlockState;
@@ -40,8 +41,46 @@ import java.util.Deque;
 import java.util.Locale;
 import java.util.Random;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 public class DeathMenuChain extends TaskChain {
+
+    private static final int DEATH_CHAT_MESSAGE_TIMEOUT_TICKS = 20 * 15;
+    private static final String[] DEATH_MESSAGE_KEYWORDS = new String[]{
+            " died",
+            " slain",
+            " shot",
+            " fell",
+            " hit the ground",
+            " tried to swim",
+            " drowned",
+            " blew up",
+            " was blown up",
+            " burned",
+            " burnt",
+            " went up in flames",
+            " suffocated",
+            " starved",
+            " was killed",
+            " killed by",
+            " was pricked",
+            " walked into a cactus",
+            " experienced kinetic energy",
+            " was squished",
+            " was pummeled",
+            " fell out of the world",
+            " didn't want to live",
+            " was roasted",
+            " was struck by lightning",
+            " was impaled",
+            " was doomed",
+            " withered",
+            " was obliterated",
+            " magic",
+            " was slain by",
+            " was shot by"
+    };
+    private static final Pattern FORMATTING_CODE_PATTERN = Pattern.compile("\u00A7[0-9A-FK-ORa-fk-or]");
 
     // Sometimes we fuck up, so we might want to retry considering the death screen.
     private final TimerReal deathRetryTimer = new TimerReal(8);
@@ -73,13 +112,16 @@ public class DeathMenuChain extends TaskChain {
     private boolean restartBeatTaskAfterRespawn = false;
     private boolean pendingDeathWithoutScreen = false;
     private final Deque<String> pendingDeathCommands = new ArrayDeque<>();
-    private final Subscription<ChatMessageEvent> baritoneDeathSubscription;
+    private final Subscription<ChatMessageEvent> chatSubscription;
+    private String recentDeathChatMessage = null;
+    private long recentDeathChatTick = -1L;
     private RegistryKey<World> lastKnownWorldKey = null;
+    private PlayerStateSnapshot lastAliveSnapshot = null;
 
 
     public DeathMenuChain(TaskRunner runner) {
         super(runner);
-        baritoneDeathSubscription = EventBus.subscribe(ChatMessageEvent.class, this::handleBaritoneChatMessage);
+        chatSubscription = EventBus.subscribe(ChatMessageEvent.class, this::handleChatMessage);
     }
 
     private boolean shouldAutoRespawn() {
@@ -108,6 +150,7 @@ public class DeathMenuChain extends TaskChain {
     @Override
     public float getPriority() {
         processPendingDeathCommands();
+        expireStaleDeathChatMessage();
         if (randomRespawnQueued && !randomRespawnAttempted && AltoClef.inGame()) {
             attemptRandomRespawnTeleport();
         }
@@ -123,12 +166,16 @@ public class DeathMenuChain extends TaskChain {
         AltoClef modInstance = AltoClef.getInstance();
         ClientPlayerEntity clientPlayer = MinecraftClient.getInstance().player;
 
+        if (modInstance != null && clientPlayer != null) {
+            updateLastAliveSnapshot(modInstance, clientPlayer);
+        }
+
         monitorSilentDeathIndicators(modInstance, clientPlayer);
 
         if (modInstance != null && clientPlayer != null && !(screen instanceof DeathScreen)
                 && isPlayerCurrentlyDead(clientPlayer) && !deathContextLogged) {
             String deathMessage = resolveImmediateDeathMessage(clientPlayer);
-            handleImmediateDeath(modInstance, clientPlayer, deathMessage);
+            handleImmediateDeath(modInstance, clientPlayer, deathMessage, lastAliveSnapshot);
         }
 
         // This might fix Weird fail to respawn that happened only once
@@ -159,8 +206,9 @@ public class DeathMenuChain extends TaskChain {
                 }
                 Text screenMessage = ((DeathScreenAccessor) screen).getMessage();
                 String deathMessage = screenMessage != null ? screenMessage.getString() : "Unknown";
+                deathMessage = resolveDeathMessageWithChatFallback(clientPlayer, deathMessage);
                 if (!deathContextLogged) {
-                    logDeathSnapshot(mod, deathCount + 1, deathMessage);
+                    logDeathSnapshot(mod, deathCount + 1, deathMessage, lastAliveSnapshot);
                     deathContextLogged = true;
                 }
                 if (shouldAutoRespawn()) {
@@ -480,21 +528,26 @@ public class DeathMenuChain extends TaskChain {
         }
     }
 
-    private void handleBaritoneChatMessage(ChatMessageEvent event) {
+    private void handleChatMessage(ChatMessageEvent event) {
         String raw = event.messageContent();
         if (raw == null) {
             return;
         }
-        String normalized = raw.trim();
+        String normalized = cleanChatMessage(raw);
         if (normalized.isEmpty()) {
-            return;
-        }
-        String lowered = normalized.toLowerCase(Locale.ROOT);
-        if (!lowered.contains("baritone") || !lowered.contains("death position saved")) {
             return;
         }
         AltoClef mod = AltoClef.getInstance();
         ClientPlayerEntity clientPlayer = MinecraftClient.getInstance().player;
+        String lowered = normalized.toLowerCase(Locale.ROOT);
+
+        if (isLikelyDeathMessageForPlayer(lowered, normalized, clientPlayer)) {
+            cacheRecentDeathChatMessage(normalized);
+        }
+
+        if (!lowered.contains("baritone") || !lowered.contains("death position saved")) {
+            return;
+        }
         if (mod == null || clientPlayer == null) {
             return;
         }
@@ -503,18 +556,23 @@ public class DeathMenuChain extends TaskChain {
         }
         Debug.logMessage("[Death] Detected Baritone death marker; forcing snapshot capture.", false);
         String deathMessage = resolveImmediateDeathMessage(clientPlayer);
-        handleImmediateDeath(mod, clientPlayer, deathMessage);
+        handleImmediateDeath(mod, clientPlayer, deathMessage, lastAliveSnapshot);
     }
 
-    private void handleImmediateDeath(AltoClef mod, ClientPlayerEntity clientPlayer, String deathMessage) {
+    private void handleImmediateDeath(AltoClef mod, ClientPlayerEntity clientPlayer, String deathMessage, PlayerStateSnapshot snapshot) {
         if (mod == null || clientPlayer == null) {
             return;
         }
         if (deathContextLogged) {
             return;
         }
-        String resolvedMessage = deathMessage != null && !deathMessage.isBlank() ? deathMessage : resolveImmediateDeathMessage(clientPlayer);
-        logDeathSnapshot(mod, deathCount + 1, resolvedMessage);
+        PlayerStateSnapshot effectiveSnapshot = snapshot != null ? snapshot : lastAliveSnapshot;
+        if (effectiveSnapshot == null) {
+            effectiveSnapshot = capturePlayerSnapshot(mod, clientPlayer);
+        }
+        String resolvedMessage = resolveDeathMessageWithChatFallback(clientPlayer, deathMessage);
+        logDeathSnapshot(mod, deathCount + 1, resolvedMessage, effectiveSnapshot);
+        lastAliveSnapshot = null;
         deathContextLogged = true;
         pendingDeathWithoutScreen = true;
         deathCount++;
@@ -537,21 +595,28 @@ public class DeathMenuChain extends TaskChain {
             return;
         }
         Text message = source != null ? source.getDeathMessage(clientPlayer) : null;
-        String deathMessage = message != null ? message.getString() : resolveImmediateDeathMessage(clientPlayer);
-        handleImmediateDeath(mod, clientPlayer, deathMessage);
+        String deathMessage = message != null ? message.getString() : null;
+        PlayerStateSnapshot snapshot = capturePlayerSnapshot(mod, clientPlayer);
+        if (snapshot != null) {
+            lastAliveSnapshot = snapshot;
+        }
+        handleImmediateDeath(mod, clientPlayer, deathMessage, snapshot);
     }
 
-    private void logDeathSnapshot(AltoClef mod, int deathNumber, String deathMessage) {
+    private void logDeathSnapshot(AltoClef mod, int deathNumber, String deathMessage, PlayerStateSnapshot snapshot) {
         if (mod == null) return;
-        ClientPlayerEntity player = mod.getPlayer();
-        Vec3d pos = player != null ? player.getPos() : Vec3d.ZERO;
-        String posString = player != null ? player.getBlockPos().toShortString() : "<unknown>";
-        String dimension = mod.getWorld() != null ? mod.getWorld().getRegistryKey().getValue().toString() : "<unknown>";
-        float health = player != null ? player.getHealth() : Float.NaN;
-        float absorption = player != null ? player.getAbsorptionAmount() : Float.NaN;
-        int hunger = player != null ? player.getHungerManager().getFoodLevel() : -1;
-        float saturation = player != null ? player.getHungerManager().getSaturationLevel() : Float.NaN;
-        int armor = player != null ? player.getArmor() : -1;
+        PlayerStateSnapshot effective = snapshot;
+        if (effective == null) {
+            effective = capturePlayerSnapshot(mod, mod.getPlayer());
+        }
+        Vec3d pos = effective != null ? effective.position : Vec3d.ZERO;
+        String posString = effective != null ? effective.blockPosShort : "<unknown>";
+        String dimension = effective != null ? effective.dimension : (mod.getWorld() != null ? mod.getWorld().getRegistryKey().getValue().toString() : "<unknown>");
+        float health = effective != null ? effective.health : Float.NaN;
+        float absorption = effective != null ? effective.absorption : Float.NaN;
+        int hunger = effective != null ? effective.hunger : -1;
+        float saturation = effective != null ? effective.saturation : Float.NaN;
+        int armor = effective != null ? effective.armor : -1;
         TaskRunner runner = mod.getTaskRunner();
         TaskChain currentChain = runner != null ? runner.getCurrentTaskChain() : null;
         String chainName = currentChain != null ? currentChain.getName() : "<none>";
@@ -580,6 +645,129 @@ public class DeathMenuChain extends TaskChain {
         if (mod.getDeathLogManager() != null) {
             mod.getDeathLogManager().recordDeath(deathNumber, deathMessage);
         }
+    }
+
+    private void updateLastAliveSnapshot(AltoClef mod, ClientPlayerEntity player) {
+        if (mod == null || player == null) {
+            return;
+        }
+        if (!player.isAlive() || player.getHealth() <= 0.0f) {
+            return;
+        }
+        lastAliveSnapshot = capturePlayerSnapshot(mod, player);
+    }
+
+    private PlayerStateSnapshot capturePlayerSnapshot(AltoClef mod, ClientPlayerEntity player) {
+        if (mod == null || player == null) {
+            return null;
+        }
+        Vec3d pos = player.getPos();
+        Vec3d positionCopy = pos != null ? new Vec3d(pos.x, pos.y, pos.z) : Vec3d.ZERO;
+        BlockPos blockPos = player.getBlockPos();
+        float health = player.getHealth();
+        float absorption = player.getAbsorptionAmount();
+        int hunger = player.getHungerManager().getFoodLevel();
+        float saturation = player.getHungerManager().getSaturationLevel();
+        int armor = player.getArmor();
+        World world = mod.getWorld();
+        if (world == null) {
+            world = player.getWorld();
+        }
+        String dimension = world != null && world.getRegistryKey() != null ? world.getRegistryKey().getValue().toString() : "<unknown>";
+        return new PlayerStateSnapshot(positionCopy, blockPos, dimension, health, absorption, hunger, saturation, armor);
+    }
+
+    private String cleanChatMessage(String raw) {
+        String stripped = FORMATTING_CODE_PATTERN.matcher(raw).replaceAll("");
+        return stripped.replaceAll("\\s+", " ").trim();
+    }
+
+    private boolean isLikelyDeathMessageForPlayer(String lowered, String normalized, ClientPlayerEntity clientPlayer) {
+        if (lowered.contains("you died")) {
+            return true;
+        }
+        if (clientPlayer == null) {
+            return false;
+        }
+        String playerName = clientPlayer.getName() != null ? clientPlayer.getName().getString() : null;
+        if (playerName == null || playerName.isBlank()) {
+            return false;
+        }
+        String loweredName = playerName.toLowerCase(Locale.ROOT);
+        if (!lowered.contains(loweredName)) {
+            return false;
+        }
+        for (String keyword : DEATH_MESSAGE_KEYWORDS) {
+            if (lowered.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void cacheRecentDeathChatMessage(String message) {
+        recentDeathChatMessage = message;
+        recentDeathChatTick = WorldHelper.getTicks();
+    }
+
+    private void expireStaleDeathChatMessage() {
+        if (recentDeathChatMessage == null) {
+            return;
+        }
+        long currentTick = WorldHelper.getTicks();
+        if (recentDeathChatTick < 0L || currentTick - recentDeathChatTick > DEATH_CHAT_MESSAGE_TIMEOUT_TICKS) {
+            recentDeathChatMessage = null;
+            recentDeathChatTick = -1L;
+        }
+    }
+
+    private String pollRecentDeathChatMessage() {
+        expireStaleDeathChatMessage();
+        if (recentDeathChatMessage == null) {
+            return null;
+        }
+        String message = recentDeathChatMessage;
+        recentDeathChatMessage = null;
+        recentDeathChatTick = -1L;
+        return message;
+    }
+
+    private boolean isGenericDeathMessage(String message, ClientPlayerEntity player) {
+        if (message == null || message.isBlank()) {
+            return true;
+        }
+        String lowered = message.toLowerCase(Locale.ROOT);
+        if (lowered.contains("dimension change")) {
+            return true;
+        }
+        if (lowered.equals("you died") || lowered.equals("you died!")) {
+            return true;
+        }
+        if (player != null) {
+            String name = player.getName() != null ? player.getName().getString() : null;
+            if (name != null && !name.isBlank()) {
+                String loweredName = name.toLowerCase(Locale.ROOT);
+                if (lowered.startsWith(loweredName + " died")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private String resolveDeathMessageWithChatFallback(ClientPlayerEntity player, String candidate) {
+        String sanitized = candidate != null ? candidate.trim() : "";
+        if (!sanitized.isEmpty() && !isGenericDeathMessage(sanitized, player)) {
+            return sanitized;
+        }
+        String fromChat = pollRecentDeathChatMessage();
+        if (fromChat != null && !fromChat.isBlank()) {
+            return fromChat;
+        }
+        if (!sanitized.isEmpty()) {
+            return sanitized;
+        }
+        return resolveImmediateDeathMessage(player);
     }
 
     private void logRespawnLanding(ClientPlayerEntity player, String mode) {
@@ -670,7 +858,7 @@ public class DeathMenuChain extends TaskChain {
                         baseMessage,
                         lastKnownWorldKey.getValue(),
                         currentKey.getValue());
-                handleImmediateDeath(mod, player, formatted);
+                handleImmediateDeath(mod, player, formatted, lastAliveSnapshot);
             }
             lastKnownWorldKey = currentKey;
         }
@@ -678,5 +866,27 @@ public class DeathMenuChain extends TaskChain {
 
     private boolean isLimboDimension(RegistryKey<World> key) {
         return key != null && "fahare:limbo".equals(key.getValue().toString());
+    }
+
+    private static final class PlayerStateSnapshot {
+        private final Vec3d position;
+        private final String blockPosShort;
+        private final String dimension;
+        private final float health;
+        private final float absorption;
+        private final int hunger;
+        private final float saturation;
+        private final int armor;
+
+        private PlayerStateSnapshot(Vec3d position, BlockPos blockPos, String dimension, float health, float absorption, int hunger, float saturation, int armor) {
+            this.position = position;
+            this.blockPosShort = blockPos != null ? blockPos.toShortString() : "<unknown>";
+            this.dimension = dimension;
+            this.health = health;
+            this.absorption = absorption;
+            this.hunger = hunger;
+            this.saturation = saturation;
+            this.armor = armor;
+        }
     }
 }

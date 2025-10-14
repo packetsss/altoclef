@@ -20,6 +20,7 @@ import adris.altoclef.multiversion.RenderLayerVer;
 import adris.altoclef.multiversion.versionedfields.Blocks;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskRunner;
+import adris.altoclef.tasksystem.persistence.TaskPersistenceManager;
 import adris.altoclef.trackers.*;
 import adris.altoclef.trackers.storage.ContainerSubTracker;
 import adris.altoclef.trackers.storage.ItemStorageTracker;
@@ -99,6 +100,7 @@ public class AltoClef implements ModInitializer {
     // Telemetry
     private DeathLogManager deathLogManager;
     private StuckLogManager stuckLogManager;
+    private TaskPersistenceManager taskPersistenceManager;
     private boolean componentsInitialized = false;
     private boolean autoStartTriggered = false;
     private boolean forcedInitializationLogged = false;
@@ -107,6 +109,8 @@ public class AltoClef implements ModInitializer {
     private Path telemetrySessionDir;
     // Pausing
     private boolean paused = false;
+    private boolean resumeCommandsLaunched = true;
+    private final Deque<String> pendingResumeCommands = new ArrayDeque<>();
     private Task storedTask;
     private Vec3d idleMonitorAnchorPos = null;
     private long idleMonitorAnchorTick = -1;
@@ -167,7 +171,11 @@ public class AltoClef implements ModInitializer {
     initializeTelemetrySession();
 
         // Central Managers
-        commandExecutor = new CommandExecutor(this);
+    commandExecutor = new CommandExecutor(this);
+    taskPersistenceManager = new TaskPersistenceManager(this);
+    pendingResumeCommands.clear();
+    pendingResumeCommands.addAll(taskPersistenceManager.getCommandsToResume());
+    resumeCommandsLaunched = pendingResumeCommands.isEmpty();
         taskRunner = new TaskRunner(this);
         trackerManager = new TrackerManager(this);
         botBehaviour = new BotBehaviour(this);
@@ -255,6 +263,18 @@ public class AltoClef implements ModInitializer {
                 autoStartTriggered = false;
                 resetIdleMovementTelemetry();
             } else {
+                if (!resumeCommandsLaunched && settings != null && !pendingResumeCommands.isEmpty()) {
+                    CommandExecutor executor = AltoClef.getCommandExecutor();
+                    if (executor != null) {
+                        String joined = String.join(";", pendingResumeCommands);
+                        Debug.logMessage(String.format(Locale.ROOT,
+                                "Resuming %d pending command(s): %s",
+                                pendingResumeCommands.size(),
+                                joined), false);
+                        executor.execute(joined);
+                    }
+                    resumeCommandsLaunched = true;
+                }
                 if (!autoStartTriggered && settings != null) {
                     String autoStart = settings.getAutoStartCommand();
                     autoStart = autoStart == null ? "" : autoStart.trim();
@@ -567,6 +587,10 @@ public class AltoClef implements ModInitializer {
 
     public StuckLogManager getStuckLogManager() {
         return stuckLogManager;
+    }
+
+    public TaskPersistenceManager getTaskPersistenceManager() {
+        return taskPersistenceManager;
     }
 
     public Path getTelemetrySessionDir() {
