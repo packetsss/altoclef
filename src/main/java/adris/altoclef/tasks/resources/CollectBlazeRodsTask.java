@@ -8,10 +8,13 @@ import adris.altoclef.tasks.construction.PutOutFireTask;
 import adris.altoclef.tasks.entity.KillEntitiesTask;
 import adris.altoclef.tasks.movement.DefaultGoToDimensionTask;
 import adris.altoclef.tasks.movement.GetToBlockTask;
+import adris.altoclef.tasks.movement.GetToXZTask;
 import adris.altoclef.tasks.movement.RunAwayFromHostilesTask;
 import adris.altoclef.tasks.movement.SearchChunkForBlockTask;
+import adris.altoclef.tasks.movement.TimeoutWanderTask;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.Dimension;
+import adris.altoclef.util.helpers.LocateStructureCommandHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.Entity;
@@ -32,6 +35,7 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private static final int TOO_MANY_BLAZES = 5;
     private final int _count;
     private final Task _searcher = new SearchChunkForBlockTask(Blocks.NETHER_BRICKS);
+    private LocateStructureCommandHelper fortressLocator;
 
     // Why was this here???
     //private Entity _toKill;
@@ -53,7 +57,12 @@ public class CollectBlazeRodsTask extends ResourceTask {
 
     @Override
     protected void onResourceStart(AltoClef mod) {
-
+        fortressLocator = new LocateStructureCommandHelper(mod,
+            "minecraft:fortress",
+            "fortress",
+            Dimension.NETHER,
+            45,
+            10);
     }
 
     @Override
@@ -62,6 +71,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
         if (WorldHelper.getCurrentDimension() != Dimension.NETHER) {
             setDebugState("Going to nether");
             return new DefaultGoToDimensionTask(Dimension.NETHER);
+        }
+
+        if (fortressLocator != null) {
+            fortressLocator.tick();
         }
 
         Optional<Entity> toKill = Optional.empty();
@@ -105,6 +118,8 @@ public class CollectBlazeRodsTask extends ResourceTask {
         }
 
         // If we have a blaze spawner, go near it.
+        Optional<BlockPos> locatedFortress = fortressLocator != null ? fortressLocator.getLocatedPosition() : Optional.empty();
+
         if (_foundBlazeSpawner != null) {
             if (!_foundBlazeSpawner.isWithinDistance(mod.getPlayer().getPos(), 4)) {
                 setDebugState("Going to blaze spawner");
@@ -126,6 +141,18 @@ public class CollectBlazeRodsTask extends ResourceTask {
             Optional<BlockPos> pos = mod.getBlockScanner().getNearestBlock(blockPos->isValidBlazeSpawner(mod, blockPos),Blocks.SPAWNER);
 
             pos.ifPresent(blockPos -> _foundBlazeSpawner = blockPos);
+
+            if (_foundBlazeSpawner == null) {
+                if (locatedFortress.isPresent()) {
+                    BlockPos target = locatedFortress.get();
+                    setDebugState("Heading to located fortress at " + target.toShortString());
+                    return new GetToXZTask(target.getX(), target.getZ(), Dimension.NETHER);
+                }
+                if (fortressLocator != null && !fortressLocator.isUnsupported()) {
+                    setDebugState("Waiting on locate fortress response...");
+                    return new TimeoutWanderTask();
+                }
+            }
         }
 
         // We need to find our fortress.
@@ -144,7 +171,10 @@ public class CollectBlazeRodsTask extends ResourceTask {
 
     @Override
     protected void onResourceStop(AltoClef mod, Task interruptTask) {
-
+        if (fortressLocator != null) {
+            fortressLocator.close();
+            fortressLocator = null;
+        }
     }
 
     @Override

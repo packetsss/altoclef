@@ -6,17 +6,23 @@ import adris.altoclef.multiversion.versionedfields.Items;
 import adris.altoclef.tasks.ResourceTask;
 import adris.altoclef.tasks.construction.DestroyBlockTask;
 import adris.altoclef.tasks.movement.DefaultGoToDimensionTask;
+import adris.altoclef.tasks.movement.GetToXZTask;
 import adris.altoclef.tasks.movement.SearchChunkForBlockTask;
+import adris.altoclef.tasks.movement.TimeoutWanderTask;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.Dimension;
+import adris.altoclef.util.helpers.LocateStructureCommandHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import net.minecraft.util.math.BlockPos;
+
+import java.util.Optional;
 
 public class GetSmithingTemplateTask extends ResourceTask {
 
     private final Task _searcher = new SearchChunkForBlockTask(Blocks.BLACKSTONE);
     private final int _count;
     private BlockPos _chestloc = null;
+    private LocateStructureCommandHelper bastionLocator;
 
     public GetSmithingTemplateTask(int count) {
         super(Items.NETHERITE_UPGRADE_SMITHING_TEMPLATE, count);
@@ -25,7 +31,12 @@ public class GetSmithingTemplateTask extends ResourceTask {
 
     @Override
     protected void onResourceStart(AltoClef mod) {
-
+        bastionLocator = new LocateStructureCommandHelper(mod,
+            "minecraft:bastion_remnant",
+            "bastion",
+            Dimension.NETHER,
+            45,
+            10);
     }
 
     @Override
@@ -35,6 +46,10 @@ public class GetSmithingTemplateTask extends ResourceTask {
             setDebugState("Going to nether");
             return new DefaultGoToDimensionTask(Dimension.NETHER);
         }
+        if (bastionLocator != null) {
+            bastionLocator.tick();
+        }
+        Optional<BlockPos> locatedBastion = bastionLocator != null ? bastionLocator.getLocatedPosition() : Optional.empty();
         //if (_bastionloc != null && !mod.getChunkTracker().isChunkLoaded(_bastionloc)) {
         //    Debug.logMessage("Bastion at " + _bastionloc + " too far away. Re-searching.");
         //    _bastionloc = null;
@@ -44,6 +59,17 @@ public class GetSmithingTemplateTask extends ResourceTask {
                 if (WorldHelper.isInteractableBlock(pos)) {
                     _chestloc = pos;
                     break;
+                }
+            }
+            if (_chestloc == null) {
+                if (locatedBastion.isPresent()) {
+                    BlockPos target = locatedBastion.get();
+                    setDebugState("Heading to located bastion at " + target.toShortString());
+                    return new GetToXZTask(target.getX(), target.getZ(), Dimension.NETHER);
+                }
+                if (bastionLocator != null && !bastionLocator.isUnsupported()) {
+                    setDebugState("Locating bastion (waiting on /locate)...");
+                    return new TimeoutWanderTask();
                 }
             }
         }
@@ -69,6 +95,11 @@ public class GetSmithingTemplateTask extends ResourceTask {
 
     @Override
     protected void onResourceStop(AltoClef mod, Task interruptTask) {
+
+        if (bastionLocator != null) {
+            bastionLocator.close();
+            bastionLocator = null;
+        }
     }
 
     @Override

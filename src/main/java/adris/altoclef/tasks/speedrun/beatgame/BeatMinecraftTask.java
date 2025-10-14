@@ -147,6 +147,7 @@ public class BeatMinecraftTask extends Task {
     private PriorityTask prevLastGather = null;
     private BlockPos biomePos = null;
     private final LocateBiomeCommandHelper warpedForestLocator;
+    private final LocateStructureCommandHelper fortressLocator;
     private final BeatMinecraftStateStore stateStore;
     private BeatMinecraftState lastSavedState;
     private long lastStatePersistMs = 0L;
@@ -172,12 +173,19 @@ public class BeatMinecraftTask extends Task {
 
         SetGammaCommand.changeGamma(20d);
 
-    warpedForestLocator = new LocateBiomeCommandHelper(mod,
-        "minecraft:warped_forest",
-        "Warped Forest",
-        Dimension.NETHER,
-        45,
-        10);
+        warpedForestLocator = new LocateBiomeCommandHelper(mod,
+            "minecraft:warped_forest",
+            "Warped Forest",
+            Dimension.NETHER,
+            45,
+            10);
+
+        fortressLocator = new LocateStructureCommandHelper(mod,
+            "minecraft:fortress",
+            "fortress",
+            Dimension.NETHER,
+            45,
+            10);
 
         if (mod.getWorld().getDifficulty() != Difficulty.EASY) {
             mod.logWarning("Detected that the difficulty is other than easy!");
@@ -924,6 +932,9 @@ public class BeatMinecraftTask extends Task {
         Debug.logInternal("Behaviour popped");
         Debug.logInternal("Stopped tracking BED blocks");
         Debug.logInternal("Stopped tracking TRACK_BLOCKS");
+
+        warpedForestLocator.close();
+        fortressLocator.close();
     }
 
     /**
@@ -2273,6 +2284,7 @@ public class BeatMinecraftTask extends Task {
             }
             case NETHER -> {
                 warpedForestLocator.tick();
+                fortressLocator.tick();
 
                 if (isTaskRunning(mod, safeNetherPortalTask)) {
                     return safeNetherPortalTask;
@@ -2323,6 +2335,7 @@ public class BeatMinecraftTask extends Task {
 
                 double rodDistance = mod.getBlockScanner().distanceToClosest(Blocks.NETHER_BRICKS);
                 double pearlDistance = mod.getBlockScanner().distanceToClosest(Blocks.TWISTING_VINES, Blocks.TWISTING_VINES_PLANT, Blocks.WARPED_HYPHAE, Blocks.WARPED_NYLIUM);
+                Optional<BlockPos> locatedFortress = fortressLocator.getLocatedPosition();
                 Optional<BlockPos> locatedWarped = warpedForestLocator.getLocatedPosition();
                 locatedWarped.ifPresent(located -> {
                     if (!mod.getBlockScanner().anyFound(Blocks.TWISTING_VINES, Blocks.TWISTING_VINES_PLANT, Blocks.WARPED_HYPHAE, Blocks.WARPED_NYLIUM)) {
@@ -2335,16 +2348,28 @@ public class BeatMinecraftTask extends Task {
                 });
 
                 if (pearlDistance == Double.POSITIVE_INFINITY && rodDistance == Double.POSITIVE_INFINITY) {
+                    if (!needsEnderPearls && locatedFortress.isPresent()) {
+                        BlockPos target = locatedFortress.get();
+                        setDebugState("Locate fortress at " + target.toShortString());
+                        return new GetToXZTask(target.getX(), target.getZ(), Dimension.NETHER);
+                    }
                     if (locatedWarped.isPresent()) {
                         BlockPos target = locatedWarped.get();
                         setDebugState("Locate warped forest at " + target.toShortString());
                         return new GetToXZTask(target.getX(), target.getZ(), Dimension.NETHER);
                     }
+                    if (locatedFortress.isPresent()) {
+                        BlockPos target = locatedFortress.get();
+                        setDebugState("Locate fortress at " + target.toShortString());
+                        return new GetToXZTask(target.getX(), target.getZ(), Dimension.NETHER);
+                    }
 
                     if (!warpedForestLocator.isUnsupported()) {
                         setDebugState("Locating warped forest biome...");
+                    } else if (!fortressLocator.isUnsupported()) {
+                        setDebugState("Locating fortress via command...");
                     } else {
-                        setDebugState("Neither fortress or warped forest found... wandering");
+                        setDebugState("Locate commands unsupported, wandering for structures");
                     }
                     if (isTaskRunning(mod, searchTask)) {
                         return searchTask;
@@ -2360,6 +2385,15 @@ public class BeatMinecraftTask extends Task {
                             gotToFortress = true;
                         } else {
                             if (!mod.getBlockScanner().anyFound(Blocks.NETHER_BRICKS)) {
+                                if (locatedFortress.isPresent()) {
+                                    BlockPos target = locatedFortress.get();
+                                    setDebugState("Heading to located fortress at " + target.toShortString());
+                                    return new GetToXZTask(target.getX(), target.getZ(), Dimension.NETHER);
+                                }
+                                if (!fortressLocator.isUnsupported()) {
+                                    setDebugState("Locating fortress (command pending)...");
+                                    return new TimeoutWanderTask();
+                                }
                                 setDebugState("Searching for fortress");
                                 return new TimeoutWanderTask();
                             }

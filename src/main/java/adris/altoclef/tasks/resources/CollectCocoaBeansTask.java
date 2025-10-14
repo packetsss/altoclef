@@ -4,8 +4,12 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.tasks.DoToClosestBlockTask;
 import adris.altoclef.tasks.ResourceTask;
 import adris.altoclef.tasks.construction.DestroyBlockTask;
+import adris.altoclef.tasks.movement.GetToXZTask;
 import adris.altoclef.tasks.movement.SearchWithinBiomeTask;
+import adris.altoclef.tasks.movement.TimeoutWanderTask;
 import adris.altoclef.tasksystem.Task;
+import adris.altoclef.util.Dimension;
+import adris.altoclef.util.helpers.LocateBiomeCommandHelper;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.CocoaBlock;
@@ -14,11 +18,13 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.biome.BiomeKeys;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 public class CollectCocoaBeansTask extends ResourceTask {
     private final int _count;
     private final HashSet<BlockPos> _wasFullyGrown = new HashSet<>();
+    private LocateBiomeCommandHelper jungleLocator;
 
     public CollectCocoaBeansTask(int targetCount) {
         super(Items.COCOA_BEANS, targetCount);
@@ -32,6 +38,12 @@ public class CollectCocoaBeansTask extends ResourceTask {
 
     @Override
     protected void onResourceStart(AltoClef mod) {
+        jungleLocator = new LocateBiomeCommandHelper(mod,
+            "minecraft:jungle",
+            "jungle",
+            Dimension.OVERWORLD,
+            60,
+            10);
     }
 
     @Override
@@ -63,13 +75,32 @@ public class CollectCocoaBeansTask extends ResourceTask {
             return getToCorrectDimensionTask(mod);
         }
 
+        if (jungleLocator != null) {
+            jungleLocator.tick();
+        }
+        Optional<BlockPos> locatedJungle = jungleLocator != null ? jungleLocator.getLocatedPosition() : Optional.empty();
+
         // Search for jungles
+        if (locatedJungle.isPresent()) {
+            BlockPos target = locatedJungle.get();
+            setDebugState("Heading to located jungle at " + target.toShortString());
+            return new GetToXZTask(target.getX(), target.getZ(), Dimension.OVERWORLD);
+        }
+        if (jungleLocator != null && !jungleLocator.isUnsupported()) {
+            setDebugState("Locating jungle biome via command...");
+            return new TimeoutWanderTask();
+        }
+
         setDebugState("Exploring around jungles");
         return new SearchWithinBiomeTask(BiomeKeys.JUNGLE);
     }
 
     @Override
     protected void onResourceStop(AltoClef mod, Task interruptTask) {
+        if (jungleLocator != null) {
+            jungleLocator.close();
+            jungleLocator = null;
+        }
     }
 
     @Override
