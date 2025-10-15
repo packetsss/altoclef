@@ -114,9 +114,9 @@ public class BeatMinecraftTask extends Task {
     private final AltoClef mod;
     private PriorityTask lastGather = null;
     private Task lastTask = null;
-    private boolean pickupFurnace = false;
-    private boolean pickupSmoker = false;
-    private boolean pickupCrafting = false;
+    private boolean pickupFurnace = true;
+    private boolean pickupSmoker = true;
+    private boolean pickupCrafting = true;
     private Task rePickupTask = null;
     private Task searchTask = null;
     private boolean hasRods = false;
@@ -734,8 +734,9 @@ public class BeatMinecraftTask extends Task {
         gatherResources.add(new ResourcePriorityTask(
                 new CollectFoodPriorityCalculator(mod, config.foodUnits),
                 a -> StorageHelper.miningRequirementMet(MiningRequirement.STONE)
-                        && mod.getItemStorage().hasItem(Items.STONE_SWORD, Items.IRON_SWORD, Items.DIAMOND_SWORD)
-                        && CollectFoodTask.calculateFoodPotential(mod) < config.foodUnits,
+                        && a.getItemStorage().hasItem(Items.STONE_SWORD, Items.IRON_SWORD, Items.DIAMOND_SWORD)
+                        && CollectFoodTask.calculateFoodPotential(a) < config.foodUnits
+                        && canAllocateFoodTime(a),
 
                 new CollectFoodTask(config.foodUnits), ItemTarget.of(food.toArray(new Item[]{}))
         ));
@@ -751,7 +752,7 @@ public class BeatMinecraftTask extends Task {
             }
 
             return pair;
-        }, a -> mod.getItemStorage().hasItem(Items.HAY_BLOCK)));
+        }, a -> a.getItemStorage().hasItem(Items.HAY_BLOCK) && canAllocateFoodTime(a)));
 
         gatherResources.add(new ActionPriorityTask(mod1 -> {
             Pair<Task, Double> pair = new Pair<>(null, 0d);
@@ -764,7 +765,34 @@ public class BeatMinecraftTask extends Task {
             }
 
             return pair;
-        }, a -> mod.getItemStorage().getItemCount(Items.WHEAT) >= 3));
+        }, a -> a.getItemStorage().getItemCount(Items.WHEAT) >= 3 && canAllocateFoodTime(a)));
+    }
+
+    private boolean canAllocateFoodTime(AltoClef mod) {
+        return hasMinimumGearBeforeFood(mod) || isFoodEmergency(mod);
+    }
+
+    private boolean hasMinimumGearBeforeFood(AltoClef mod) {
+        ItemStorageTracker storage = mod.getItemStorage();
+        boolean hasIronMining = StorageHelper.miningRequirementMet(MiningRequirement.IRON);
+        boolean hasShieldEquipped = storage.hasItem(Items.SHIELD) || storage.hasItemInOffhand(Items.SHIELD);
+        boolean hasReliableWeapon = storage.hasItem(Items.IRON_SWORD, Items.DIAMOND_SWORD, Items.NETHERITE_SWORD)
+                || storage.hasItem(Items.IRON_AXE, Items.DIAMOND_AXE, Items.NETHERITE_AXE);
+        boolean hasProtectiveArmor = Arrays.stream(ItemHelper.IRON_ARMORS)
+                .anyMatch(item -> storage.hasItem(item) || StorageHelper.isArmorEquipped(item))
+                || Arrays.stream(ItemHelper.DIAMOND_ARMORS)
+                .anyMatch(item -> storage.hasItem(item) || StorageHelper.isArmorEquipped(item));
+
+        return hasIronMining && hasShieldEquipped && hasReliableWeapon && hasProtectiveArmor;
+    }
+
+    private boolean isFoodEmergency(AltoClef mod) {
+        if (mod.getPlayer() != null && mod.getPlayer().getHungerManager().getFoodLevel() <= 8) {
+            return true;
+        }
+
+        return StorageHelper.calculateInventoryFoodScore() < 6
+                || CollectFoodTask.calculateFoodPotential(mod) < Math.min(6, config.foodUnits * 0.25);
     }
 
     private void addOreMiningTasks() {
