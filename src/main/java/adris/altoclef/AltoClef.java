@@ -689,6 +689,10 @@ public class AltoClef implements ModInitializer {
         return worldBootstrapChain;
     }
 
+    public CamBridge getCamBridge() {
+        return camBridge;
+    }
+
     public void log(String message) {
         log(message, MessagePriority.TIMELY);
     }

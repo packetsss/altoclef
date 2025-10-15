@@ -412,6 +412,67 @@ public class BeatMinecraftTask extends Task {
         }
     }
 
+    private static void dropLowerTierTools(AltoClef mod, ItemStorageTracker storage) {
+        if (storage.hasItem(Items.STONE_PICKAXE, Items.IRON_PICKAXE, Items.DIAMOND_PICKAXE)) {
+            throwAwayItems(mod, Items.WOODEN_PICKAXE);
+        }
+        if (storage.hasItem(Items.DIAMOND_PICKAXE)) {
+            throwAwayItems(mod, Items.IRON_PICKAXE, Items.STONE_PICKAXE);
+        }
+
+        if (storage.hasItem(Items.DIAMOND_SWORD)) {
+            throwAwayItems(mod, Items.STONE_SWORD, Items.IRON_SWORD);
+        }
+
+        if (storage.hasItem(Items.STONE_AXE, Items.IRON_AXE, Items.DIAMOND_AXE)) {
+            throwAwayItems(mod, Items.WOODEN_AXE);
+        }
+        if (storage.hasItem(Items.DIAMOND_AXE)) {
+            throwAwayItems(mod, Items.IRON_AXE, Items.STONE_AXE);
+        } else if (storage.hasItem(Items.IRON_AXE)) {
+            throwAwayItems(mod, Items.STONE_AXE);
+        }
+
+        if (storage.hasItem(Items.STONE_SHOVEL, Items.IRON_SHOVEL, Items.DIAMOND_SHOVEL)) {
+            throwAwayItems(mod, Items.WOODEN_SHOVEL);
+        }
+        if (storage.hasItem(Items.DIAMOND_SHOVEL)) {
+            throwAwayItems(mod, Items.IRON_SHOVEL, Items.STONE_SHOVEL);
+        } else if (storage.hasItem(Items.IRON_SHOVEL)) {
+            throwAwayItems(mod, Items.STONE_SHOVEL);
+        }
+    }
+
+    private static Item[] buildToolCleanupTargets(ItemStorageTracker storage) {
+        List<Item> targets = new ArrayList<>();
+
+        if (storage.hasItem(Items.DIAMOND_PICKAXE)) {
+            targets.add(Items.STONE_PICKAXE);
+            targets.add(Items.IRON_PICKAXE);
+        }
+
+        if (storage.hasItem(Items.DIAMOND_SWORD)) {
+            targets.add(Items.STONE_SWORD);
+            targets.add(Items.IRON_SWORD);
+        }
+
+        if (storage.hasItem(Items.DIAMOND_AXE)) {
+            targets.add(Items.IRON_AXE);
+            targets.add(Items.STONE_AXE);
+        } else if (storage.hasItem(Items.IRON_AXE)) {
+            targets.add(Items.STONE_AXE);
+        }
+
+        if (storage.hasItem(Items.DIAMOND_SHOVEL)) {
+            targets.add(Items.IRON_SHOVEL);
+            targets.add(Items.STONE_SHOVEL);
+        } else if (storage.hasItem(Items.IRON_SHOVEL)) {
+            targets.add(Items.STONE_SHOVEL);
+        }
+
+        return targets.toArray(new Item[0]);
+    }
+
     public static boolean hasItem(AltoClef mod, Item item) {
         ClientPlayerEntity player = mod.getPlayer();
         PlayerInventory inv = player.getInventory();
@@ -730,10 +791,12 @@ public class BeatMinecraftTask extends Task {
                 ItemTarget.of(Items.STONE_AXE, Items.STONE_SWORD, Items.STONE_SHOVEL, Items.STONE_HOE)
         ));
 
-        gatherResources.add(new CraftItemPriorityTask(300, getRecipeTarget(Items.STONE_SWORD),
-                a -> StorageHelper.miningRequirementMet(MiningRequirement.STONE)
-                        && !mod.getItemStorage().hasItem(Items.DIAMOND_SWORD, Items.IRON_SWORD)
-        ));
+    gatherResources.add(new CraftItemPriorityTask(409, getRecipeTarget(Items.STONE_SWORD),
+        a -> StorageHelper.miningRequirementMet(MiningRequirement.STONE)
+            && mod.getItemStorage().hasItem(Items.STONE_PICKAXE)
+            && !mod.getItemStorage().hasItem(Items.DIAMOND_SWORD, Items.IRON_SWORD)
+            && !mod.getItemStorage().hasItem(Items.STONE_SWORD)
+    ));
 
         gatherResources.add(new CraftItemPriorityTask(300, getRecipeTarget(Items.STONE_AXE),
                 a -> StorageHelper.miningRequirementMet(MiningRequirement.STONE)
@@ -1441,16 +1504,7 @@ public class BeatMinecraftTask extends Task {
             throwAwayItems(mod, uselessItems.uselessItems);
 
 
-            if (itemStorage.hasItem(Items.STONE_PICKAXE, Items.IRON_PICKAXE, Items.DIAMOND_PICKAXE)) {
-                throwAwayItems(mod, Items.WOODEN_PICKAXE);
-            }
-            if (itemStorage.hasItem(Items.DIAMOND_PICKAXE)) {
-                throwAwayItems(mod, Items.IRON_PICKAXE, Items.STONE_PICKAXE);
-            }
-
-            if (itemStorage.hasItem(Items.DIAMOND_SWORD)) {
-                throwAwayItems(mod, Items.STONE_SWORD, Items.IRON_SWORD);
-            }
+            dropLowerTierTools(mod, itemStorage);
 
             if (itemStorage.hasItem(Items.GOLDEN_HELMET)) {
                 throwAwayItems(mod, Items.RAW_GOLD, Items.GOLD_INGOT);
@@ -1669,9 +1723,9 @@ public class BeatMinecraftTask extends Task {
         // We have eyes. Locate our portal + enter.
         if (WorldHelper.getCurrentDimension() == Dimension.OVERWORLD) {
             if (itemStorage.hasItem(Items.DIAMOND_PICKAXE)) {
-                Item[] throwGearItems = {Items.STONE_SWORD, Items.STONE_PICKAXE, Items.IRON_SWORD, Items.IRON_PICKAXE};
                 List<Slot> ironArmors = itemStorage.getSlotsWithItemPlayerInventory(true, COLLECT_IRON_ARMOR);
-                List<Slot> throwGears = itemStorage.getSlotsWithItemPlayerInventory(true, throwGearItems);
+                Item[] throwGearItems = buildToolCleanupTargets(itemStorage);
+                List<Slot> throwGears = throwGearItems.length == 0 ? List.of() : itemStorage.getSlotsWithItemPlayerInventory(true, throwGearItems);
                 if (!StorageHelper.isBigCraftingOpen() && !StorageHelper.isFurnaceOpen() && !StorageHelper.isSmokerOpen() && !StorageHelper.isBlastFurnaceOpen() && (itemStorage.hasItem(Items.FLINT_AND_STEEL) || itemStorage.hasItem(Items.FIRE_CHARGE))) {
 
                     for (Slot throwGear : throwGears) {
@@ -1796,9 +1850,9 @@ public class BeatMinecraftTask extends Task {
                 return new DoToClosestBlockTask(blockPos -> new InteractWithBlockTask(Items.ENDER_EYE, blockPos), blockPos -> !isEndPortalFrameFilled(mod, blockPos), Blocks.END_PORTAL_FRAME);
             }
         } else if (WorldHelper.getCurrentDimension() == Dimension.NETHER) {
-            Item[] throwGearItems = {Items.STONE_SWORD, Items.STONE_PICKAXE, Items.IRON_SWORD, Items.IRON_PICKAXE};
             List<Slot> ironArmors = itemStorage.getSlotsWithItemPlayerInventory(true, COLLECT_IRON_ARMOR);
-            List<Slot> throwGears = itemStorage.getSlotsWithItemPlayerInventory(true, throwGearItems);
+            Item[] throwGearItems = buildToolCleanupTargets(itemStorage);
+            List<Slot> throwGears = throwGearItems.length == 0 ? List.of() : itemStorage.getSlotsWithItemPlayerInventory(true, throwGearItems);
             if (!StorageHelper.isBigCraftingOpen() && !StorageHelper.isFurnaceOpen() && !StorageHelper.isSmokerOpen() && !StorageHelper.isBlastFurnaceOpen() && (itemStorage.hasItem(Items.FLINT_AND_STEEL) || itemStorage.hasItem(Items.FIRE_CHARGE))) {
 
                 for (Slot throwGear : throwGears) {

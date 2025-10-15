@@ -100,6 +100,14 @@ public final class CamBridge implements AutoCloseable {
     private final AtomicLong nextEventId = new AtomicLong(1L);
     private final Map<ActivityKind, ActivityState> activityStates = new EnumMap<>(ActivityKind.class);
     private final StatusTracker statusTracker = new StatusTracker();
+    private final Queue<BridgeEvent> eventQueue = new ConcurrentLinkedQueue<>();
+
+    private LifecycleState lifecycleState = LifecycleState.UNINITIALIZED;
+    private String lifecycleDetail = null;
+    private long lifecycleSinceMs = System.currentTimeMillis();
+    private String lastDeathMessage = null;
+    private String lastRespawnMode = null;
+    private String lastBootstrapReason = null;
 
     private CamBridgeMode mode = CamBridgeMode.STATUS_ONLY;
 
@@ -137,6 +145,7 @@ public final class CamBridge implements AutoCloseable {
             } catch (Exception ignored) {
             }
         }, "CamBridge-shutdown"));
+        setLifecycle(LifecycleState.ALIVE, "startup");
     }
 
     public void onSettingsReload(Settings settings) {
@@ -207,6 +216,56 @@ public final class CamBridge implements AutoCloseable {
 
         lastResources = currentSnapshot;
         flushIfNeeded();
+    }
+
+    public void notifyPlayerDeath(String deathMessage) {
+        String message = deathMessage == null || deathMessage.isBlank() ? "Player died" : deathMessage;
+        setLifecycle(LifecycleState.DEAD, message);
+    }
+
+    public void notifyRespawnLanding(String mode) {
+        String detail = mode == null || mode.isBlank() ? "unknown" : mode;
+        setLifecycle(LifecycleState.RESPAWNING, detail);
+    }
+
+    public void notifyBootstrapStarted(String reason) {
+        String detail = reason == null || reason.isBlank() ? "unspecified" : reason;
+        setLifecycle(LifecycleState.BOOTSTRAPPING, detail);
+    }
+
+    public void notifyBootstrapFinished(String note) {
+        String detail = note == null || note.isBlank() ? "ready" : note;
+        setLifecycle(LifecycleState.ALIVE, detail);
+    }
+
+    private void setLifecycle(LifecycleState nextState, String detail) {
+        String normalizedDetail = detail == null ? null : detail.trim();
+        if (normalizedDetail != null && normalizedDetail.isEmpty()) {
+            normalizedDetail = null;
+        }
+        long now = System.currentTimeMillis();
+        boolean stateChanged = nextState != lifecycleState;
+        boolean detailChanged = !Objects.equals(normalizedDetail, lifecycleDetail);
+        if (!stateChanged && !detailChanged) {
+            return;
+        }
+        lifecycleState = nextState;
+        lifecycleDetail = normalizedDetail;
+        lifecycleSinceMs = now;
+
+        switch (nextState) {
+            case DEAD -> lastDeathMessage = normalizedDetail;
+            case RESPAWNING -> lastRespawnMode = normalizedDetail;
+            case BOOTSTRAPPING -> lastBootstrapReason = normalizedDetail;
+            default -> {}
+        }
+
+        recordLifecycleEvent(nextState, normalizedDetail, now);
+        statusTracker.markLifecycleDirty();
+    }
+
+    private void recordLifecycleEvent(LifecycleState state, String detail, long timestampMs) {
+        eventQueue.offer(new LifecycleStatusEvent(timestampMs, state, detail));
     }
 
     @Override
@@ -305,6 +364,7 @@ public final class CamBridge implements AutoCloseable {
         lastStationaryPos = null;
         stationarySinceMs = Long.MIN_VALUE;
         statusTracker.reset();
+        setLifecycle(LifecycleState.UNINITIALIZED, "not-in-game");
     }
 
     private void updatePhase(ResourceSnapshot snapshot, long now) {
@@ -1047,6 +1107,45 @@ public final class CamBridge implements AutoCloseable {
         }
     }
 
+    private void writeLifecycle(Map<String, Object> payload) {
+        Map<String, Object> lifecycle = new LinkedHashMap<>();
+        lifecycle.put("state", lifecycleState.wire());
+        if (lifecycleDetail != null && !lifecycleDetail.isBlank()) {
+            lifecycle.put("detail", lifecycleDetail);
+        }
+        lifecycle.put("since_ms", lifecycleSinceMs);
+        long elapsed = Math.max(0L, System.currentTimeMillis() - lifecycleSinceMs);
+        lifecycle.put("elapsed_ms", elapsed);
+        if (lastDeathMessage != null && !lastDeathMessage.isBlank()) {
+            lifecycle.put("last_death_message", lastDeathMessage);
+        }
+        if (lastRespawnMode != null && !lastRespawnMode.isBlank()) {
+            lifecycle.put("last_respawn_mode", lastRespawnMode);
+        }
+        if (lastBootstrapReason != null && !lastBootstrapReason.isBlank()) {
+            lifecycle.put("last_bootstrap_reason", lastBootstrapReason);
+        }
+        payload.put("lifecycle", lifecycle);
+        drainBridgeEvents(payload);
+    }
+
+    private void drainBridgeEvents(Map<String, Object> payload) {
+        if (eventQueue.isEmpty()) {
+            return;
+        }
+        List<Map<String, Object>> drained = new ArrayList<>();
+        BridgeEvent event;
+        while ((event = eventQueue.poll()) != null) {
+            Map<String, Object> serialized = event.toPayload();
+            if (!serialized.isEmpty()) {
+                drained.add(serialized);
+            }
+        }
+        if (!drained.isEmpty()) {
+            payload.put("bridge_events", drained);
+        }
+    }
+
     private CamPhase detectPhase(ResourceSnapshot snapshot, Dimension dimension) {
         BeatMinecraftConfig config = BeatMinecraftTask.getConfig();
         if (dimension == Dimension.END) {
@@ -1252,6 +1351,7 @@ public final class CamBridge implements AutoCloseable {
                 return Optional.empty();
             }
             Map<String, Object> payload = new LinkedHashMap<>();
+            CamBridge.this.writeLifecycle(payload);
             writeSupplement(payload);
             if (!payload.containsKey("task_queue")) {
                 Map<String, Object> queue = new LinkedHashMap<>();
@@ -1267,6 +1367,7 @@ public final class CamBridge implements AutoCloseable {
         }
 
         void appendHeartbeat(Map<String, Object> payload) {
+            CamBridge.this.writeLifecycle(payload);
             writeSupplement(payload);
         }
 
@@ -1302,6 +1403,11 @@ public final class CamBridge implements AutoCloseable {
             supplement = StatusSupplement.empty();
         }
 
+        void markLifecycleDirty() {
+            dirty = true;
+            lastEmitMs = Long.MIN_VALUE;
+        }
+
         private void writeSupplement(Map<String, Object> payload) {
             if (supplement == null) {
                 return;
@@ -1319,6 +1425,57 @@ public final class CamBridge implements AutoCloseable {
             queue.put("mob_defense", supplement.mobDefenseActive());
             payload.put("task_queue", queue);
             payload.put("mob_defense_active", supplement.mobDefenseActive());
+        }
+    }
+
+    private abstract static class BridgeEvent {
+        final long timestampMs;
+
+        BridgeEvent(long timestampMs) {
+            this.timestampMs = timestampMs;
+        }
+
+        abstract Map<String, Object> toPayload();
+    }
+
+    private static final class LifecycleStatusEvent extends BridgeEvent {
+        private final LifecycleState state;
+        private final String detail;
+
+        LifecycleStatusEvent(long timestampMs, LifecycleState state, String detail) {
+            super(timestampMs);
+            this.state = state;
+            this.detail = detail;
+        }
+
+        @Override
+        Map<String, Object> toPayload() {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("type", "lifecycle");
+            payload.put("state", state.wire());
+            payload.put("timestamp_ms", timestampMs);
+            if (detail != null && !detail.isBlank()) {
+                payload.put("detail", detail);
+            }
+            return payload;
+        }
+    }
+
+    private enum LifecycleState {
+        UNINITIALIZED("uninitialized"),
+        ALIVE("alive"),
+        DEAD("dead"),
+        RESPAWNING("respawning"),
+        BOOTSTRAPPING("bootstrapping");
+
+        private final String wire;
+
+        LifecycleState(String wire) {
+            this.wire = wire;
+        }
+
+        String wire() {
+            return wire;
         }
     }
 

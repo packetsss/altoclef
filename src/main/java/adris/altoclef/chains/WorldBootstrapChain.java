@@ -2,6 +2,7 @@ package adris.altoclef.chains;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
+import adris.altoclef.cambridge.CamBridge;
 import adris.altoclef.eventbus.EventBus;
 import adris.altoclef.eventbus.events.ClientTickEvent;
 import adris.altoclef.tasks.movement.IdleTask;
@@ -66,6 +67,11 @@ public class WorldBootstrapChain extends SingleTaskChain {
         Debug.logMessage(String.format(Locale.ROOT,
                 "[WorldBootstrap] Activated (reason=%s)", activeReason), false);
 
+        CamBridge camBridge = AltoClef.getInstance() != null ? AltoClef.getInstance().getCamBridge() : null;
+        if (camBridge != null) {
+            camBridge.notifyBootstrapStarted(activeReason);
+        }
+
         if (AltoClef.inGame() && evaluateReadiness(AltoClef.getInstance())) {
             completeBootstrap("immediate-ready");
         }
@@ -80,6 +86,10 @@ public class WorldBootstrapChain extends SingleTaskChain {
         activeReason = note;
         Debug.logMessage(String.format(Locale.ROOT,
                 "[WorldBootstrap] World ready (note=%s)", note), false);
+        CamBridge camBridge = AltoClef.getInstance() != null ? AltoClef.getInstance().getCamBridge() : null;
+        if (camBridge != null) {
+            camBridge.notifyBootstrapFinished(note);
+        }
         if (mainTask != null) {
             setTask(null);
         }

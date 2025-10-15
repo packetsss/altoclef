@@ -1,5 +1,7 @@
 package adris.altoclef.util.helpers;
 
+import adris.altoclef.AltoClef;
+import baritone.Baritone;
 import baritone.api.pathing.goals.GoalBlock;
 import net.minecraft.util.math.Vec3d;
 
@@ -22,5 +24,12 @@ public class BaritoneHelper {
         int yDiff = (int) yTarget - (int) yStart;
         double zDiff = zTarget - zStart;
         return GoalBlock.calculate(xDiff, yDiff < 0 ? yDiff - 1 : yDiff, zDiff);
+    }
+
+    public static void cancelAutomation(AltoClef mod) {
+        Baritone baritone = mod.getClientBaritone();
+        baritone.getPathingBehavior().forceCancel();
+        baritone.getCustomGoalProcess().onLostControl();
+        baritone.getExploreProcess().onLostControl();
     }
 }

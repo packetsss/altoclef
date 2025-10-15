@@ -2,6 +2,7 @@ package adris.altoclef.chains;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
+import adris.altoclef.cambridge.CamBridge;
 import adris.altoclef.commandsystem.CommandExecutor;
 import adris.altoclef.mixins.DeathScreenAccessor;
 import adris.altoclef.multiversion.ConnectScreenVer;
@@ -586,6 +587,10 @@ public class DeathMenuChain extends TaskChain {
         shouldLogNextRespawn = true;
         Task userTask = mod.getUserTaskChain() != null ? mod.getUserTaskChain().getCurrentTask() : null;
         restartBeatTaskAfterRespawn = userTask instanceof BeatMinecraftTask;
+        CamBridge camBridge = mod.getCamBridge();
+        if (camBridge != null) {
+            camBridge.notifyPlayerDeath(resolvedMessage);
+        }
         if (shouldAutoRespawn()) {
             clientPlayer.requestRespawn();
             MinecraftClient.getInstance().setScreen(null);
@@ -783,6 +788,10 @@ public class DeathMenuChain extends TaskChain {
             return;
         }
         AltoClef mod = AltoClef.getInstance();
+        CamBridge camBridge = mod != null ? mod.getCamBridge() : null;
+        if (camBridge != null) {
+            camBridge.notifyRespawnLanding(mode);
+        }
         if (mod != null) {
             mod.resetAfterDeath();
         }

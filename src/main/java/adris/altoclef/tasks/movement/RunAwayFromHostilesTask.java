@@ -58,8 +58,8 @@ public class RunAwayFromHostilesTask extends CustomBaritoneGoalTask {
 
     private class GoalRunAwayFromHostiles extends GoalRunAwayFromEntities {
 
-        private static final double WATER_COST_MULTIPLIER = 0.25;
-        private static final double HEAVY_WATER_COST_MULTIPLIER = 0.15;
+    private static final double WATER_COST_MULTIPLIER = 4.0;
+    private static final double HEAVY_WATER_COST_MULTIPLIER = 8.0;
         private static final double LOS_BREAK_BONUS_MULTIPLIER = 4.0;
         private static final double LOS_CHECK_RANGE = 32.0;
 
@@ -94,12 +94,12 @@ public class RunAwayFromHostilesTask extends CustomBaritoneGoalTask {
             BlockPos surface = pos.down();
             boolean tileWater = isWater(world, pos) || isWater(world, surface);
             if (tileWater) {
-                cost = Math.max(1.0, cost * WATER_COST_MULTIPLIER);
+                cost = Math.max(cost, 1.0) * WATER_COST_MULTIPLIER;
             }
 
             int waterNeighbors = countWaterNeighbors(world, surface);
             if (waterNeighbors >= 2) {
-                cost = Math.max(1.0, cost * HEAVY_WATER_COST_MULTIPLIER);
+                cost = Math.max(cost, 1.0) * HEAVY_WATER_COST_MULTIPLIER;
             }
 
             boolean breaksLos = !LookHelper.cleanLineOfSight(entity, WorldHelper.toVec3d(pos), LOS_CHECK_RANGE);

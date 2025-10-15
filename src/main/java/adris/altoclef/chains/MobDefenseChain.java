@@ -72,7 +72,7 @@ public class MobDefenseChain extends SingleTaskChain {
     private static final double WATER_STUCK_SPEED_THRESHOLD = 0.05;
     private static final double WATER_STUCK_TIMEOUT_SECONDS = 10;
     private static final double NO_DAMAGE_TIMEOUT_SECONDS = 25;
-    private static final double DEFENSE_FAILSAFE_TIMEOUT_SECONDS = 140;
+    private static final double DEFENSE_FAILSAFE_TIMEOUT_SECONDS = 10;
     private static final double STALE_TARGET_TIMEOUT_SECONDS = 90;
     private static final double PERSISTENT_THREAT_TIMEOUT_SECONDS = 150;
     private static final double DIAGNOSTIC_INTERVAL_SECONDS = 1.25;
@@ -223,7 +223,7 @@ public class MobDefenseChain extends SingleTaskChain {
 
     private static void startShielding(AltoClef mod) {
         shielding = true;
-        mod.getClientBaritone().getPathingBehavior().requestPause();
+        BaritoneHelper.cancelAutomation(mod);
         mod.getExtraBaritoneSettings().setInteractionPaused(true);
         if (!mod.getPlayer().isBlocking()) {
             ItemStack handItem = StorageHelper.getItemStackInSlot(PlayerSlot.getEquipSlot());
@@ -410,6 +410,8 @@ public class MobDefenseChain extends SingleTaskChain {
                     startShielding(mod);
                 }
             } else {
+                stopShielding(mod);
+                killAura.stopShielding(mod);
                 doingFunkyStuff = true;
                 runAwayTask = new RunAwayFromCreepersTask(CREEPER_KEEP_DISTANCE);
                 defenseState = DefenseState.RETREAT;
@@ -1412,6 +1414,9 @@ public class MobDefenseChain extends SingleTaskChain {
         if (entity instanceof CreeperEntity creeper && creeper.getClientFuseTime(1) > 0.1f) {
             return true;
         }
+        if (entity instanceof CreeperEntity && deltaY <= -3.5 && distance > CLOSE_FORCE_DISTANCE) {
+            return false;
+        }
         if (acrossWater && !reachable) {
             return false;
         }
@@ -1523,7 +1528,7 @@ public class MobDefenseChain extends SingleTaskChain {
         if (reach.isPresent()) {
             Baritone b = mod.getClientBaritone();
             if (LookHelper.isLookingAt(mod, pos)) {
-                b.getPathingBehavior().requestPause();
+                BaritoneHelper.cancelAutomation(mod);
                 b.getInputOverrideHandler().setInputForceState(Input.CLICK_LEFT, true);
                 return;
             }
@@ -1598,7 +1603,7 @@ public class MobDefenseChain extends SingleTaskChain {
                         Optional<Entity> ghast = mod.getEntityTracker().getClosestEntity(GhastEntity.class);
                         if (ghastBall.isPresent() && ghast.isPresent() && runAwayTask == null
                                 && mod.getClientBaritone().getPathingBehavior().isSafeToCancel()) {
-                            mod.getClientBaritone().getPathingBehavior().requestPause();
+                            BaritoneHelper.cancelAutomation(mod);
                             LookHelper.lookAt(mod, ghast.get().getEyePos());
                         }
                         return false;
@@ -1627,7 +1632,7 @@ public class MobDefenseChain extends SingleTaskChain {
                             && verticalDistance < ARROW_KEEP_DISTANCE_VERTICAL) {
                         if (mod.getClientBaritone().getPathingBehavior().isSafeToCancel()
                                 && hasShield(mod)) {
-                            mod.getClientBaritone().getPathingBehavior().requestPause();
+                            BaritoneHelper.cancelAutomation(mod);
                             LookHelper.lookAt(mod, projectile.position.add(0, 0.3, 0));
                         }
                         return true;

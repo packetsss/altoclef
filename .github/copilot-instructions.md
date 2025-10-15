@@ -38,3 +38,4 @@
 - Telemetry session IDs resolve via `AltoClef.getTelemetrySessionDir()`; reuse that for any per-run files to keep logs grouped under `altoclef/logs/session/<timestamp-id>`.
 - Check `TaskRunner.getChainDiagnostics()` or the status overlay before assuming a task finished—idle commands may immediately enqueue replacements.
 - For stuck debugging inspect `stuckLogManager` outputs alongside `TaskRunner.statusReport`, which is updated every tick with the active chain and priority.
+- Use ".\gradlew.bat build" to build the project after making changes.
