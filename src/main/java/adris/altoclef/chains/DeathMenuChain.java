@@ -2,6 +2,7 @@ package adris.altoclef.chains;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
+import adris.altoclef.commandsystem.CommandExecutor;
 import adris.altoclef.mixins.DeathScreenAccessor;
 import adris.altoclef.multiversion.ConnectScreenVer;
 import adris.altoclef.multiversion.entity.PlayerVer;
@@ -111,6 +112,7 @@ public class DeathMenuChain extends TaskChain {
     private boolean shouldLogNextRespawn = false;
     private boolean restartBeatTaskAfterRespawn = false;
     private boolean pendingDeathWithoutScreen = false;
+    private boolean limboRestartPending = false;
     private final Deque<String> pendingDeathCommands = new ArrayDeque<>();
     private final Subscription<ChatMessageEvent> chatSubscription;
     private String recentDeathChatMessage = null;
@@ -236,6 +238,11 @@ public class DeathMenuChain extends TaskChain {
                 if (shouldLogNextRespawn && mod != null) {
                     logRespawnLanding(mod.getPlayer(), "normal");
                     shouldLogNextRespawn = false;
+                    if (limboRestartPending && mod.getWorld() != null && !isLimboDimension(mod.getWorld().getRegistryKey())) {
+                        resetGamerTaskChain(mod);
+                        limboRestartPending = false;
+                        restartBeatTaskAfterRespawn = false;
+                    }
                     if (restartBeatTaskAfterRespawn) {
                         restartBeatTaskAfterRespawn = false;
                         Debug.logMessage("[Death] Restarting BeatMinecraftTask after respawn", false);
@@ -852,6 +859,7 @@ public class DeathMenuChain extends TaskChain {
         RegistryKey<World> currentKey = world.getRegistryKey();
         if (currentKey != null) {
             if (lastKnownWorldKey != null && !currentKey.equals(lastKnownWorldKey) && isLimboDimension(currentKey) && !deathContextLogged) {
+                limboRestartPending = true;
                 String baseMessage = resolveImmediateDeathMessage(player);
                 String formatted = String.format(Locale.ROOT,
                         "%s [dimension change %s -> %s]",
@@ -866,6 +874,17 @@ public class DeathMenuChain extends TaskChain {
 
     private boolean isLimboDimension(RegistryKey<World> key) {
         return key != null && "fahare:limbo".equals(key.getValue().toString());
+    }
+
+    private void resetGamerTaskChain(AltoClef mod) {
+        CommandExecutor executor = AltoClef.getCommandExecutor();
+        if (executor == null) {
+            Debug.logWarning("[Death] Unable to reset @gamer task chain after Limbo respawn: command executor unavailable.");
+            return;
+        }
+        Debug.logMessage("[Death] Resetting @gamer task chain after Limbo respawn.", false);
+        mod.stopTasks();
+        executor.executeWithPrefix("gamer");
     }
 
     private static final class PlayerStateSnapshot {

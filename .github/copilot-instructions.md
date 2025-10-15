@@ -1,0 +1,40 @@
+# AltoClef Copilot Guide
+- `AltoClef.java` is the mod bootstrap; it defers real setup to `onInitializeLoad` via an EventBus subscription to `TitleScreenEntryEvent`.
+- `TaskRunner` manages `TaskChain` priorities; chains like `UserTaskChain` (priority 50), `MobDefenseChain`, `FoodChain`, and `WorldBootstrapChain` pre-empt each other based on `getPriority`.
+- Register new chains inside `AltoClef.onInitializeLoad` before `TaskCatalogue.init()` and keep priorities distinct to avoid churn in the runner logs.
+- Tasks extend `adris.altoclef.tasksystem.Task`; implement `isEqual`, `toDebugString`, and return subtasks from `onTick` to let the runner avoid redundant restarts.
+- `Task.tick` re-adds itself through `TaskChain.addTaskToChain`; reset transient state in `onStart`/`onStop` so repeated ticks do not duplicate expensive side effects.
+- Resource automation lives in `TaskCatalogue`; add new `CataloguedResource` entries so commands like `@get <item>` resolve without bespoke command wiring.
+- The catalogue helpers (`mine`, `smelt`, `woodTasks`, etc.) already set `forceDimension` and `mineIfPresent`; reuse them instead of hard-coding dimension checks elsewhere.
+- `UserTaskChain` tracks elapsed time and optional idle commands; call `signalNextTaskToBeIdleTask()` when scheduling passive follow-up work.
+- `SingleTaskChain.setTask` logs replacements and interrupts the old task; avoid holding references to tasks outside the chain to prevent double cancels.
+- `BotBehaviour` wraps Baritone settings in a push/pop stack; always `push()` before mutating pathing heuristics and `pop()` when your task finishes.
+- `TrackerManager` drives `ItemStorageTracker`, `EntityTracker`, `BlockScanner`, `SimpleChunkTracker`, and `MiscBlockTracker`; fetch data through the `AltoClef` getters to stay in sync with the tick loop.
+- Inventory and input actions should go through `SlotHandler`, `PlayerExtraController`, and `InputControls`; direct `MinecraftClient` access often breaks replay automation.
+- Settings hot-reload via `Settings.load`; `onSettingsReload` in `AltoClef` updates idle commands, throwaways, CamBridge, and Baritone avoidance lists—mirror that pattern for new settings.
+- `CommandExecutor` handles `@`-prefixed commands; register new commands inside `AltoClefCommands.init()` and ensure they respect `TaskPersistenceManager` resume semantics.
+- The global `EventBus` publishes `ClientTickEvent`, `ClientRenderEvent`, `SendChatEvent`, and `TitleScreenEntryEvent`; keep handlers lightweight and remember `EventBus.subscribe` can run before initialization completes.
+- CamBridge streams STATUS_NOW and hazard telemetry; gate heavy payloads behind `Settings.isCamBridgeEnabled()` and route them through `CamBridgeTransport` implementations (`UdpCamBridgeTransport`, `FileCamBridgeTransport`, `CompositeCamBridgeTransport`).
+- `DeathLogManager` and `StuckLogManager` append JSON under `altoclef/logs`; prefer `recordEvent` over ad-hoc file writes so telemetry stays session-scoped.
+- The Butler subsystem (`adris.altoclef.butler.*`) mediates multi-user command queues; surface player-visible messages through `MessageSender` to respect anti-spam timers.
+- Build with `gradlew :1.21.1:runClient` for a dev client and `gradlew :1.21.1:build` to package; source/target compatibility is Java 21 and the ReplayMod preprocessor rewrites sources per Minecraft version.
+- Pass `-Paltoclef.development` when building against a local `baritone-unoptimized-fabric` jar in `../baritone/dist` so AltoClef links your checkout instead of the remote Maven artifact.
+- Version-gated constants live in `multiversion/versionedfields/*` with ReplayMod preprocessor directives that gate Minecraft versions; never reference `Items.UNSUPPORTED` or `Blocks.UNSUPPORTED` values without those guards.
+- Shared resource metadata belongs in `ItemHelper`, `WoodType`, and `CataloguedResources.txt`; keep manual resource documentation synchronized with `TaskCatalogue` registrations.
+- `ContainerSubTracker` is injected by `ItemStorageTracker`; fetch container state through `AltoClef.getItemStorage()` to reuse the shared tracker instance.
+- `TaskPersistenceManager` caches chained commands under `altoclef/logs/session`; pending commands replay once per login via `AltoClef.pendingResumeCommands`.
+- UI overlays (`CommandStatusOverlay`, `AltoClefTickChart`) respect `Settings.shouldShowTaskChain` and `Settings.shouldShowDebugTickMs`; keep client render logic cheap and side-effect free.
+- Use `Debug.logMessage` for user-facing logs and `Debug.logInternal` for noisy diagnostics; both land in `latest.log` but only the former mirrors to chat.
+- `integrations/python-client/cambridge_listener.py` is the reference UDP subscriber; mirror its CLI flags if you extend CamBridge transports or ports.
+- When editing version-aware classes maintain `@Pattern` annotations and keep the ReplayMod gating comments intact or the preprocess Gradle task will fail.
+- Preferred workflow: edit under `src/main/java`, run `gradlew :1.21.1:runClient`, then grab remapped jars from `versions/1.21.1/build/libs` if you need distribution artifacts.
+- Add new Minecraft targets by updating `settings.gradle.kts` and `preprocess.createNode` in `root.gradle.kts`; ensure yarn mapping IDs match the numeric version (e.g., `12101`).
+- AltoClef runs entirely on the client thread; avoid spinning background tasks that call `MinecraftClient` without funneling work back through the tick loop.
+- If you introduce new executors, copy the CamBridge pattern (`Executors.newSingleThreadExecutor` with daemon threads) and shut them down in `AutoCloseable.close()`.
+- Most systems are tick-driven; prefer hooking `ClientTickEvent` or extending `TaskRunner` over Java timers when you need periodic behavior.
+- Combat features rely on `MobDefenseChain` and `BotBehaviour` flags; reuse them for shielding/attacking to avoid conflicting pathing inputs.
+- Inventory planning should prefer `StorageHelper`, `ItemTarget`, and `CataloguedResourceTask` to stay compatible with squashed resource goals.
+- Resource pack files (`fabric.mod.json`, mixins) are templated in `processResources`; rerun `gradlew :1.21.1:build` after edits so expanded values land under `versions/1.21.1/build/resources`.
+- Telemetry session IDs resolve via `AltoClef.getTelemetrySessionDir()`; reuse that for any per-run files to keep logs grouped under `altoclef/logs/session/<timestamp-id>`.
+- Check `TaskRunner.getChainDiagnostics()` or the status overlay before assuming a task finished—idle commands may immediately enqueue replacements.
+- For stuck debugging inspect `stuckLogManager` outputs alongside `TaskRunner.statusReport`, which is updated every tick with the active chain and priority.

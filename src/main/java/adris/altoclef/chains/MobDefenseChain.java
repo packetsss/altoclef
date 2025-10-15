@@ -5,7 +5,6 @@ import adris.altoclef.Debug;
 import adris.altoclef.control.KillAura;
 import adris.altoclef.multiversion.versionedfields.Entities;
 import adris.altoclef.multiversion.item.ItemVer;
-import adris.altoclef.tasks.construction.ProjectileProtectionWallTask;
 import adris.altoclef.tasks.entity.KillEntitiesTask;
 import adris.altoclef.tasks.entity.KillEntityTask;
 import adris.altoclef.tasks.defense.DefenseFailsafeTask;
@@ -88,7 +87,6 @@ public class MobDefenseChain extends SingleTaskChain {
     private static final double SHIELD_STALL_WINDOW_SECONDS = 6.0;
     private static final double SHIELD_STALL_MOVEMENT_THRESHOLD = 1.1;
     private static final double PROJECTILE_HOLD_MAX_SECONDS = 3.5;
-    private static final double PROJECTILE_WALL_TIMEOUT_SECONDS = 4.5;
     private static final double DEFENSE_IDLE_STALL_SECONDS = 8.0;
     private static final double DEFENSE_IDLE_MOVEMENT_THRESHOLD = 2.0;
     private static final int FAILSAFE_PILLAR_EXTRA_HEIGHT = 4;
@@ -139,9 +137,6 @@ public class MobDefenseChain extends SingleTaskChain {
     private boolean shieldHoldTriggered = false;
     private final TimerGame projectileHoldTimer = new TimerGame(PROJECTILE_HOLD_MAX_SECONDS);
     private boolean projectileHoldActive = false;
-    private final TimerGame projectileWallTimer = new TimerGame(PROJECTILE_WALL_TIMEOUT_SECONDS);
-    private boolean projectileWallMonitorActive = false;
-    private Vec3d projectileWallAnchor = null;
     private Vec3d defenseIdleAnchor = null;
     private final TimerGame defenseIdleTimer = new TimerGame(DEFENSE_IDLE_STALL_SECONDS);
 
@@ -150,7 +145,6 @@ public class MobDefenseChain extends SingleTaskChain {
         panicRetreatHoldTimer.forceElapse();
         panicRetreatLogTimer.forceElapse();
         immediateThreatHoldTimer.forceElapse();
-        projectileWallTimer.forceElapse();
     }
 
     private enum DefenseState {
@@ -484,31 +478,13 @@ public class MobDefenseChain extends SingleTaskChain {
         }
 
         boolean projectileThreatPresent = projectileIncoming || latestThreats.stream().anyMatch(snapshot -> snapshot.projectile && snapshot.hasLineOfSight);
-        boolean wallTaskActive = mainTask instanceof ProjectileProtectionWallTask;
-        if (!wallTaskActive && projectileWallMonitorActive) {
-            resetProjectileWallMonitor();
-        }
         if (!hasShield(mod) && projectileThreatPresent && mod.getModSettings().isDodgeProjectiles() && !panicRetreatActive) {
             doingFunkyStuff = true;
             defenseState = DefenseState.RETREAT;
             staleTargetTimer.reset();
-            if (StorageHelper.getNumberOfThrowawayBlocks(mod) > 0) {
-                if (wallTaskActive) {
-                    if (checkProjectileWallTimeout(mod)) {
-                        return 85;
-                    }
-                } else {
-                    startProjectileWallMonitor(mod);
-                }
-                setTask(new ProjectileProtectionWallTask(mod));
-                return 70;
-            }
-            resetProjectileWallMonitor();
             runAwayTask = new DodgeProjectilesTask(ARROW_KEEP_DISTANCE_HORIZONTAL, ARROW_KEEP_DISTANCE_VERTICAL);
             setTask(runAwayTask);
             return 65;
-        } else if (wallTaskActive) {
-            resetProjectileWallMonitor();
         }
 
         if (targetIsNonHostile
@@ -850,9 +826,8 @@ public class MobDefenseChain extends SingleTaskChain {
         panicRetreatLogTimer.forceElapse();
         immediateThreatHoldTimer.forceElapse();
         resetShieldHoldState();
-        projectileHoldActive = false;
-        projectileHoldTimer.forceElapse();
-        resetProjectileWallMonitor();
+    projectileHoldActive = false;
+    projectileHoldTimer.forceElapse();
         defenseIdleAnchor = null;
         defenseIdleTimer.forceElapse();
         AltoClef mod = AltoClef.inGame() ? AltoClef.getInstance() : null;
@@ -998,35 +973,6 @@ public class MobDefenseChain extends SingleTaskChain {
         shieldHoldAnchor = null;
         shieldHoldTriggered = false;
         shieldHoldTimer.forceElapse();
-    }
-
-    private void startProjectileWallMonitor(AltoClef mod) {
-        projectileWallMonitorActive = true;
-        projectileWallAnchor = mod.getPlayer() != null ? mod.getPlayer().getPos() : null;
-        projectileWallTimer.reset();
-    }
-
-    private void resetProjectileWallMonitor() {
-        projectileWallMonitorActive = false;
-        projectileWallAnchor = null;
-        projectileWallTimer.forceElapse();
-    }
-
-    private boolean checkProjectileWallTimeout(AltoClef mod) {
-        if (!projectileWallMonitorActive || mod.getPlayer() == null) {
-            return false;
-        }
-        if (!projectileWallTimer.elapsed()) {
-            return false;
-        }
-        Vec3d anchor = projectileWallAnchor;
-        Vec3d currentPos = mod.getPlayer().getPos();
-        double displacement = anchor == null ? 0 : Math.sqrt(currentPos.squaredDistanceTo(anchor));
-        Map<String, Object> extras = new LinkedHashMap<>();
-        extras.put("stall_type", "projectile_wall_timeout");
-        respondToDefenseStall(mod, "ProjectileWallTimeout", anchor, projectileWallTimer.getDuration(), displacement, extras);
-        resetProjectileWallMonitor();
-        return true;
     }
 
     private void respondToDefenseStall(AltoClef mod, String reason, Vec3d anchor, double duration, double displacement, Map<String, Object> extras) {
@@ -1177,12 +1123,8 @@ public class MobDefenseChain extends SingleTaskChain {
     boolean projectile = snapshot.projectile;
         boolean dodgeProjectiles = projectile && mod.getModSettings().isDodgeProjectiles();
         if (dodgeProjectiles && !assessment.hasShield) {
-            if (StorageHelper.getNumberOfThrowawayBlocks(mod) > 0) {
-                setTask(new ProjectileProtectionWallTask(mod));
-            } else {
-                runAwayTask = new DodgeProjectilesTask(ARROW_KEEP_DISTANCE_HORIZONTAL, ARROW_KEEP_DISTANCE_VERTICAL);
-                setTask(runAwayTask);
-            }
+            runAwayTask = new DodgeProjectilesTask(ARROW_KEEP_DISTANCE_HORIZONTAL, ARROW_KEEP_DISTANCE_VERTICAL);
+            setTask(runAwayTask);
         } else {
             runAwayTask = new RunAwayFromHostilesTask(DANGER_KEEP_DISTANCE, true);
             setTask(runAwayTask);
@@ -1452,9 +1394,12 @@ public class MobDefenseChain extends SingleTaskChain {
     }
 
     private boolean isProjectileMob(LivingEntity entity) {
+        if (entity instanceof DrownedEntity drowned) {
+            return drowned.getMainHandStack().isOf(Items.TRIDENT) || drowned.getOffHandStack().isOf(Items.TRIDENT);
+        }
         return entity instanceof SkeletonEntity || entity instanceof StrayEntity || entity instanceof PillagerEntity
                 || entity instanceof WitchEntity || entity instanceof BlazeEntity || entity instanceof GhastEntity
-                || entity instanceof DrownedEntity || entity instanceof ShulkerEntity;
+                || entity instanceof ShulkerEntity;
     }
 
     private boolean isImmediateThreat(LivingEntity entity, double distanceSq, double deltaY, boolean projectile,

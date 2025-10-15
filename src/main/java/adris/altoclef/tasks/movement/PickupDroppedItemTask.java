@@ -17,11 +17,15 @@ import net.minecraft.block.*;
 import adris.altoclef.multiversion.versionedfields.Blocks;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -57,6 +61,9 @@ public class PickupDroppedItemTask extends AbstractDoToClosestObjectTask<ItemEnt
     private AltoClef _mod;
     private boolean _collectingPickaxeForThisResource = false;
     private ItemEntity _currentDrop = null;
+    private static final List<ThrownItem> RECENTLY_THROWN_ITEMS = new ArrayList<>();
+    private static final int DEFAULT_IGNORE_TICKS = 20 * 3;
+    private static final double DEFAULT_IGNORE_RADIUS_SQ = 1.25 * 1.25;
 
     public PickupDroppedItemTask(ItemTarget[] itemTargets, boolean freeInventoryIfFull) {
         this.itemTargets = itemTargets;
@@ -73,6 +80,61 @@ public class PickupDroppedItemTask extends AbstractDoToClosestObjectTask<ItemEnt
 
     public PickupDroppedItemTask(Item item, int targetCount) {
         this(item, targetCount, true);
+    }
+
+    public static void ignoreItemPickup(Item item) {
+        ignoreItemPickup(item, DEFAULT_IGNORE_TICKS);
+    }
+
+    public static void ignoreItemPickup(Item item, int ticks) {
+        if (item == null || ticks <= 0) return;
+        AltoClef mod = AltoClef.getInstance();
+        if (mod == null || mod.getPlayer() == null) return;
+        ignoreItemPickup(new ItemStack(item), mod.getPlayer().getPos(), ticks);
+    }
+
+    public static void ignoreItemPickup(ItemStack stack, Vec3d origin) {
+        ignoreItemPickup(stack, origin, DEFAULT_IGNORE_TICKS);
+    }
+
+    public static void ignoreItemPickup(ItemStack stack, Vec3d origin, int ticks) {
+        if (stack == null || stack.isEmpty() || origin == null || ticks <= 0) return;
+        long expiry = WorldHelper.getTicks() + ticks;
+        synchronized (RECENTLY_THROWN_ITEMS) {
+            cleanupExpiredEntries(WorldHelper.getTicks());
+            RECENTLY_THROWN_ITEMS.add(new ThrownItem(stack.copy(), origin, expiry));
+        }
+    }
+
+    private static boolean isPickupIgnored(ItemEntity entity) {
+        if (entity == null) return false;
+        long now = WorldHelper.getTicks();
+        ItemStack stack = entity.getStack();
+        if (stack.isEmpty()) return false;
+        Vec3d pos = entity.getPos();
+        synchronized (RECENTLY_THROWN_ITEMS) {
+            Iterator<ThrownItem> iterator = RECENTLY_THROWN_ITEMS.iterator();
+            while (iterator.hasNext()) {
+                ThrownItem thrown = iterator.next();
+                if (now >= thrown.expiry) {
+                    iterator.remove();
+                    continue;
+                }
+                if (thrown.matches(stack, pos)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static void cleanupExpiredEntries(long now) {
+        Iterator<ThrownItem> iterator = RECENTLY_THROWN_ITEMS.iterator();
+        while (iterator.hasNext()) {
+            if (now >= iterator.next().expiry) {
+                iterator.remove();
+            }
+        }
     }
 
     private static BlockPos[] generateSides(BlockPos pos) {
@@ -248,6 +310,7 @@ public class PickupDroppedItemTask extends AbstractDoToClosestObjectTask<ItemEnt
     protected Optional<ItemEntity> getClosestTo(AltoClef mod, Vec3d pos) {
         return mod.getEntityTracker().getClosestItemDrop(
                 pos,
+                entity -> !isPickupIgnored(entity),
                 itemTargets);
     }
 
@@ -284,4 +347,21 @@ public class PickupDroppedItemTask extends AbstractDoToClosestObjectTask<ItemEnt
         return obj.isAlive() && !_blacklist.contains(obj);
     }
 
+    private static class ThrownItem {
+        final ItemStack stack;
+        final Vec3d origin;
+        final long expiry;
+
+        ThrownItem(ItemStack stack, Vec3d origin, long expiry) {
+            this.stack = stack;
+            this.origin = origin;
+            this.expiry = expiry;
+        }
+
+        boolean matches(ItemStack other, Vec3d pos) {
+            if (other == null || pos == null) return false;
+            if (!ItemStack.areEqual(stack, other)) return false;
+            return pos.squaredDistanceTo(origin) <= DEFAULT_IGNORE_RADIUS_SQ;
+        }
+    }
 }

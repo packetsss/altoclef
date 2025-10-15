@@ -393,13 +393,22 @@ public class BeatMinecraftTask extends Task {
     public static void throwAwaySlots(AltoClef mod, List<Slot> slots) {
         for (Slot slot : slots) {
             if (Slot.isCursor(slot)) {
-              /*  if (!mod.getControllerExtras().isBreakingBlock()) {
-                    LookHelper.randomOrientation(mod);
-                }*/
-                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, SlotActionType.PICKUP);
-            } else {
-                mod.getSlotHandler().clickSlot(slot, 0, SlotActionType.PICKUP);
+                ItemStack cursorStack = StorageHelper.getItemStackInCursorSlot();
+                if (!cursorStack.isEmpty()) {
+                    Vec3d dropOrigin = mod.getPlayer() != null ? mod.getPlayer().getPos() : null;
+                    PickupDroppedItemTask.ignoreItemPickup(cursorStack, dropOrigin);
+                    mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, SlotActionType.PICKUP);
+                }
+                continue;
             }
+
+            ItemStack stack = StorageHelper.getItemStackInSlot(slot);
+            if (stack.isEmpty()) continue;
+
+            Vec3d dropOrigin = mod.getPlayer() != null ? mod.getPlayer().getPos() : null;
+            PickupDroppedItemTask.ignoreItemPickup(stack, dropOrigin);
+            mod.getSlotHandler().clickSlot(slot, 0, SlotActionType.PICKUP);
+            mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, SlotActionType.PICKUP);
         }
     }
 
