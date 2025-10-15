@@ -72,7 +72,7 @@ public class MobDefenseChain extends SingleTaskChain {
     private static final double WATER_STUCK_SPEED_THRESHOLD = 0.05;
     private static final double WATER_STUCK_TIMEOUT_SECONDS = 10;
     private static final double NO_DAMAGE_TIMEOUT_SECONDS = 25;
-    private static final double DEFENSE_FAILSAFE_TIMEOUT_SECONDS = 10;
+    private static final double DEFENSE_FAILSAFE_TIMEOUT_SECONDS = 60;
     private static final double STALE_TARGET_TIMEOUT_SECONDS = 90;
     private static final double PERSISTENT_THREAT_TIMEOUT_SECONDS = 150;
     private static final double DIAGNOSTIC_INTERVAL_SECONDS = 1.25;
@@ -353,6 +353,7 @@ public class MobDefenseChain extends SingleTaskChain {
         float baselinePriority = defenseState == DefenseState.IDLE ? 0f : DEFENSE_BASE_PRIORITY;
 
         if (failsafeTask != null) {
+            maintainFailsafeDefense(mod);
             if (failsafeTask.isFinished()) {
                 failsafeTask = null;
                 defenseState = DefenseState.ACTIVE;
@@ -1275,6 +1276,9 @@ public class MobDefenseChain extends SingleTaskChain {
 
     private void triggerFailsafe(AltoClef mod, Reason reason, @Nullable BlockPos spawnerHint) {
         int targetY = mod.getPlayer().getBlockY() + FAILSAFE_PILLAR_EXTRA_HEIGHT;
+        stopShielding(mod);
+        killAura.stopShielding(mod);
+        BaritoneHelper.cancelAutomation(mod);
         failsafeTask = new DefenseFailsafeTask(reason, spawnerHint, targetY);
         defenseState = DefenseState.FAILSAFE;
         defenseActiveTimer.reset();
@@ -1350,6 +1354,18 @@ public class MobDefenseChain extends SingleTaskChain {
         .append(String.format(Locale.ROOT, " Δy=%.1f", snapshot.deltaY)));
 
         Debug.logMessage(builder.toString(), false);
+    }
+
+    private void maintainFailsafeDefense(AltoClef mod) {
+        if (failsafeTask == null) {
+            return;
+        }
+        if (latestThreats.isEmpty()) {
+            killAura.stopShielding(mod);
+            stopShielding(mod);
+            return;
+        }
+        doForceField(mod);
     }
 
     private BlockPos findNearbySpawner(AltoClef mod) {
