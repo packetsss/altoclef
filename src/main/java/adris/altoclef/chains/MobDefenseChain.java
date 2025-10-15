@@ -31,6 +31,8 @@ import net.minecraft.block.Blocks;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.attribute.EntityAttributeInstance;
+import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.boss.WitherEntity;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.*;
@@ -92,6 +94,9 @@ public class MobDefenseChain extends SingleTaskChain {
     private static final int FAILSAFE_PILLAR_EXTRA_HEIGHT = 4;
     private static final float DEFENSE_BASE_PRIORITY = 60f;
     private static final long IGNORED_LOG_COOLDOWN_TICKS = 100;
+    private static final double MAGMA_CUBE_ENGAGE_DISTANCE = 3.75;
+    private static final double SLOW_HOSTILE_SPEED_THRESHOLD = 0.25;
+    private static final double SLOW_HOSTILE_ENGAGE_DISTANCE = 4.25;
     private static final Item[] AXE_WEAPONS = new Item[]{Items.NETHERITE_AXE, Items.DIAMOND_AXE, Items.IRON_AXE,
         Items.GOLDEN_AXE, Items.STONE_AXE, Items.WOODEN_AXE};
     private static final List<Class<? extends Entity>> ignoredMobs = List.of(Entities.WARDEN, WitherEntity.class,
@@ -1424,6 +1429,17 @@ public class MobDefenseChain extends SingleTaskChain {
                                        boolean hasLineOfSight, boolean reachable, boolean acrossWater) {
         if (!entity.isAlive()) return false;
         double distance = Math.sqrt(distanceSq);
+        if (entity instanceof MagmaCubeEntity) {
+            double engageDistance = Math.max(CLOSE_FORCE_DISTANCE, MAGMA_CUBE_ENGAGE_DISTANCE);
+            if (distance > engageDistance) {
+                return false;
+            }
+        } else if (!projectile && isSlowMeleeHostile(entity)) {
+            double engageDistance = Math.max(CLOSE_FORCE_DISTANCE, SLOW_HOSTILE_ENGAGE_DISTANCE);
+            if (distance > engageDistance) {
+                return false;
+            }
+        }
         if (distance <= CLOSE_FORCE_DISTANCE) {
             return true;
         }
@@ -1466,6 +1482,28 @@ public class MobDefenseChain extends SingleTaskChain {
         boolean playerWater = mod.getPlayer().isTouchingWater();
         boolean hostileWater = hostile.isTouchingWater();
         return playerWater != hostileWater;
+    }
+
+    private boolean isSlowMeleeHostile(LivingEntity entity) {
+        if (!(entity instanceof HostileEntity) || entity instanceof MagmaCubeEntity) {
+            return false;
+        }
+
+        double movementSpeed = getMovementSpeedValue(entity);
+        if (movementSpeed > 0 && movementSpeed <= SLOW_HOSTILE_SPEED_THRESHOLD) {
+            return true;
+        }
+
+    return entity instanceof ZombieEntity
+        || entity instanceof HuskEntity
+        || entity instanceof DrownedEntity
+        || entity instanceof ZombifiedPiglinEntity
+        || entity instanceof SlimeEntity;
+    }
+
+    private double getMovementSpeedValue(LivingEntity entity) {
+        EntityAttributeInstance attribute = entity.getAttributeInstance(EntityAttributes.GENERIC_MOVEMENT_SPEED);
+        return attribute != null ? attribute.getValue() : -1;
     }
 
     private ReachabilityCacheEntry getReachabilityEntry(AltoClef mod, LivingEntity entity) {
