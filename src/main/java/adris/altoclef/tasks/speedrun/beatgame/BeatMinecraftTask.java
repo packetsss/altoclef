@@ -109,6 +109,8 @@ public class BeatMinecraftTask extends Task {
     private static final double CANDLE_CLEAR_RANGE = 3.5;
     private static final int UNDERGROUND_SKY_SCAN_RADIUS = 6;
     private static final int UNDERGROUND_SKY_SCAN_HEIGHTS = 2;
+    private static final int MIN_THROWAWAY_BLOCKS_FOR_WATER_BRIDGE = 16;
+    private static final double WATER_BRIDGE_PLACEMENT_PENALTY = 2.5;
 
     private static final Item[] COLLECT_IRON_ARMOR = ItemHelper.IRON_ARMORS;
     private static final Item[] COLLECT_EYE_ARMOR_END = ItemHelper.DIAMOND_ARMORS;
@@ -159,6 +161,8 @@ public class BeatMinecraftTask extends Task {
     private PriorityTask lastGather = null;
     private Task lastTask = null;
     private boolean isPlayerUndergroundContext = false;
+    private boolean allowWaterBridging = false;
+    private boolean allowWaterBridgingLastTick = false;
     private boolean pickupFurnace = false;
     private boolean pickupSmoker = false;
     private boolean pickupCrafting = false;
@@ -1267,18 +1271,20 @@ public class BeatMinecraftTask extends Task {
     protected void onStart() {
         resetTimers();
         mod.getBehaviour().push();
+        allowWaterBridging = false;
+        allowWaterBridgingLastTick = false;
         addThrowawayItemsWarning(mod);
         addProtectedItems(mod);
         allowWalkingOnEndPortal(mod);
         avoidDragonBreath(mod);
-    avoidWaterTraversal(mod);
+        avoidWaterTraversal(mod);
         avoidBreakingBed(mod);
         extraBlacklistedCraftingTables.clear();
         extraBlacklistedSmokers.clear();
         extraBlacklistedFurnaces.clear();
-    undergroundScanTimer.reset();
-    undergroundLastSamplePos = null;
-    undergroundLastSampleDimension = null;
+        undergroundScanTimer.reset();
+        undergroundLastSamplePos = null;
+        undergroundLastSampleDimension = null;
         wasRecoveringCrafting = false;
         wasRecoveringSmoker = false;
         wasRecoveringFurnace = false;
@@ -1398,8 +1404,18 @@ public class BeatMinecraftTask extends Task {
     }
 
     private void avoidWaterTraversal(AltoClef mod) {
-        mod.getBehaviour().avoidWalkingThrough(pos -> isPlayerUndergroundContext && isWaterColumn(mod, pos));
+        mod.getBehaviour().avoidWalkingThrough(this::shouldAvoidWaterTraversal);
         mod.getBehaviour().setAllowWalkThroughFlowingWater(false);
+    }
+
+    private boolean shouldAvoidWaterTraversal(BlockPos pos) {
+        if (!isPlayerUndergroundContext) {
+            return false;
+        }
+        if (allowWaterBridging) {
+            return false;
+        }
+        return isWaterColumn(mod, pos);
     }
 
     private boolean isWaterColumn(AltoClef mod, BlockPos origin) {
@@ -1413,6 +1429,48 @@ public class BeatMinecraftTask extends Task {
             return false;
         }
         return MovementHelper.isWater(mod.getWorld().getBlockState(pos));
+    }
+
+    private boolean shouldAllowWaterBridge(int availableThrowawayBlocks) {
+        if (!isPlayerUndergroundContext) {
+            return false;
+        }
+        if (mod.getWorld() == null || mod.getPlayer() == null) {
+            return false;
+        }
+        if (availableThrowawayBlocks < MIN_THROWAWAY_BLOCKS_FOR_WATER_BRIDGE) {
+            return false;
+        }
+        if (mod.getPlayer().isTouchingWater()) {
+            return true;
+        }
+
+        BlockPos steppingPos = mod.getPlayer().getSteppingPos();
+        for (Direction direction : Direction.Type.HORIZONTAL) {
+            BlockPos ahead = steppingPos.offset(direction);
+            if (!mod.getChunkTracker().isChunkLoaded(ahead)) {
+                continue;
+            }
+            if (!isWaterBlock(mod, ahead)) {
+                continue;
+            }
+            if (!hasBridgeHeadroom(ahead)) {
+                continue;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private boolean hasBridgeHeadroom(BlockPos pos) {
+        if (mod.getWorld() == null) {
+            return false;
+        }
+        BlockPos head = pos.up();
+        if (!mod.getChunkTracker().isChunkLoaded(head)) {
+            return false;
+        }
+        return !WorldHelper.isSolidBlock(head);
     }
 
     private boolean computePlayerUnderground(AltoClef mod) {
@@ -1621,28 +1679,37 @@ public class BeatMinecraftTask extends Task {
         }
         boolean endPortalCurrentlyOpen = endPortalOpened(mod, endPortalCenterLocation);
 
-    int craftingTableCount = itemStorage.getItemCount(Items.CRAFTING_TABLE);
-    int smokerCount = itemStorage.getItemCount(Items.SMOKER);
-    int furnaceCount = itemStorage.getItemCount(Items.FURNACE);
+        int craftingTableCount = itemStorage.getItemCount(Items.CRAFTING_TABLE);
+        int smokerCount = itemStorage.getItemCount(Items.SMOKER);
+        int furnaceCount = itemStorage.getItemCount(Items.FURNACE);
 
-    boolean hasCraftingTableInInventory = craftingTableCount > 0;
-    boolean hasSmokerInInventory = smokerCount > 0;
-    boolean hasFurnaceInInventory = furnaceCount > 0;
+        boolean hasCraftingTableInInventory = craftingTableCount > 0;
+        boolean hasSmokerInInventory = smokerCount > 0;
+        boolean hasFurnaceInInventory = furnaceCount > 0;
 
-    boolean recoveringCraftingTable = config.rePickupCraftingTable && craftingTableCount < 64 && (!hasCraftingTableInInventory || !extraBlacklistedCraftingTables.isEmpty());
-    boolean recoveringSmoker = config.rePickupSmoker && smokerCount < 64 && (!hasSmokerInInventory || !extraBlacklistedSmokers.isEmpty());
-    boolean recoveringFurnace = config.rePickupFurnace && furnaceCount < 64 && (!hasFurnaceInInventory || !extraBlacklistedFurnaces.isEmpty());
+        boolean recoveringCraftingTable = config.rePickupCraftingTable && craftingTableCount < 64 && (!hasCraftingTableInInventory || !extraBlacklistedCraftingTables.isEmpty());
+        boolean recoveringSmoker = config.rePickupSmoker && smokerCount < 64 && (!hasSmokerInInventory || !extraBlacklistedSmokers.isEmpty());
+        boolean recoveringFurnace = config.rePickupFurnace && furnaceCount < 64 && (!hasFurnaceInInventory || !extraBlacklistedFurnaces.isEmpty());
 
-        double blockPlacementPenalty = 10;
-        if (StorageHelper.getNumberOfThrowawayBlocks(mod) > 128) {
-            blockPlacementPenalty = 5;
-        } else if (StorageHelper.getNumberOfThrowawayBlocks(mod) > 64) {
-            blockPlacementPenalty = 7.5;
+        int throwawayBlocks = StorageHelper.getNumberOfThrowawayBlocks(mod);
+        allowWaterBridging = shouldAllowWaterBridge(throwawayBlocks);
+        if (allowWaterBridging != allowWaterBridgingLastTick) {
+            Debug.logInternal("Water bridging " + (allowWaterBridging ? "enabled" : "disabled") + " (throwaway=" + throwawayBlocks + ")");
+            allowWaterBridgingLastTick = allowWaterBridging;
+        }
+        double blockPlacementPenalty = 80;
+        if (throwawayBlocks > 128) {
+            blockPlacementPenalty = 4;
+        } else if (throwawayBlocks > 64) {
+            blockPlacementPenalty = 6;
+        }
+        if (allowWaterBridging && blockPlacementPenalty > WATER_BRIDGE_PLACEMENT_PENALTY) {
+            blockPlacementPenalty = WATER_BRIDGE_PLACEMENT_PENALTY;
         }
 
         mod.getClientBaritoneSettings().blockPlacementPenalty.value = blockPlacementPenalty;
 
-    if (mod.getPlayer().getMainHandStack().getItem() instanceof EnderEyeItem && !openingEndPortal) {
+        if (mod.getPlayer().getMainHandStack().getItem() instanceof EnderEyeItem && !openingEndPortal) {
             List<ItemStack> itemStacks = itemStorage.getItemStacksPlayerInventory(true);
             for (ItemStack itemStack : itemStacks) {
                 Item item = itemStack.getItem();
