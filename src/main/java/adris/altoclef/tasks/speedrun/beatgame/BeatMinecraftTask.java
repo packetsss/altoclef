@@ -30,7 +30,6 @@ import adris.altoclef.util.helpers.*;
 import adris.altoclef.util.slots.Slot;
 import adris.altoclef.util.time.TimerGame;
 import baritone.api.utils.input.Input;
-import baritone.pathing.movement.MovementHelper;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.EndPortalFrameBlock;
@@ -1251,7 +1250,6 @@ public class BeatMinecraftTask extends Task {
         addProtectedItems(mod);
         allowWalkingOnEndPortal(mod);
         avoidDragonBreath(mod);
-    avoidWaterTraversal(mod);
         avoidBreakingBed(mod);
         extraBlacklistedCraftingTables.clear();
         extraBlacklistedSmokers.clear();
@@ -1368,30 +1366,6 @@ public class BeatMinecraftTask extends Task {
 
             return false;
         });
-    }
-
-    private void avoidWaterTraversal(AltoClef mod) {
-        mod.getBehaviour().avoidWalkingThrough(pos -> isWaterColumn(mod, pos));
-        mod.getBehaviour().setAllowWalkThroughFlowingWater(false);
-    }
-
-    private boolean isWaterColumn(AltoClef mod, BlockPos origin) {
-        if (mod.getWorld() == null) {
-            return false;
-        }
-        if (!mod.getChunkTracker().isChunkLoaded(origin)) {
-            return false;
-        }
-        return isWaterBlock(mod, origin)
-            || isWaterBlock(mod, origin.up())
-            || isWaterBlock(mod, origin.down());
-    }
-
-    private boolean isWaterBlock(AltoClef mod, BlockPos pos) {
-        if (mod.getWorld() == null || !mod.getChunkTracker().isChunkLoaded(pos)) {
-            return false;
-        }
-        return MovementHelper.isWater(mod.getWorld().getBlockState(pos));
     }
 
     private void blackListDangerousBlock(AltoClef mod, Block block) {
