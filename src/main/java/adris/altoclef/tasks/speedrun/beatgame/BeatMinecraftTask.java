@@ -30,6 +30,7 @@ import adris.altoclef.util.helpers.*;
 import adris.altoclef.util.slots.Slot;
 import adris.altoclef.util.time.TimerGame;
 import baritone.api.utils.input.Input;
+import baritone.pathing.movement.MovementHelper;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.EndPortalFrameBlock;
@@ -106,6 +107,8 @@ public class BeatMinecraftTask extends Task {
 
     private static final Set<Block> CANDLE_BLOCK_SET = Set.of(CANDLE_BLOCKS);
     private static final double CANDLE_CLEAR_RANGE = 3.5;
+    private static final int UNDERGROUND_SKY_SCAN_RADIUS = 6;
+    private static final int UNDERGROUND_SKY_SCAN_HEIGHTS = 2;
 
     private static final Item[] COLLECT_IRON_ARMOR = ItemHelper.IRON_ARMORS;
     private static final Item[] COLLECT_EYE_ARMOR_END = ItemHelper.DIAMOND_ARMORS;
@@ -154,12 +157,16 @@ public class BeatMinecraftTask extends Task {
     private final AltoClef mod;
     private PriorityTask lastGather = null;
     private Task lastTask = null;
+    private boolean isPlayerUndergroundContext = false;
     private boolean pickupFurnace = true;
     private boolean pickupSmoker = true;
     private boolean pickupCrafting = true;
     private String lastCraftingPickupBlockReason = "";
     private String lastSmokerPickupBlockReason = "";
     private String lastFurnacePickupBlockReason = "";
+    private boolean wasRecoveringCrafting = false;
+    private boolean wasRecoveringSmoker = false;
+    private boolean wasRecoveringFurnace = false;
     private final Set<BlockPos> extraBlacklistedCraftingTables = new HashSet<>();
     private final Set<BlockPos> extraBlacklistedSmokers = new HashSet<>();
     private final Set<BlockPos> extraBlacklistedFurnaces = new HashSet<>();
@@ -1155,18 +1162,29 @@ public class BeatMinecraftTask extends Task {
      * @return True if the end portal is opened, false otherwise.
      */
     private boolean endPortalOpened(AltoClef mod, BlockPos endPortalCenter) {
-        if (endPortalOpened && endPortalCenter != null) {
-            BlockScanner blockTracker = mod.getBlockScanner();
+        boolean detected = detectEndPortalOpen(mod, endPortalCenter);
+        if (detected != endPortalOpened) {
+            Debug.logMessage("[EndPortal Debug] Open state changed -> " + detected, false);
+            endPortalOpened = detected;
+        }
+        return detected;
+    }
 
-            if (blockTracker != null) {
-                boolean isValid = blockTracker.isBlockAtPosition(endPortalCenter, Blocks.END_PORTAL);
-
-                Debug.logInternal("End Portal is " + (isValid ? "valid" : "invalid"));
-                return isValid;
-            }
+    private boolean detectEndPortalOpen(AltoClef mod, BlockPos endPortalCenter) {
+        BlockScanner blockScanner = mod.getBlockScanner();
+        if (blockScanner == null) {
+            return false;
         }
 
-        Debug.logInternal("End Portal is not opened yet");
+        if (blockScanner.anyFound(Blocks.END_PORTAL)) {
+            blockScanner.getNearestBlock(Blocks.END_PORTAL).ifPresent(pos -> endPortalCenterLocation = pos.toImmutable());
+            return true;
+        }
+
+        if (endPortalCenter != null && mod.getChunkTracker().isChunkLoaded(endPortalCenter)) {
+            return blockScanner.isBlockAtPosition(endPortalCenter, Blocks.END_PORTAL);
+        }
+
         return false;
     }
 
@@ -1250,10 +1268,15 @@ public class BeatMinecraftTask extends Task {
         addProtectedItems(mod);
         allowWalkingOnEndPortal(mod);
         avoidDragonBreath(mod);
+    avoidWaterTraversal(mod);
         avoidBreakingBed(mod);
         extraBlacklistedCraftingTables.clear();
         extraBlacklistedSmokers.clear();
         extraBlacklistedFurnaces.clear();
+        wasRecoveringCrafting = false;
+        wasRecoveringSmoker = false;
+        wasRecoveringFurnace = false;
+        endPortalOpened = detectEndPortalOpen(mod, endPortalCenterLocation);
 
         mod.getBehaviour().avoidBlockBreaking((pos) -> mod.getWorld().getBlockState(pos).getBlock().equals(Blocks.NETHER_PORTAL));
     }
@@ -1368,6 +1391,66 @@ public class BeatMinecraftTask extends Task {
         });
     }
 
+    private void avoidWaterTraversal(AltoClef mod) {
+        mod.getBehaviour().avoidWalkingThrough(pos -> isPlayerUndergroundContext && isWaterColumn(mod, pos));
+        mod.getBehaviour().setAllowWalkThroughFlowingWater(false);
+    }
+
+    private boolean isWaterColumn(AltoClef mod, BlockPos origin) {
+        return isWaterBlock(mod, origin)
+                || isWaterBlock(mod, origin.up())
+                || isWaterBlock(mod, origin.down());
+    }
+
+    private boolean isWaterBlock(AltoClef mod, BlockPos pos) {
+        if (mod.getWorld() == null || !mod.getChunkTracker().isChunkLoaded(pos)) {
+            return false;
+        }
+        return MovementHelper.isWater(mod.getWorld().getBlockState(pos));
+    }
+
+    private boolean computePlayerUnderground(AltoClef mod) {
+        if (mod.getWorld() == null || mod.getPlayer() == null) {
+            return false;
+        }
+
+        BlockPos playerPos = mod.getPlayer().getBlockPos();
+        boolean sampled = false;
+
+        for (int dx = -UNDERGROUND_SKY_SCAN_RADIUS; dx <= UNDERGROUND_SKY_SCAN_RADIUS; dx++) {
+            for (int dz = -UNDERGROUND_SKY_SCAN_RADIUS; dz <= UNDERGROUND_SKY_SCAN_RADIUS; dz++) {
+                BlockPos sample = playerPos.add(dx, 0, dz);
+                if (!mod.getChunkTracker().isChunkLoaded(sample)) {
+                    continue;
+                }
+                sampled = true;
+                if (canSeeSky(mod, sample)) {
+                    return false;
+                }
+            }
+        }
+
+        return sampled;
+    }
+
+    private boolean canSeeSky(AltoClef mod, BlockPos pos) {
+        if (mod.getWorld() == null) {
+            return false;
+        }
+
+        for (int dy = 0; dy <= UNDERGROUND_SKY_SCAN_HEIGHTS; dy++) {
+            BlockPos sample = pos.up(dy);
+            if (!mod.getChunkTracker().isChunkLoaded(sample)) {
+                continue;
+            }
+            if (mod.getWorld().isSkyVisible(sample)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void blackListDangerousBlock(AltoClef mod, Block block) {
         Optional<BlockPos> nearestTracking = mod.getBlockScanner().getNearestBlock(block);
 
@@ -1391,9 +1474,9 @@ public class BeatMinecraftTask extends Task {
         String normalized = reason == null ? "" : reason;
         if (!normalized.equals(currentReason)) {
             if (!normalized.isEmpty()) {
-                Debug.logInternal(prefix + " pickup gated: " + normalized);
+                Debug.logMessage(prefix + " pickup gated: " + normalized, false);
             } else if (!currentReason.isEmpty()) {
-                Debug.logInternal(prefix + " pickup conditions satisfied.");
+                Debug.logMessage(prefix + " pickup conditions satisfied.", false);
             }
             return normalized;
         }
@@ -1423,7 +1506,7 @@ public class BeatMinecraftTask extends Task {
             mod.getBlockScanner().allowBlock(pos);
 
             if (dropImmediately) {
-                Debug.logInternal(label + " blacklist released: inventory missing spare, removing " + pos);
+                Debug.logMessage(label + " blacklist released: inventory missing spare, removing " + pos, false);
                 iterator.remove();
                 continue;
             }
@@ -1433,7 +1516,7 @@ public class BeatMinecraftTask extends Task {
             }
 
             if (!mod.getBlockScanner().isBlockAtPosition(pos, targetBlock)) {
-                Debug.logInternal(label + " blacklist cleared: block no longer present at " + pos);
+                Debug.logMessage(label + " blacklist cleared: block no longer present at " + pos, false);
                 iterator.remove();
             }
         }
@@ -1510,6 +1593,9 @@ public class BeatMinecraftTask extends Task {
 
     private Task onTickInternal() {
         ItemStorageTracker itemStorage = mod.getItemStorage();
+
+        isPlayerUndergroundContext = computePlayerUnderground(mod);
+    boolean endPortalCurrentlyOpen = endPortalOpened(mod, endPortalCenterLocation);
 
         boolean hasCraftingTableInInventory = itemStorage.hasItem(Items.CRAFTING_TABLE);
         boolean hasSmokerInInventory = itemStorage.hasItem(Items.SMOKER);
@@ -1652,6 +1738,33 @@ public class BeatMinecraftTask extends Task {
         recoveringCraftingTable = config.rePickupCraftingTable && (!hasCraftingTableInInventory || !extraBlacklistedCraftingTables.isEmpty());
         recoveringSmoker = config.rePickupSmoker && (!hasSmokerInInventory || !extraBlacklistedSmokers.isEmpty());
         recoveringFurnace = config.rePickupFurnace && (!hasFurnaceInInventory || !extraBlacklistedFurnaces.isEmpty());
+
+        if (recoveringCraftingTable != wasRecoveringCrafting) {
+            if (recoveringCraftingTable) {
+                Debug.logMessage("[Pickup Debug] Crafting table recovery requested (blacklisted=" + extraBlacklistedCraftingTables.size() + ", hasSpare=" + hasCraftingTableInInventory + ")", false);
+            } else {
+                Debug.logMessage("[Pickup Debug] Crafting table recovery cleared", false);
+            }
+            wasRecoveringCrafting = recoveringCraftingTable;
+        }
+
+        if (recoveringSmoker != wasRecoveringSmoker) {
+            if (recoveringSmoker) {
+                Debug.logMessage("[Pickup Debug] Smoker recovery requested (blacklisted=" + extraBlacklistedSmokers.size() + ", hasSpare=" + hasSmokerInInventory + ")", false);
+            } else {
+                Debug.logMessage("[Pickup Debug] Smoker recovery cleared", false);
+            }
+            wasRecoveringSmoker = recoveringSmoker;
+        }
+
+        if (recoveringFurnace != wasRecoveringFurnace) {
+            if (recoveringFurnace) {
+                Debug.logMessage("[Pickup Debug] Furnace recovery requested (blacklisted=" + extraBlacklistedFurnaces.size() + ", hasSpare=" + hasFurnaceInInventory + ")", false);
+            } else {
+                Debug.logMessage("[Pickup Debug] Furnace recovery cleared", false);
+            }
+            wasRecoveringFurnace = recoveringFurnace;
+        }
 
 
         if (!ironGearSatisfied && !eyeGearSatisfied) {
@@ -1857,11 +1970,13 @@ public class BeatMinecraftTask extends Task {
         }
 
         // Check for end portals. Always.
-        if (!endPortalOpened(mod, endPortalCenterLocation) && WorldHelper.getCurrentDimension() == Dimension.OVERWORLD) {
+        if (!endPortalCurrentlyOpen && WorldHelper.getCurrentDimension() == Dimension.OVERWORLD) {
             Optional<BlockPos> endPortal = mod.getBlockScanner().getNearestBlock(Blocks.END_PORTAL);
             if (endPortal.isPresent()) {
                 endPortalCenterLocation = endPortal.get();
                 endPortalOpened = true;
+                endPortalCurrentlyOpen = true;
+                Debug.logMessage("[EndPortal Debug] Located open portal at " + endPortalCenterLocation, false);
             } else {
                 // TODO: Test that this works, for some reason the bot gets stuck near the stronghold and it keeps "Searching" for the portal
                 endPortalCenterLocation = doSimpleSearchForEndPortal(mod);
@@ -1882,7 +1997,7 @@ public class BeatMinecraftTask extends Task {
             }
             if (!pickupCrafting) {
                 logCraftingPickupBlocked("cooldown active (pickupCrafting is false)");
-            } else if (endPortalOpened) {
+            } else if (endPortalCurrentlyOpen) {
                 logCraftingPickupBlocked("end portal already opened");
             } else if (currentDimension == Dimension.END) {
                 logCraftingPickupBlocked("currently in the End dimension");
@@ -1895,6 +2010,7 @@ public class BeatMinecraftTask extends Task {
                 } else {
                     logCraftingPickupBlocked(null);
                     setDebugState("Picking up the crafting table while we are at it.");
+                    Debug.logMessage("[Pickup Debug] Crafting table recovery task scheduled", false);
                     return new MineAndCollectTask(Items.CRAFTING_TABLE, 1, new Block[]{Blocks.CRAFTING_TABLE}, MiningRequirement.HAND);
                 }
             }
@@ -1909,7 +2025,7 @@ public class BeatMinecraftTask extends Task {
             }
             if (!pickupSmoker) {
                 logSmokerPickupBlocked("cooldown active (pickupSmoker is false)");
-            } else if (endPortalOpened) {
+            } else if (endPortalCurrentlyOpen) {
                 logSmokerPickupBlocked("end portal already opened");
             } else if (currentDimension == Dimension.END) {
                 logSmokerPickupBlocked("currently in the End dimension");
@@ -1920,6 +2036,7 @@ public class BeatMinecraftTask extends Task {
                 } else {
                     logSmokerPickupBlocked(null);
                     setDebugState("Picking up the smoker while we are at it.");
+                    Debug.logMessage("[Pickup Debug] Smoker recovery task scheduled", false);
                     rePickupTask = new MineAndCollectTask(Items.SMOKER, 1, new Block[]{Blocks.SMOKER}, MiningRequirement.WOOD);
                     return rePickupTask;
                 }
@@ -1935,7 +2052,7 @@ public class BeatMinecraftTask extends Task {
             }
             if (!pickupFurnace) {
                 logFurnacePickupBlocked("cooldown active (pickupFurnace is false)");
-            } else if (endPortalOpened) {
+            } else if (endPortalCurrentlyOpen) {
                 logFurnacePickupBlocked("end portal already opened");
             } else if (currentDimension == Dimension.END) {
                 logFurnacePickupBlocked("currently in the End dimension");
@@ -1950,6 +2067,7 @@ public class BeatMinecraftTask extends Task {
                 } else {
                     logFurnacePickupBlocked(null);
                     setDebugState("Picking up the furnace while we are at it.");
+                    Debug.logMessage("[Pickup Debug] Furnace recovery task scheduled", false);
                     rePickupTask = new MineAndCollectTask(Items.FURNACE, 1, new Block[]{Blocks.FURNACE}, MiningRequirement.WOOD);
                     return rePickupTask;
                 }
@@ -1963,7 +2081,7 @@ public class BeatMinecraftTask extends Task {
         pickupCrafting = true;
 
         // Sleep through night.
-        if (config.sleepThroughNight && !endPortalOpened && WorldHelper.getCurrentDimension() == Dimension.OVERWORLD) {
+    if (config.sleepThroughNight && !endPortalCurrentlyOpen && WorldHelper.getCurrentDimension() == Dimension.OVERWORLD) {
             if (WorldHelper.canSleep()) {
                 if (timer2.elapsed()) {
                     timer2.reset();
@@ -1990,7 +2108,7 @@ public class BeatMinecraftTask extends Task {
         }
 
         // Do we need more eyes?
-        boolean needsEyes = !endPortalOpened(mod, endPortalCenterLocation) && WorldHelper.getCurrentDimension() != Dimension.END;
+    boolean needsEyes = !endPortalCurrentlyOpen && WorldHelper.getCurrentDimension() != Dimension.END;
 
         int filledPortalFrames = getFilledPortalFrames(mod, endPortalCenterLocation);
         int eyesNeededMin = needsEyes ? config.minimumEyes - filledPortalFrames : 0;
@@ -2091,7 +2209,7 @@ public class BeatMinecraftTask extends Task {
                     return new DestroyBlockTask(silverfish.get());
                 }
             }
-            if (endPortalOpened(mod, endPortalCenterLocation)) {
+            if (endPortalCurrentlyOpen) {
                 openingEndPortal = false;
                 if (needsBuildingMaterials(mod)) {
                     setDebugState("Collecting building materials.");
