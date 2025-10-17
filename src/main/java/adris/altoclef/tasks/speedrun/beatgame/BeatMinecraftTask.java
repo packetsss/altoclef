@@ -147,6 +147,7 @@ public class BeatMinecraftTask extends Task {
     private final TimerGame timer1 = new TimerGame(5);
     private final TimerGame timer2 = new TimerGame(35);
     private final TimerGame timer3 = new TimerGame(60);
+    private final TimerGame undergroundScanTimer = new TimerGame(5);
     private final List<PriorityTask> gatherResources = new LinkedList<>();
     private boolean gatherResourcesSuspended = false;
     private final TimerGame changedTaskTimer = new TimerGame(3);
@@ -199,6 +200,8 @@ public class BeatMinecraftTask extends Task {
     private List<TaskChange> taskChanges = new ArrayList<>();
     private PriorityTask prevLastGather = null;
     private BlockPos biomePos = null;
+    private BlockPos undergroundLastSamplePos = null;
+    private Dimension undergroundLastSampleDimension = null;
     private final LocateBiomeCommandHelper warpedForestLocator;
     private final LocateStructureCommandHelper fortressLocator;
     private final BeatMinecraftStateStore stateStore;
@@ -1273,6 +1276,9 @@ public class BeatMinecraftTask extends Task {
         extraBlacklistedCraftingTables.clear();
         extraBlacklistedSmokers.clear();
         extraBlacklistedFurnaces.clear();
+    undergroundScanTimer.reset();
+    undergroundLastSamplePos = null;
+    undergroundLastSampleDimension = null;
         wasRecoveringCrafting = false;
         wasRecoveringSmoker = false;
         wasRecoveringFurnace = false;
@@ -1595,8 +1601,25 @@ public class BeatMinecraftTask extends Task {
     private Task onTickInternal() {
         ItemStorageTracker itemStorage = mod.getItemStorage();
 
-        isPlayerUndergroundContext = computePlayerUnderground(mod);
-    boolean endPortalCurrentlyOpen = endPortalOpened(mod, endPortalCenterLocation);
+        if (mod.getPlayer() == null) {
+            isPlayerUndergroundContext = false;
+            undergroundLastSamplePos = null;
+            undergroundLastSampleDimension = null;
+        } else {
+            BlockPos currentSamplePos = mod.getPlayer().getBlockPos();
+            Dimension currentDimension = WorldHelper.getCurrentDimension();
+            boolean forceResample = undergroundLastSamplePos == null
+                || currentSamplePos.getSquaredDistance(undergroundLastSamplePos) > 25
+                || undergroundScanTimer.elapsed();
+            boolean dimensionChanged = undergroundLastSampleDimension != currentDimension;
+            if (forceResample || dimensionChanged) {
+                isPlayerUndergroundContext = computePlayerUnderground(mod);
+                undergroundScanTimer.reset();
+                undergroundLastSamplePos = currentSamplePos.toImmutable();
+                undergroundLastSampleDimension = currentDimension;
+            }
+        }
+        boolean endPortalCurrentlyOpen = endPortalOpened(mod, endPortalCenterLocation);
 
     int craftingTableCount = itemStorage.getItemCount(Items.CRAFTING_TABLE);
     int smokerCount = itemStorage.getItemCount(Items.SMOKER);
