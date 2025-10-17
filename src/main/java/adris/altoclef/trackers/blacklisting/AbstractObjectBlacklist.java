@@ -43,6 +43,10 @@ public abstract class AbstractObjectBlacklist<T> {
 
     protected abstract Vec3d getPos(T item);
 
+    public void allow(T item) {
+        entries.remove(item);
+    }
+
     public boolean unreachable(T item) {
         if (entries.containsKey(item)) {
             BlacklistEntry entry = entries.get(item);

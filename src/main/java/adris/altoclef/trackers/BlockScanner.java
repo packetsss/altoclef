@@ -79,6 +79,10 @@ public class BlockScanner {
         blacklist.blackListItem(mod, pos, 4);
     }
 
+    public void allowBlock(BlockPos pos) {
+        blacklist.allow(pos);
+    }
+
 
     public boolean isUnreachable(BlockPos pos) {
         return blacklist.unreachable(pos);

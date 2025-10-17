@@ -16,6 +16,7 @@ import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.Dimension;
 import adris.altoclef.util.helpers.LocateStructureCommandHelper;
 import adris.altoclef.util.helpers.WorldHelper;
+import adris.altoclef.util.time.TimerGame;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.mob.BlazeEntity;
@@ -33,9 +34,14 @@ public class CollectBlazeRodsTask extends ResourceTask {
     private static final double SPAWNER_BLAZE_RADIUS = 32;
     private static final double TOO_LITTLE_HEALTH_BLAZE = 10;
     private static final int TOO_MANY_BLAZES = 5;
+    private static final double FORTRESS_VERIFY_RANGE = 64;
+    private static final double FORTRESS_ABSENCE_TIMEOUT_SECONDS = 12;
     private final int _count;
     private final Task _searcher = new SearchChunkForBlockTask(Blocks.NETHER_BRICKS);
     private LocateStructureCommandHelper fortressLocator;
+    private final TimerGame fortressAbsenceTimer = new TimerGame(FORTRESS_ABSENCE_TIMEOUT_SECONDS);
+    private boolean fortressAbsenceTimerActive = false;
+    private BlockPos _lastLocateTarget = null;
 
     // Why was this here???
     //private Entity _toKill;
@@ -63,6 +69,9 @@ public class CollectBlazeRodsTask extends ResourceTask {
             Dimension.NETHER,
             45,
             10);
+        fortressAbsenceTimer.reset();
+        fortressAbsenceTimerActive = false;
+        _lastLocateTarget = null;
     }
 
     @Override
@@ -119,6 +128,48 @@ public class CollectBlazeRodsTask extends ResourceTask {
 
         // If we have a blaze spawner, go near it.
         Optional<BlockPos> locatedFortress = fortressLocator != null ? fortressLocator.getLocatedPosition() : Optional.empty();
+
+        if (locatedFortress.isPresent()) {
+            BlockPos target = locatedFortress.get();
+            if (_lastLocateTarget == null || !_lastLocateTarget.equals(target)) {
+                _lastLocateTarget = target.toImmutable();
+                fortressAbsenceTimerActive = false;
+                fortressAbsenceTimer.reset();
+                Debug.logInternal("[BlazeRods] Tracking fortress locate at " + target.toShortString());
+            }
+
+            double sqDistanceToTarget = BlockPosVer.getSquaredDistance(target, mod.getPlayer().getPos());
+            if (sqDistanceToTarget <= FORTRESS_VERIFY_RANGE * FORTRESS_VERIFY_RANGE && mod.getChunkTracker().isChunkLoaded(target)) {
+                boolean fortressDetected = mod.getBlockScanner().getNearestWithinRange(target, FORTRESS_VERIFY_RANGE, Blocks.NETHER_BRICKS).isPresent()
+                        || mod.getBlockScanner().getNearestWithinRange(target, FORTRESS_VERIFY_RANGE, Blocks.SPAWNER).isPresent();
+
+                if (fortressDetected) {
+                    fortressAbsenceTimerActive = false;
+                    fortressAbsenceTimer.reset();
+                } else {
+                    if (!fortressAbsenceTimerActive) {
+                        fortressAbsenceTimer.reset();
+                        fortressAbsenceTimerActive = true;
+                        Debug.logInternal("[BlazeRods] Fortress verification timer started at " + target.toShortString());
+                    } else if (fortressAbsenceTimer.elapsed()) {
+                        Debug.logWarning("[BlazeRods] Locate fortress target " + target.toShortString() + " appears empty. Requesting a new locate.");
+                        fortressLocator.invalidateLocatedPosition();
+                        locatedFortress = Optional.empty();
+                        fortressAbsenceTimerActive = false;
+                        fortressAbsenceTimer.reset();
+                        _lastLocateTarget = null;
+                        _foundBlazeSpawner = null;
+                    }
+                }
+            } else {
+                fortressAbsenceTimerActive = false;
+                fortressAbsenceTimer.reset();
+            }
+        } else {
+            fortressAbsenceTimerActive = false;
+            fortressAbsenceTimer.reset();
+            _lastLocateTarget = null;
+        }
 
         if (_foundBlazeSpawner != null) {
             if (!_foundBlazeSpawner.isWithinDistance(mod.getPlayer().getPos(), 4)) {

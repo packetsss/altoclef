@@ -67,6 +67,46 @@ public class BeatMinecraftTask extends Task {
             Items.DIAMOND_BOOTS
     };
 
+    private static final Block[] CANDLE_BLOCKS = new Block[]{
+        Blocks.CANDLE,
+        Blocks.WHITE_CANDLE,
+        Blocks.ORANGE_CANDLE,
+        Blocks.MAGENTA_CANDLE,
+        Blocks.LIGHT_BLUE_CANDLE,
+        Blocks.YELLOW_CANDLE,
+        Blocks.LIME_CANDLE,
+        Blocks.PINK_CANDLE,
+        Blocks.GRAY_CANDLE,
+        Blocks.LIGHT_GRAY_CANDLE,
+        Blocks.CYAN_CANDLE,
+        Blocks.PURPLE_CANDLE,
+        Blocks.BLUE_CANDLE,
+        Blocks.BROWN_CANDLE,
+        Blocks.GREEN_CANDLE,
+        Blocks.RED_CANDLE,
+        Blocks.BLACK_CANDLE,
+        Blocks.CANDLE_CAKE,
+        Blocks.WHITE_CANDLE_CAKE,
+        Blocks.ORANGE_CANDLE_CAKE,
+        Blocks.MAGENTA_CANDLE_CAKE,
+        Blocks.LIGHT_BLUE_CANDLE_CAKE,
+        Blocks.YELLOW_CANDLE_CAKE,
+        Blocks.LIME_CANDLE_CAKE,
+        Blocks.PINK_CANDLE_CAKE,
+        Blocks.GRAY_CANDLE_CAKE,
+        Blocks.LIGHT_GRAY_CANDLE_CAKE,
+        Blocks.CYAN_CANDLE_CAKE,
+        Blocks.PURPLE_CANDLE_CAKE,
+        Blocks.BLUE_CANDLE_CAKE,
+        Blocks.BROWN_CANDLE_CAKE,
+        Blocks.GREEN_CANDLE_CAKE,
+        Blocks.RED_CANDLE_CAKE,
+        Blocks.BLACK_CANDLE_CAKE
+    };
+
+    private static final Set<Block> CANDLE_BLOCK_SET = Set.of(CANDLE_BLOCKS);
+    private static final double CANDLE_CLEAR_RANGE = 3.5;
+
     private static final Item[] COLLECT_IRON_ARMOR = ItemHelper.IRON_ARMORS;
     private static final Item[] COLLECT_EYE_ARMOR_END = ItemHelper.DIAMOND_ARMORS;
 
@@ -117,6 +157,12 @@ public class BeatMinecraftTask extends Task {
     private boolean pickupFurnace = true;
     private boolean pickupSmoker = true;
     private boolean pickupCrafting = true;
+    private String lastCraftingPickupBlockReason = "";
+    private String lastSmokerPickupBlockReason = "";
+    private String lastFurnacePickupBlockReason = "";
+    private final Set<BlockPos> extraBlacklistedCraftingTables = new HashSet<>();
+    private final Set<BlockPos> extraBlacklistedSmokers = new HashSet<>();
+    private final Set<BlockPos> extraBlacklistedFurnaces = new HashSet<>();
     private Task rePickupTask = null;
     private Task searchTask = null;
     private boolean hasRods = false;
@@ -1200,6 +1246,9 @@ public class BeatMinecraftTask extends Task {
         allowWalkingOnEndPortal(mod);
         avoidDragonBreath(mod);
         avoidBreakingBed(mod);
+        extraBlacklistedCraftingTables.clear();
+        extraBlacklistedSmokers.clear();
+        extraBlacklistedFurnaces.clear();
 
         mod.getBehaviour().avoidBlockBreaking((pos) -> mod.getWorld().getBlockState(pos).getBlock().equals(Blocks.NETHER_PORTAL));
     }
@@ -1333,6 +1382,120 @@ public class BeatMinecraftTask extends Task {
         }
     }
 
+    private String updatePickupBlockReason(String currentReason, String prefix, String reason) {
+        String normalized = reason == null ? "" : reason;
+        if (!normalized.equals(currentReason)) {
+            if (!normalized.isEmpty()) {
+                Debug.logInternal(prefix + " pickup gated: " + normalized);
+            } else if (!currentReason.isEmpty()) {
+                Debug.logInternal(prefix + " pickup conditions satisfied.");
+            }
+            return normalized;
+        }
+        return currentReason;
+    }
+
+    private void logCraftingPickupBlocked(String reason) {
+        lastCraftingPickupBlockReason = updatePickupBlockReason(lastCraftingPickupBlockReason, "[Pickup Debug] Crafting table", reason);
+    }
+
+    private void logSmokerPickupBlocked(String reason) {
+        lastSmokerPickupBlockReason = updatePickupBlockReason(lastSmokerPickupBlockReason, "[Pickup Debug] Smoker", reason);
+    }
+
+    private void logFurnacePickupBlocked(String reason) {
+        lastFurnacePickupBlockReason = updatePickupBlockReason(lastFurnacePickupBlockReason, "[Pickup Debug] Furnace", reason);
+    }
+
+    private void refreshBlacklistedWorkstations(Set<BlockPos> tracked, Block targetBlock, boolean dropImmediately, String label) {
+        if (tracked.isEmpty()) {
+            return;
+        }
+
+        Iterator<BlockPos> iterator = tracked.iterator();
+        while (iterator.hasNext()) {
+            BlockPos pos = iterator.next();
+            mod.getBlockScanner().allowBlock(pos);
+
+            if (dropImmediately) {
+                Debug.logInternal(label + " blacklist released: inventory missing spare, removing " + pos);
+                iterator.remove();
+                continue;
+            }
+
+            if (!mod.getChunkTracker().isChunkLoaded(pos)) {
+                continue;
+            }
+
+            if (!mod.getBlockScanner().isBlockAtPosition(pos, targetBlock)) {
+                Debug.logInternal(label + " blacklist cleared: block no longer present at " + pos);
+                iterator.remove();
+            }
+        }
+    }
+
+    private Task maybeClearBlockingCandle() {
+        BlockPos candlePos = locateBlockingCandle();
+        if (candlePos != null) {
+            setDebugState("Clearing candle obstruction");
+            return new DestroyBlockTask(candlePos);
+        }
+        return null;
+    }
+
+    private BlockPos locateBlockingCandle() {
+        if (mod.getWorld() == null || mod.getPlayer() == null) {
+            return null;
+        }
+
+        BlockPos playerPos = mod.getPlayer().getBlockPos();
+
+        BlockPos direct = candleBreakCandidate(playerPos);
+        if (direct != null) {
+            return direct;
+        }
+
+        for (Direction direction : Direction.Type.HORIZONTAL) {
+            BlockPos forward = playerPos.offset(direction);
+            BlockPos candidate = candleBreakCandidate(forward);
+            if (candidate != null) {
+                return candidate;
+            }
+            BlockPos elevated = forward.up();
+            candidate = candleBreakCandidate(elevated);
+            if (candidate != null) {
+                return candidate;
+            }
+        }
+
+        Vec3d playerCenter = WorldHelper.toVec3d(playerPos);
+        Optional<BlockPos> nearby = mod.getBlockScanner().getNearestBlock(
+                pos -> pos.isWithinDistance(playerCenter, CANDLE_CLEAR_RANGE) && WorldHelper.canBreak(pos),
+                CANDLE_BLOCKS
+        );
+
+        return nearby.orElse(null);
+    }
+
+    private BlockPos candleBreakCandidate(BlockPos candidate) {
+        if (candidate == null) {
+            return null;
+        }
+
+        if (isCandle(candidate) && WorldHelper.canBreak(candidate)) {
+            return candidate;
+        }
+
+        return null;
+    }
+
+    private boolean isCandle(BlockPos pos) {
+        if (mod.getWorld() == null) {
+            return false;
+        }
+        return CANDLE_BLOCK_SET.contains(mod.getWorld().getBlockState(pos).getBlock());
+    }
+
     @Override
     protected Task onTick() {
         Task result = onTickInternal();
@@ -1343,6 +1506,14 @@ public class BeatMinecraftTask extends Task {
     private Task onTickInternal() {
         ItemStorageTracker itemStorage = mod.getItemStorage();
 
+        boolean hasCraftingTableInInventory = itemStorage.hasItem(Items.CRAFTING_TABLE);
+        boolean hasSmokerInInventory = itemStorage.hasItem(Items.SMOKER);
+        boolean hasFurnaceInInventory = itemStorage.hasItem(Items.FURNACE);
+
+        boolean recoveringCraftingTable = config.rePickupCraftingTable && (!hasCraftingTableInInventory || !extraBlacklistedCraftingTables.isEmpty());
+        boolean recoveringSmoker = config.rePickupSmoker && (!hasSmokerInInventory || !extraBlacklistedSmokers.isEmpty());
+        boolean recoveringFurnace = config.rePickupFurnace && (!hasFurnaceInInventory || !extraBlacklistedFurnaces.isEmpty());
+
         double blockPlacementPenalty = 10;
         if (StorageHelper.getNumberOfThrowawayBlocks(mod) > 128) {
             blockPlacementPenalty = 5;
@@ -1352,7 +1523,7 @@ public class BeatMinecraftTask extends Task {
 
         mod.getClientBaritoneSettings().blockPlacementPenalty.value = blockPlacementPenalty;
 
-        if (mod.getPlayer().getMainHandStack().getItem() instanceof EnderEyeItem && !openingEndPortal) {
+    if (mod.getPlayer().getMainHandStack().getItem() instanceof EnderEyeItem && !openingEndPortal) {
             List<ItemStack> itemStacks = itemStorage.getItemStacksPlayerInventory(true);
             for (ItemStack itemStack : itemStacks) {
                 Item item = itemStack.getItem();
@@ -1383,6 +1554,11 @@ public class BeatMinecraftTask extends Task {
             }
         }
 
+        Task candleClearTask = maybeClearBlockingCandle();
+        if (candleClearTask != null) {
+            return candleClearTask;
+        }
+
 
         boolean eyeGearSatisfied = StorageHelper.isArmorEquippedAll(COLLECT_EYE_ARMOR);
         boolean ironGearSatisfied = StorageHelper.isArmorEquippedAll(COLLECT_IRON_ARMOR);
@@ -1400,9 +1576,10 @@ public class BeatMinecraftTask extends Task {
         };
         List<BlockPos> craftingTables = mod.getBlockScanner().getKnownLocations(Blocks.CRAFTING_TABLE);
         for (BlockPos craftingTable : craftingTables) {
-            if (itemStorage.hasItem(Items.CRAFTING_TABLE) && !thisOrChildSatisfies(isCraftingTableTask) && (!mod.getBlockScanner().isUnreachable(craftingTable))) {
+            if (!recoveringCraftingTable && hasCraftingTableInInventory && !thisOrChildSatisfies(isCraftingTableTask) && (!mod.getBlockScanner().isUnreachable(craftingTable))) {
                 Debug.logMessage("Blacklisting extra crafting table.");
                 mod.getBlockScanner().requestBlockUnreachable(craftingTable, 0);
+                extraBlacklistedCraftingTables.add(craftingTable.toImmutable());
 
             }
             if (!mod.getBlockScanner().isUnreachable(craftingTable)) {
@@ -1424,18 +1601,20 @@ public class BeatMinecraftTask extends Task {
         List<BlockPos> smokers = mod.getBlockScanner().getKnownLocations(Blocks.SMOKER);
 
         for (BlockPos smoker : smokers) {
-            if (itemStorage.hasItem(Items.SMOKER) && !mod.getBlockScanner().isUnreachable(smoker)) {
+            if (!recoveringSmoker && hasSmokerInInventory && !mod.getBlockScanner().isUnreachable(smoker)) {
                 Debug.logMessage("Blacklisting extra smoker.");
                 mod.getBlockScanner().requestBlockUnreachable(smoker, 0);
+                extraBlacklistedSmokers.add(smoker.toImmutable());
             }
         }
 
         List<BlockPos> furnaces = mod.getBlockScanner().getKnownLocations(Blocks.FURNACE);
 
         for (BlockPos furnace : furnaces) {
-            if (itemStorage.hasItem(Items.FURNACE) && !goToNetherTask.isActive() && !ranStrongholdLocator && !mod.getBlockScanner().isUnreachable(furnace)) {
+            if (!recoveringFurnace && hasFurnaceInInventory && !goToNetherTask.isActive() && !ranStrongholdLocator && !mod.getBlockScanner().isUnreachable(furnace)) {
                 Debug.logMessage("Blacklisting extra furnace.");
                 mod.getBlockScanner().requestBlockUnreachable(furnace, 0);
+                extraBlacklistedFurnaces.add(furnace.toImmutable());
             }
         }
 
@@ -1454,6 +1633,20 @@ public class BeatMinecraftTask extends Task {
                 mod.getBlockScanner().requestBlockUnreachable(log, 0);
             }
         }
+
+        if (config.rePickupCraftingTable && !extraBlacklistedCraftingTables.isEmpty()) {
+            refreshBlacklistedWorkstations(extraBlacklistedCraftingTables, Blocks.CRAFTING_TABLE, !hasCraftingTableInInventory, "[Pickup Debug] Crafting table");
+        }
+        if (config.rePickupSmoker && !extraBlacklistedSmokers.isEmpty()) {
+            refreshBlacklistedWorkstations(extraBlacklistedSmokers, Blocks.SMOKER, !hasSmokerInInventory, "[Pickup Debug] Smoker");
+        }
+        if (config.rePickupFurnace && !extraBlacklistedFurnaces.isEmpty()) {
+            refreshBlacklistedWorkstations(extraBlacklistedFurnaces, Blocks.FURNACE, !hasFurnaceInInventory, "[Pickup Debug] Furnace");
+        }
+
+        recoveringCraftingTable = config.rePickupCraftingTable && (!hasCraftingTableInInventory || !extraBlacklistedCraftingTables.isEmpty());
+        recoveringSmoker = config.rePickupSmoker && (!hasSmokerInInventory || !extraBlacklistedSmokers.isEmpty());
+        recoveringFurnace = config.rePickupFurnace && (!hasFurnaceInInventory || !extraBlacklistedFurnaces.isEmpty());
 
 
         if (!ironGearSatisfied && !eyeGearSatisfied) {
@@ -1674,25 +1867,95 @@ public class BeatMinecraftTask extends Task {
         }
 
 
+        Dimension currentDimension = WorldHelper.getCurrentDimension();
+
         // Portable crafting table.
-        // If we're NOT using our crafting table right now and there's one nearby, grab it.
-        if (!endPortalOpened && WorldHelper.getCurrentDimension() != Dimension.END && config.rePickupCraftingTable && !itemStorage.hasItem(Items.CRAFTING_TABLE) && !thisOrChildSatisfies(isCraftingTableTask) && (mod.getBlockScanner().anyFound(blockPos -> WorldHelper.canBreak(blockPos) && WorldHelper.canReach(blockPos), Blocks.CRAFTING_TABLE) || mod.getEntityTracker().itemDropped(Items.CRAFTING_TABLE)) && pickupCrafting) {
-            setDebugState("Picking up the crafting table while we are at it.");
-            return new MineAndCollectTask(Items.CRAFTING_TABLE, 1, new Block[]{Blocks.CRAFTING_TABLE}, MiningRequirement.HAND);
+        boolean needsCraftingPickup = recoveringCraftingTable;
+        if (needsCraftingPickup) {
+            if (hasCraftingTableInInventory && !extraBlacklistedCraftingTables.isEmpty()) {
+                logCraftingPickupBlocked("recovering previously blacklisted crafting table (spare still in inventory)");
+            }
+            if (!pickupCrafting) {
+                logCraftingPickupBlocked("cooldown active (pickupCrafting is false)");
+            } else if (endPortalOpened) {
+                logCraftingPickupBlocked("end portal already opened");
+            } else if (currentDimension == Dimension.END) {
+                logCraftingPickupBlocked("currently in the End dimension");
+            } else if (thisOrChildSatisfies(isCraftingTableTask)) {
+                logCraftingPickupBlocked("already running a crafting container task");
+            } else {
+                boolean craftingNearby = mod.getBlockScanner().anyFound(blockPos -> WorldHelper.canBreak(blockPos) && WorldHelper.canReach(blockPos), Blocks.CRAFTING_TABLE) || mod.getEntityTracker().itemDropped(Items.CRAFTING_TABLE);
+                if (!craftingNearby) {
+                    logCraftingPickupBlocked("no reachable crafting table or dropped item detected");
+                } else {
+                    logCraftingPickupBlocked(null);
+                    setDebugState("Picking up the crafting table while we are at it.");
+                    return new MineAndCollectTask(Items.CRAFTING_TABLE, 1, new Block[]{Blocks.CRAFTING_TABLE}, MiningRequirement.HAND);
+                }
+            }
+        } else {
+            logCraftingPickupBlocked(null);
         }
-        if (config.rePickupSmoker && !endPortalOpened && WorldHelper.getCurrentDimension() != Dimension.END && !itemStorage.hasItem(Items.SMOKER) && (mod.getBlockScanner().anyFound(blockPos -> WorldHelper.canBreak(blockPos) && WorldHelper.canReach(blockPos), Blocks.SMOKER) || mod.getEntityTracker().itemDropped(Items.SMOKER)) && pickupSmoker) {
-            setDebugState("Picking up the smoker while we are at it.");
-            rePickupTask = new MineAndCollectTask(Items.SMOKER, 1, new Block[]{Blocks.SMOKER}, MiningRequirement.WOOD);
-            return rePickupTask;
+
+        boolean needsSmokerPickup = recoveringSmoker;
+        if (needsSmokerPickup) {
+            if (hasSmokerInInventory && !extraBlacklistedSmokers.isEmpty()) {
+                logSmokerPickupBlocked("recovering previously blacklisted smoker (spare still in inventory)");
+            }
+            if (!pickupSmoker) {
+                logSmokerPickupBlocked("cooldown active (pickupSmoker is false)");
+            } else if (endPortalOpened) {
+                logSmokerPickupBlocked("end portal already opened");
+            } else if (currentDimension == Dimension.END) {
+                logSmokerPickupBlocked("currently in the End dimension");
+            } else {
+                boolean smokerNearby = mod.getBlockScanner().anyFound(blockPos -> WorldHelper.canBreak(blockPos) && WorldHelper.canReach(blockPos), Blocks.SMOKER) || mod.getEntityTracker().itemDropped(Items.SMOKER);
+                if (!smokerNearby) {
+                    logSmokerPickupBlocked("no reachable smoker or dropped item detected");
+                } else {
+                    logSmokerPickupBlocked(null);
+                    setDebugState("Picking up the smoker while we are at it.");
+                    rePickupTask = new MineAndCollectTask(Items.SMOKER, 1, new Block[]{Blocks.SMOKER}, MiningRequirement.WOOD);
+                    return rePickupTask;
+                }
+            }
+        } else {
+            logSmokerPickupBlocked(null);
         }
-        if (config.rePickupFurnace && !endPortalOpened && WorldHelper.getCurrentDimension() != Dimension.END && !itemStorage.hasItem(Items.FURNACE) && (mod.getBlockScanner().anyFound(blockPos -> WorldHelper.canBreak(blockPos) && WorldHelper.canReach(blockPos), Blocks.FURNACE) || mod.getEntityTracker().itemDropped(Items.FURNACE)) && !goToNetherTask.isActive() && !ranStrongholdLocator && pickupFurnace) {
-            setDebugState("Picking up the furnace while we are at it.");
-            rePickupTask = new MineAndCollectTask(Items.FURNACE, 1, new Block[]{Blocks.FURNACE}, MiningRequirement.WOOD);
-            return rePickupTask;
+
+        boolean needsFurnacePickup = recoveringFurnace;
+        if (needsFurnacePickup) {
+            if (hasFurnaceInInventory && !extraBlacklistedFurnaces.isEmpty()) {
+                logFurnacePickupBlocked("recovering previously blacklisted furnace (spare still in inventory)");
+            }
+            if (!pickupFurnace) {
+                logFurnacePickupBlocked("cooldown active (pickupFurnace is false)");
+            } else if (endPortalOpened) {
+                logFurnacePickupBlocked("end portal already opened");
+            } else if (currentDimension == Dimension.END) {
+                logFurnacePickupBlocked("currently in the End dimension");
+            } else if (goToNetherTask.isActive()) {
+                logFurnacePickupBlocked("goToNetherTask is currently active");
+            } else if (ranStrongholdLocator) {
+                logFurnacePickupBlocked("stronghold locator already executed");
+            } else {
+                boolean furnaceNearby = mod.getBlockScanner().anyFound(blockPos -> WorldHelper.canBreak(blockPos) && WorldHelper.canReach(blockPos), Blocks.FURNACE) || mod.getEntityTracker().itemDropped(Items.FURNACE);
+                if (!furnaceNearby) {
+                    logFurnacePickupBlocked("no reachable furnace or dropped item detected");
+                } else {
+                    logFurnacePickupBlocked(null);
+                    setDebugState("Picking up the furnace while we are at it.");
+                    rePickupTask = new MineAndCollectTask(Items.FURNACE, 1, new Block[]{Blocks.FURNACE}, MiningRequirement.WOOD);
+                    return rePickupTask;
+                }
+            }
+        } else {
+            logFurnacePickupBlocked(null);
         }
-        pickupFurnace = false;
-        pickupSmoker = false;
-        pickupCrafting = false;
+
+        pickupFurnace = true;
+        pickupSmoker = true;
+        pickupCrafting = true;
 
         // Sleep through night.
         if (config.sleepThroughNight && !endPortalOpened && WorldHelper.getCurrentDimension() == Dimension.OVERWORLD) {

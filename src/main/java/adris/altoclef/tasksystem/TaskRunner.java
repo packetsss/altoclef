@@ -189,6 +189,18 @@ public class TaskRunner {
         return new ArrayList<>(completedTaskHistory);
     }
 
+    public void reset() {
+        for (TaskChain chain : chains) {
+            chain.stop();
+        }
+        cachedCurrentTaskChain = null;
+        cachedCurrentPriority = Float.NEGATIVE_INFINITY;
+        statusReport = " (no chain running) ";
+        taskTransitions.clear();
+        completedTaskHistory.clear();
+        activeTaskLifetimes.clear();
+    }
+
     private void recordTransition(String fromChain, float fromPriority, String fromContext,
                                   String toChain, float toPriority, String toContext) {
         long tick = WorldHelper.getTicks();

@@ -348,6 +348,9 @@ public class AltoClef implements ModInitializer {
         if (blockScanner != null) {
             blockScanner.reset();
         }
+        if (taskRunner != null) {
+            taskRunner.reset();
+        }
         if (storageTracker != null) {
             storageTracker.setDirty();
         }

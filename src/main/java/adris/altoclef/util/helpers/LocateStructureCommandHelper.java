@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
  */
 public class LocateStructureCommandHelper implements AutoCloseable {
 
-    private static final Pattern COORD_PATTERN = Pattern.compile("\\[\\s*(-?\\d+)\\s*,\\s*(?:~|(-?\\d+))\\s*,\\s*(-?\\d+)\\s*\\]");
+    private static final Pattern COORD_PATTERN = Pattern.compile("[\\[(]\\s*(-?\\d+)\\s*,\\s*(?:~|(-?\\d+))\\s*,\\s*(-?\\d+)\\s*[\\])]");
     private static final Pattern ALT_COORD_PATTERN = Pattern.compile("x\\s*=\\s*(-?\\d+).+z\\s*=\\s*(-?\\d+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern FORMAT_CODE_PATTERN = Pattern.compile("§[0-9a-fk-or]", Pattern.CASE_INSENSITIVE);
     private static final String[] PERMISSION_STRINGS = new String[]{
