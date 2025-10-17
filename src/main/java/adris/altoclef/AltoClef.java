@@ -48,6 +48,7 @@ import net.minecraft.util.math.Vec3d;
 import org.lwjgl.glfw.GLFW;
 
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -739,6 +740,7 @@ public class AltoClef implements ModInitializer {
                 telemetrySessionId.substring(0, 8));
         Path runDirectory = MinecraftClient.getInstance().runDirectory.toPath();
         Path sessionRoot = runDirectory.resolve(Paths.get("altoclef", "logs", "session"));
+        clearTelemetrySessions(sessionRoot);
         telemetrySessionDir = sessionRoot.resolve(folderName);
         try {
             Files.createDirectories(telemetrySessionDir);
@@ -748,6 +750,40 @@ public class AltoClef implements ModInitializer {
                     telemetrySessionDir,
                     ex.getMessage()));
         }
+    }
+
+    private void clearTelemetrySessions(Path sessionRoot) {
+        if (sessionRoot == null || !Files.exists(sessionRoot)) {
+            return;
+        }
+        try (DirectoryStream<Path> entries = Files.newDirectoryStream(sessionRoot)) {
+            for (Path entry : entries) {
+                try {
+                    deletePathRecursively(entry);
+                } catch (IOException ex) {
+                    Debug.logWarning(String.format(Locale.ROOT,
+                            "Failed to delete telemetry session path %s: %s",
+                            entry,
+                            ex.getMessage()));
+                }
+            }
+        } catch (IOException ex) {
+            Debug.logWarning(String.format(Locale.ROOT,
+                    "Failed to enumerate telemetry session directory %s: %s",
+                    sessionRoot,
+                    ex.getMessage()));
+        }
+    }
+
+    private void deletePathRecursively(Path path) throws IOException {
+        if (Files.isDirectory(path)) {
+            try (DirectoryStream<Path> children = Files.newDirectoryStream(path)) {
+                for (Path child : children) {
+                    deletePathRecursively(child);
+                }
+            }
+        }
+        Files.deleteIfExists(path);
     }
 
     private void runEnqueuedPostInits() {
