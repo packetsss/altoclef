@@ -1697,11 +1697,11 @@ public class BeatMinecraftTask extends Task {
             Debug.logInternal("Water bridging " + (allowWaterBridging ? "enabled" : "disabled") + " (throwaway=" + throwawayBlocks + ")");
             allowWaterBridgingLastTick = allowWaterBridging;
         }
-        double blockPlacementPenalty = 80;
+        double blockPlacementPenalty = 12;
         if (throwawayBlocks > 128) {
-            blockPlacementPenalty = 4;
+            blockPlacementPenalty = 5;
         } else if (throwawayBlocks > 64) {
-            blockPlacementPenalty = 6;
+            blockPlacementPenalty = 7;
         }
         if (allowWaterBridging && blockPlacementPenalty > WATER_BRIDGE_PLACEMENT_PENALTY) {
             blockPlacementPenalty = WATER_BRIDGE_PLACEMENT_PENALTY;

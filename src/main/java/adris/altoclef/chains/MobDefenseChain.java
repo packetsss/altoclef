@@ -65,6 +65,8 @@ public class MobDefenseChain extends SingleTaskChain {
     private static final double ARROW_KEEP_DISTANCE_HORIZONTAL = 2;
     private static final double ARROW_KEEP_DISTANCE_VERTICAL = 10;
     private static final double SAFE_KEEP_DISTANCE = 8;
+    private static final double CLOSE_HOSTILE_EXIT_RADIUS = 6;
+    private static final double CLOSE_HOSTILE_EXIT_RADIUS_SQ = CLOSE_HOSTILE_EXIT_RADIUS * CLOSE_HOSTILE_EXIT_RADIUS;
     private static final double REACHABILITY_DISTANCE_MAX = 32;
     private static final int REACHABILITY_MAX_EXPANSIONS = 96;
     private static final int REACHABILITY_CACHE_TTL_TICKS = 40;
@@ -766,11 +768,22 @@ public class MobDefenseChain extends SingleTaskChain {
         if (panicRetreatActive && !panicRetreatHoldTimer.elapsed()) {
             return null;
         }
-        if (!immediateThreatHoldTimer.elapsed()) {
-            return null;
-        }
         if (latestThreats.isEmpty()) {
             return "no-threats";
+        }
+
+        boolean hasImmediateThreat = latestThreats.stream().anyMatch(snapshot -> snapshot.immediate);
+        if (!hasImmediateThreat) {
+            double closestDistanceSq = latestThreats.stream()
+                .mapToDouble(snapshot -> snapshot.distanceSq)
+                .min()
+                .orElse(Double.POSITIVE_INFINITY);
+            if (closestDistanceSq > CLOSE_HOSTILE_EXIT_RADIUS_SQ) {
+                return "no-close-hostiles";
+            }
+        }
+        if (!immediateThreatHoldTimer.elapsed()) {
+            return null;
         }
         boolean lingeringThreat = latestThreats.stream().anyMatch(snapshot -> snapshot.hasLineOfSight && snapshot.distanceSq < DANGER_KEEP_DISTANCE * DANGER_KEEP_DISTANCE);
         if (lingeringThreat) {
