@@ -1,6 +1,7 @@
 package adris.altoclef.chains;
 
 import adris.altoclef.AltoClef;
+import adris.altoclef.Debug;
 import adris.altoclef.tasks.DoToClosestBlockTask;
 import adris.altoclef.tasks.InteractWithBlockTask;
 import adris.altoclef.tasks.construction.PutOutFireTask;
@@ -8,22 +9,33 @@ import adris.altoclef.tasks.movement.EnterNetherPortalTask;
 import adris.altoclef.tasks.movement.EscapeFromLavaTask;
 import adris.altoclef.tasks.movement.GetToBlockTask;
 import adris.altoclef.tasks.movement.SafeRandomShimmyTask;
+import adris.altoclef.tasks.resources.CollectBucketLiquidTask;
 import adris.altoclef.tasksystem.TaskRunner;
+import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.ItemTarget;
+import adris.altoclef.util.Dimension;
 import adris.altoclef.util.helpers.LookHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.time.TimerGame;
+import baritone.api.pathing.calc.IPath;
+import baritone.api.utils.BetterBlockPos;
 import baritone.api.utils.Rotation;
 import baritone.api.utils.input.Input;
 import net.minecraft.block.AbstractFireBlock;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
+import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.item.Items;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
+import net.minecraft.registry.tag.FluidTags;
 
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 public class WorldSurvivalChain extends SingleTaskChain {
 
@@ -32,9 +44,22 @@ public class WorldSurvivalChain extends SingleTaskChain {
     private boolean wasAvoidingDrowning;
 
     private BlockPos _extinguishWaterPosition;
+    private boolean avoidUndergroundWater;
+    private final Predicate<BlockPos> undergroundWaterAvoider;
+
+    private static final long UNDERGROUND_WATER_BLACKLIST_DURATION_TICKS = 90 * 20L;
+    private final Map<BlockPos, Long> undergroundWaterBlacklist = new HashMap<>();
+
+    private static final int SKY_SCAN_RADIUS = 5;
+    private static final int SKY_SCAN_VERTICAL = 2;
 
     public WorldSurvivalChain(TaskRunner runner) {
         super(runner);
+        AltoClef mod = AltoClef.getInstance();
+        undergroundWaterAvoider = this::shouldAvoidUndergroundWaterBlock;
+        if (mod != null && mod.getBehaviour() != null) {
+            mod.getBehaviour().avoidWalkingThrough(undergroundWaterAvoider);
+        }
     }
 
     @Override
@@ -47,6 +72,8 @@ public class WorldSurvivalChain extends SingleTaskChain {
         if (!AltoClef.inGame()) return Float.NEGATIVE_INFINITY;
 
         AltoClef mod = AltoClef.getInstance();
+
+        updateUndergroundWaterAvoidance(mod);
 
         // Drowning
         handleDrowning(mod);
@@ -175,5 +202,134 @@ public class WorldSurvivalChain extends SingleTaskChain {
     @Override
     protected void onStop() {
         super.onStop();
+    }
+
+    private void updateUndergroundWaterAvoidance(AltoClef mod) {
+        if (mod == null || mod.getWorld() == null || mod.getPlayer() == null) {
+            setAvoidUndergroundWater(false);
+            undergroundWaterBlacklist.clear();
+            return;
+        }
+        if (WorldHelper.getCurrentDimension() != Dimension.OVERWORLD) {
+            setAvoidUndergroundWater(false);
+            undergroundWaterBlacklist.clear();
+            return;
+        }
+        pruneExpiredUndergroundWaterEntries();
+
+        if (shouldIgnoreUndergroundWaterForTask(mod)) {
+            setAvoidUndergroundWater(false);
+            undergroundWaterBlacklist.clear();
+            return;
+        }
+
+        BlockPos playerPos = mod.getPlayer().getBlockPos();
+        boolean skylightVisible = WorldHelper.isSkylightVisible(playerPos, SKY_SCAN_RADIUS, SKY_SCAN_VERTICAL);
+        setAvoidUndergroundWater(!skylightVisible);
+
+        if (avoidUndergroundWater) {
+            updatePathUndergroundWaterBlacklist(mod);
+        } else {
+            undergroundWaterBlacklist.clear();
+        }
+    }
+
+    private void setAvoidUndergroundWater(boolean value) {
+        avoidUndergroundWater = value;
+    }
+
+    private boolean shouldAvoidUndergroundWaterBlock(BlockPos pos) {
+        if (!avoidUndergroundWater) {
+            return false;
+        }
+        long now = WorldHelper.getTicks();
+        Long expiry = undergroundWaterBlacklist.get(pos);
+        if (expiry == null || expiry <= now) {
+            return false;
+        }
+        return true;
+    }
+
+    private void updatePathUndergroundWaterBlacklist(AltoClef mod) {
+        if (mod.getClientBaritone() == null || mod.getClientBaritone().getPathingBehavior() == null) {
+            return;
+        }
+        ClientWorld world = mod.getWorld();
+        if (world == null) {
+            return;
+        }
+        Optional<IPath> pathOpt = mod.getClientBaritone().getPathingBehavior().getPath();
+        if (pathOpt.isEmpty()) {
+            return;
+        }
+
+        boolean registeredNew = false;
+        IPath path = pathOpt.get();
+        for (BetterBlockPos node : path.positions()) {
+            BlockPos pos = node;
+            if (registerUndergroundWaterNode(world, pos)) {
+                registeredNew = true;
+            }
+        }
+
+        if (registeredNew && mod.getClientBaritone().getPathingBehavior().isPathing()) {
+            Debug.logInternal("Cancelling path to avoid underground water.");
+            mod.getClientBaritone().getPathingBehavior().cancelEverything();
+        }
+    }
+
+    private boolean registerUndergroundWaterNode(ClientWorld world, BlockPos pos) {
+        BlockPos check = pos;
+        boolean registered = false;
+        registered |= registerSingleUndergroundWaterBlock(world, check);
+        registered |= registerSingleUndergroundWaterBlock(world, check.down());
+        return registered;
+    }
+
+    private boolean registerSingleUndergroundWaterBlock(ClientWorld world, BlockPos candidate) {
+        if (!isUndergroundWaterBlock(world, candidate)) {
+            return false;
+        }
+        BlockPos key = candidate.toImmutable();
+        long expiryTick = WorldHelper.getTicks() + UNDERGROUND_WATER_BLACKLIST_DURATION_TICKS;
+        Long existing = undergroundWaterBlacklist.get(key);
+        if (existing == null || existing < expiryTick) {
+            undergroundWaterBlacklist.put(key, expiryTick);
+            Debug.logInternal("Blacklisting underground water path node at " + key);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isUndergroundWaterBlock(ClientWorld world, BlockPos pos) {
+        if (!world.isChunkLoaded(pos.getX() >> 4, pos.getZ() >> 4)) {
+            return false;
+        }
+        if (!world.getFluidState(pos).isIn(FluidTags.WATER)) {
+            return false;
+        }
+        return !WorldHelper.isSkylightVisible(pos, 1, SKY_SCAN_VERTICAL);
+    }
+
+    private void pruneExpiredUndergroundWaterEntries() {
+        long now = WorldHelper.getTicks();
+        Iterator<Map.Entry<BlockPos, Long>> iterator = undergroundWaterBlacklist.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<BlockPos, Long> entry = iterator.next();
+            if (entry.getValue() <= now) {
+                iterator.remove();
+            }
+        }
+    }
+
+    private boolean shouldIgnoreUndergroundWaterForTask(AltoClef mod) {
+        if (mod.getUserTaskChain() == null) {
+            return false;
+        }
+        Task current = mod.getUserTaskChain().getCurrentTask();
+        if (current == null) {
+            return false;
+        }
+        return current.thisOrChildSatisfies(task -> task instanceof CollectBucketLiquidTask);
     }
 }

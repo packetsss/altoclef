@@ -307,6 +307,10 @@ public class EntityTracker extends Tracker {
         entityBlacklist.blackListItem(mod, entity, 3);
     }
 
+    public void forceEntityUnreachable(Entity entity) {
+        entityBlacklist.forceUnreachable(entity);
+    }
+
     /**
      * Whether we have decided that this entity is unreachable.
      */

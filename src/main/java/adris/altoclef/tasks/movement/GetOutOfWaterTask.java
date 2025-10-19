@@ -2,6 +2,7 @@ package adris.altoclef.tasks.movement;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
+import adris.altoclef.tasks.movement.PickupDroppedItemTask;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.helpers.LookHelper;
 import adris.altoclef.util.helpers.StorageHelper;
@@ -13,6 +14,7 @@ import baritone.pathing.movement.MovementHelper;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
+import net.minecraft.entity.ItemEntity;
 import net.minecraft.item.Item;
 import net.minecraft.registry.tag.FluidTags;
 import net.minecraft.util.math.BlockPos;
@@ -328,7 +330,11 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
         }
         if (!merged) {
             ACTIVE_WATER_AVOID_REGIONS.add(new WaterAvoidRegion(anchor.toImmutable(), blocked, expireTick, world.getSeaLevel()));
+            Debug.logMessage(String.format("[GetOutOfWater] Registered new water avoidance region at %s (%d nodes, ttl=%ds)", anchor.toShortString(), blocked.size(), (durationTicks / 20)));
+        } else {
+            Debug.logMessage(String.format("[GetOutOfWater] Expanded water avoidance region near %s (%d nodes, ttl=%ds)", anchor.toShortString(), blocked.size(), (durationTicks / 20)));
         }
+        blacklistWaterloggedDrops(mod, world, blocked, durationTicks / 20);
         return true;
     }
 
@@ -372,6 +378,30 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
             targetAnchor = mod.getPlayer().getBlockPos();
         }
         registerWaterAvoidanceForCurrentStuck(mod, targetAnchor, true);
+    }
+
+    private void blacklistWaterloggedDrops(AltoClef mod, ClientWorld world, Set<BlockPos> blockedPositions, long durationSeconds) {
+        if (blockedPositions.isEmpty() || mod.getEntityTracker() == null) {
+            return;
+        }
+        for (ItemEntity drop : mod.getEntityTracker().getDroppedItems()) {
+            if (drop == null || !drop.isAlive()) {
+                continue;
+            }
+            BlockPos dropPos = drop.getBlockPos();
+            if (dropPos.getY() >= world.getSeaLevel()) {
+                continue;
+            }
+            if (!blockedPositions.contains(dropPos)) {
+                continue;
+            }
+            if (!world.getFluidState(dropPos).isIn(FluidTags.WATER) && !world.getFluidState(dropPos.down()).isIn(FluidTags.WATER)) {
+                continue;
+            }
+            mod.getEntityTracker().forceEntityUnreachable(drop);
+            PickupDroppedItemTask.ignoreItemPickup(drop.getStack(), drop.getPos(), 20 * 60);
+            Debug.logMessage(String.format("[GetOutOfWater] Blacklisting submerged drop %s at %s for %ds", drop.getStack().getItem().getTranslationKey(), dropPos.toShortString(), durationSeconds));
+        }
     }
 
     private static class WaterAvoidRegion {

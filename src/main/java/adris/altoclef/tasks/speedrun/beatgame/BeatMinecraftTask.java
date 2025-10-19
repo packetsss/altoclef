@@ -1432,9 +1432,6 @@ public class BeatMinecraftTask extends Task {
     }
 
     private boolean shouldAllowWaterBridge(int availableThrowawayBlocks) {
-        if (!isPlayerUndergroundContext) {
-            return false;
-        }
         if (mod.getWorld() == null || mod.getPlayer() == null) {
             return false;
         }

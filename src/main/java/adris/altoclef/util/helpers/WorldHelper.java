@@ -470,6 +470,29 @@ public interface WorldHelper {
         return 0;
     }
 
+    static boolean isSkylightVisible(BlockPos pos) {
+        return isSkylightVisible(pos, 0, 0);
+    }
+
+    static boolean isSkylightVisible(BlockPos pos, int horizontalRadius, int verticalSamples) {
+        ClientWorld world = AltoClef.getInstance().getWorld();
+        if (world == null || pos == null) {
+            return false;
+        }
+        for (int dx = -horizontalRadius; dx <= horizontalRadius; dx++) {
+            for (int dz = -horizontalRadius; dz <= horizontalRadius; dz++) {
+                BlockPos column = pos.add(dx, 0, dz);
+                for (int dy = 0; dy <= verticalSamples; dy++) {
+                    BlockPos sample = column.up(dy);
+                    if (world.isSkyVisible(sample)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     static boolean isVulnerable() {
         ClientPlayerEntity player = AltoClef.getInstance().getPlayer();
 

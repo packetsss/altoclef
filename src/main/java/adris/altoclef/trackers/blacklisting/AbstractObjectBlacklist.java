@@ -47,6 +47,19 @@ public abstract class AbstractObjectBlacklist<T> {
         entries.remove(item);
     }
 
+    public void forceUnreachable(T item) {
+        BlacklistEntry entry = entries.computeIfAbsent(item, key -> {
+            BlacklistEntry created = new BlacklistEntry();
+            created.bestDistanceSq = Double.POSITIVE_INFINITY;
+            created.bestTool = MiningRequirement.HAND;
+            created.numberOfFailuresAllowed = 0;
+            created.numberOfFailures = 0;
+            return created;
+        });
+        entry.numberOfFailuresAllowed = 0;
+        entry.numberOfFailures = entry.numberOfFailuresAllowed + 1;
+    }
+
     public boolean unreachable(T item) {
         if (entries.containsKey(item)) {
             BlacklistEntry entry = entries.get(item);
