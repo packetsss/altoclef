@@ -14,9 +14,7 @@ import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.util.math.BlockPos;
 
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -38,8 +36,6 @@ public class LocateStructureCommandHelper implements AutoCloseable {
             "only players may use this command"
     };
 
-    private static final Map<CacheKey, CachedLocate> CACHE = new ConcurrentHashMap<>();
-
     private final AltoClef mod;
     private final String structureId;
     private final String structureIdLower;
@@ -48,12 +44,12 @@ public class LocateStructureCommandHelper implements AutoCloseable {
     private final TimerGame retryTimer;
     private final TimerGame responseTimer;
     private final Subscription<ChatMessageEvent> subscription;
-    private final CacheKey cacheKey;
 
     private boolean awaitingResponse;
     private boolean unsupported;
     private BlockPos locatedPos;
     private String lastMessage;
+    private Dimension lastTickDimension;
 
     public LocateStructureCommandHelper(AltoClef mod,
                                         String structureId,
@@ -69,16 +65,9 @@ public class LocateStructureCommandHelper implements AutoCloseable {
         this.retryTimer = new TimerGame(retryIntervalSeconds);
         this.responseTimer = new TimerGame(responseTimeoutSeconds);
         this.subscription = EventBus.subscribe(ChatMessageEvent.class, this::handleChatMessage);
-        this.cacheKey = new CacheKey(this.structureIdLower, this.requiredDimension);
+        this.lastTickDimension = null;
 
-        CachedLocate cached = CACHE.get(cacheKey);
-        if (cached != null) {
-            locatedPos = cached.pos();
-            retryTimer.reset();
-            Debug.logInternal("[LocateStructure] Using cached location for " + structureId + " at " + locatedPos.toShortString());
-        } else {
-            retryTimer.forceElapse();
-        }
+        retryTimer.forceElapse();
         responseTimer.forceElapse();
     }
 
@@ -91,10 +80,24 @@ public class LocateStructureCommandHelper implements AutoCloseable {
             return;
         }
 
+        Dimension currentDimension = WorldHelper.getCurrentDimension();
         if (requiredDimension != null && WorldHelper.getCurrentDimension() != requiredDimension) {
             awaitingResponse = false;
+            lastTickDimension = currentDimension;
             return;
         }
+
+        if (requiredDimension != null) {
+            if (lastTickDimension != requiredDimension && currentDimension == requiredDimension) {
+                if (locatedPos != null) {
+                    Debug.logInternal("[LocateStructure] Clearing stored " + structureId + " location due to dimension re-entry.");
+                }
+                locatedPos = null;
+                awaitingResponse = false;
+                retryTimer.forceElapse();
+            }
+        }
+        lastTickDimension = currentDimension;
 
         if (awaitingResponse) {
             if (responseTimer.elapsed()) {
@@ -130,7 +133,6 @@ public class LocateStructureCommandHelper implements AutoCloseable {
     public void invalidateLocatedPosition() {
         locatedPos = null;
         retryTimer.forceElapse();
-        CACHE.remove(cacheKey);
     }
 
     /**
@@ -198,7 +200,6 @@ public class LocateStructureCommandHelper implements AutoCloseable {
             int z = Integer.parseInt(primaryMatcher.group(3));
             int y = determineY(yCapture);
             locatedPos = new BlockPos(x, y, z);
-            CACHE.put(cacheKey, new CachedLocate(locatedPos, System.currentTimeMillis()));
             awaitingResponse = false;
             Debug.logMessage("[LocateStructure] Located " + structureId + " at " + locatedPos.toShortString());
             return;
@@ -209,7 +210,6 @@ public class LocateStructureCommandHelper implements AutoCloseable {
             int z = Integer.parseInt(altMatcher.group(2));
             int y = determineY(null);
             locatedPos = new BlockPos(x, y, z);
-            CACHE.put(cacheKey, new CachedLocate(locatedPos, System.currentTimeMillis()));
             awaitingResponse = false;
             Debug.logMessage("[LocateStructure] Located (alt format) " + structureId + " at " + locatedPos.toShortString());
         }
@@ -232,11 +232,5 @@ public class LocateStructureCommandHelper implements AutoCloseable {
     @Override
     public void close() {
         EventBus.unsubscribe(subscription);
-    }
-
-    private record CacheKey(String structureIdLower, Dimension dimension) {
-    }
-
-    private record CachedLocate(BlockPos pos, long timestamp) {
     }
 }
