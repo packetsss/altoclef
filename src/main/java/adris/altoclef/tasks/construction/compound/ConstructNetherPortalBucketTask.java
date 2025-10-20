@@ -101,6 +101,9 @@ public class ConstructNetherPortalBucketTask extends Task {
         AltoClef mod = AltoClef.getInstance();
         mod.getBehaviour().push();
 
+        // Encourage Baritone to scaffold freely around the portal so water pockets or drops don't stall pathing.
+        mod.getBehaviour().setBlockPlacePenalty(0);
+
         // Avoid breaking portal frame if we're obsidian.
         // Also avoid placing on the lava + water
         // Also avoid breaking the cast frame
