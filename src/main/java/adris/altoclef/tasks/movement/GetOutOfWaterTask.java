@@ -48,7 +48,7 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
     private Vec3d stallAnchorPos = null;
     private long stallAnchorTick = -1;
     private long lastStallLogTick = -1;
-    private static final long STALL_DETECTION_TICKS = 12 * 20;
+    public static final long STALL_DETECTION_TICKS = 12 * 20;
     private static final long STALL_LOG_COOLDOWN_TICKS = 35 * 20;
     private static final double STALL_DISTANCE_THRESHOLD_SQ = 1.25 * 1.25;
     private int dryTicks = 0;

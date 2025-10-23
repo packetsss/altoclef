@@ -31,6 +31,7 @@ import adris.altoclef.ui.MessageSender;
 import adris.altoclef.util.helpers.InputHelper;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.WorldHelper;
+import adris.altoclef.telemetry.BaritoneLogManager;
 import adris.altoclef.telemetry.DeathLogManager;
 import adris.altoclef.telemetry.StuckLogManager;
 import baritone.Baritone;
@@ -102,6 +103,7 @@ public class AltoClef implements ModInitializer {
     private DeathLogManager deathLogManager;
     private StuckLogManager stuckLogManager;
     private TaskPersistenceManager taskPersistenceManager;
+    private BaritoneLogManager baritoneLogManager;
     private boolean componentsInitialized = false;
     private boolean autoStartTriggered = false;
     private boolean forcedInitializationLogged = false;
@@ -117,10 +119,17 @@ public class AltoClef implements ModInitializer {
     private long idleMonitorAnchorTick = -1;
     private long lastIdleLogTick = -1;
     private long smeltingSuppressionExpiryTick = -1;
+    private boolean idleAggressivePathingActive = false;
+    private double idleAggressiveBaselineCostHeuristic = Double.NaN;
+    private long idleAggressiveExpiryTick = -1;
+    private Vec3d idleAggressiveAnchorPos = null;
     private static final int IDLE_STALL_TICKS = 12 * 20;
     private static final int IDLE_STALL_COOLDOWN_TICKS = 30 * 20;
     private static final int SMELTING_SUPPRESSION_GRACE_TICKS = 8 * 20;
     private static final double IDLE_STALL_DISTANCE_SQ = 1.25 * 1.25;
+    private static final double IDLE_STALL_HEURISTIC_BOOST = 11.0;
+    private static final int IDLE_STALL_HEURISTIC_DURATION_TICKS = 12 * 20;
+    private static final double IDLE_STALL_RECOVERY_DISTANCE_SQ = 4.0;
     private static final Set<String> SMELTING_TASK_CLASSES = Set.of(
         "adris.altoclef.tasks.container.SmeltInFurnaceTask",
         "adris.altoclef.tasks.container.SmeltInSmokerTask",
@@ -170,6 +179,7 @@ public class AltoClef implements ModInitializer {
         initializeBaritoneSettings();
 
     initializeTelemetrySession();
+    baritoneLogManager = new BaritoneLogManager(this);
 
         // Central Managers
     commandExecutor = new CommandExecutor(this);
@@ -597,6 +607,10 @@ public class AltoClef implements ModInitializer {
         return taskPersistenceManager;
     }
 
+    public BaritoneLogManager getBaritoneLogManager() {
+        return baritoneLogManager;
+    }
+
     public Path getTelemetrySessionDir() {
         if (telemetrySessionDir == null) {
             initializeTelemetrySession();
@@ -823,6 +837,7 @@ public class AltoClef implements ModInitializer {
         }
 
         Vec3d currentPos = player.getPos();
+        updateIdleStallRecoveryState(currentPos, currentTick);
         if (idleMonitorAnchorPos == null) {
             idleMonitorAnchorPos = currentPos;
             idleMonitorAnchorTick = currentTick;
@@ -848,6 +863,7 @@ public class AltoClef implements ModInitializer {
             payload.put("current_pos", vectorMap(currentPos));
             payload.put("runner_status", taskRunner != null ? taskRunner.statusReport : "<none>");
             stuckLogManager.recordEvent("PlayerIdleStall", payload);
+            triggerIdleStallRecovery(currentPos, currentTick);
             lastIdleLogTick = currentTick;
             idleMonitorAnchorPos = currentPos;
             idleMonitorAnchorTick = currentTick;
@@ -857,6 +873,68 @@ public class AltoClef implements ModInitializer {
     private void resetIdleMovementTelemetry() {
         idleMonitorAnchorPos = null;
         idleMonitorAnchorTick = -1;
+        deactivateIdleStallRecovery("reset");
+    }
+
+    private void updateIdleStallRecoveryState(Vec3d currentPos, long currentTick) {
+        if (!idleAggressivePathingActive) {
+            return;
+        }
+        boolean expired = idleAggressiveExpiryTick >= 0 && currentTick >= idleAggressiveExpiryTick;
+        boolean movedEnough = idleAggressiveAnchorPos != null && currentPos != null
+                && idleAggressiveAnchorPos.squaredDistanceTo(currentPos) >= IDLE_STALL_RECOVERY_DISTANCE_SQ;
+        if (expired || movedEnough) {
+            String reason;
+            if (expired && movedEnough) {
+                reason = "expired+moved";
+            } else if (expired) {
+                reason = "expired";
+            } else {
+                reason = "movement";
+            }
+            deactivateIdleStallRecovery(reason);
+        }
+    }
+
+    private void triggerIdleStallRecovery(Vec3d anchorPos, long currentTick) {
+        Settings baritoneSettings = getClientBaritoneSettings();
+        double previous = baritoneSettings.costHeuristic.value;
+        if (!idleAggressivePathingActive) {
+            idleAggressiveBaselineCostHeuristic = previous;
+        }
+        double boosted = Math.max(previous, IDLE_STALL_HEURISTIC_BOOST);
+        if (!idleAggressivePathingActive || boosted != previous) {
+            Debug.logMessage(String.format(Locale.ROOT,
+                    "[IdleRecovery] Boosting Baritone costHeuristic %.3f -> %.3f for %.1fs",
+                    previous,
+                    boosted,
+                    IDLE_STALL_HEURISTIC_DURATION_TICKS / 20.0), false);
+        }
+        baritoneSettings.costHeuristic.value = boosted;
+        idleAggressivePathingActive = true;
+        idleAggressiveAnchorPos = anchorPos;
+        idleAggressiveExpiryTick = currentTick + IDLE_STALL_HEURISTIC_DURATION_TICKS;
+        if (getClientBaritone().getPathingBehavior().isPathing()) {
+            getClientBaritone().getPathingBehavior().cancelEverything();
+        }
+    }
+
+    private void deactivateIdleStallRecovery(String reason) {
+        if (idleAggressivePathingActive) {
+            Settings baritoneSettings = getClientBaritoneSettings();
+            double target = Double.isNaN(idleAggressiveBaselineCostHeuristic)
+                    ? baritoneSettings.costHeuristic.defaultValue
+                    : idleAggressiveBaselineCostHeuristic;
+            baritoneSettings.costHeuristic.value = target;
+            Debug.logMessage(String.format(Locale.ROOT,
+                    "[IdleRecovery] Restoring Baritone costHeuristic to %.3f (%s)",
+                    target,
+                    reason), false);
+        }
+        idleAggressivePathingActive = false;
+        idleAggressiveBaselineCostHeuristic = Double.NaN;
+        idleAggressiveExpiryTick = -1;
+        idleAggressiveAnchorPos = null;
     }
 
     private boolean suppressIdleTelemetry(long currentTick) {

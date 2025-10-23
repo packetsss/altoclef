@@ -182,6 +182,7 @@ public class BeatMinecraftTask extends Task {
     private GetRidOfExtraWaterBucketTask getRidOfExtraWaterBucketTask = null;
     private int repeated = 0;
     private boolean gettingPearls = false;
+    private boolean gettingRods = false;
     private SafeNetherPortalTask safeNetherPortalTask;
     private boolean escaped = false;
     private boolean gotToFortress = false;
@@ -1091,6 +1092,9 @@ public class BeatMinecraftTask extends Task {
         mod.getExtraBaritoneSettings().canWalkOnEndPortal(false);
 
         mod.getBehaviour().pop();
+
+    gettingPearls = false;
+    gettingRods = false;
 
         Debug.logInternal("Stopped onStop method");
         Debug.logInternal("canWalkOnEndPortal set to false");
@@ -2744,6 +2748,13 @@ public class BeatMinecraftTask extends Task {
         boolean needsBlazePowder = eyeCount + blazePowderCount < targetEyes;
         boolean needsEnderPearls = mod.getItemStorage().getItemCount(Items.ENDER_PEARL) < enderPearlTarget;
 
+        if (!needsEnderPearls) {
+            gettingPearls = false;
+        }
+        if (!needsBlazeRods) {
+            gettingRods = false;
+        }
+
         if (needsBlazePowder && !needsBlazeRods) {
             // We have enough blaze rods.
             setDebugState("Crafting blaze powder");
@@ -2963,26 +2974,45 @@ public class BeatMinecraftTask extends Task {
                     }
                 });
 
+                boolean shouldGetRods = needsBlazeRods && (gettingRods || (!gettingPearls && ((rodDistance < pearlDistance && !hasRods) || !needsEnderPearls)));
+                boolean shouldGetPearls = needsEnderPearls && (gettingPearls || (!shouldGetRods && !gettingRods));
+
                 if (pearlDistance == Double.POSITIVE_INFINITY && rodDistance == Double.POSITIVE_INFINITY) {
-                    if (!needsEnderPearls && locatedFortress.isPresent()) {
+                    if (shouldGetRods && locatedFortress.isPresent()) {
                         BlockPos target = locatedFortress.get();
                         setDebugState("Locate fortress at " + target.toShortString());
                         return new GetToXZTask(target.getX(), target.getZ(), Dimension.NETHER);
                     }
-                    if (locatedWarped.isPresent()) {
+                    if (shouldGetPearls && locatedWarped.isPresent()) {
                         BlockPos target = locatedWarped.get();
                         setDebugState("Locate warped forest at " + target.toShortString());
                         return new GetToXZTask(target.getX(), target.getZ(), Dimension.NETHER);
                     }
-                    if (locatedFortress.isPresent()) {
-                        BlockPos target = locatedFortress.get();
-                        setDebugState("Locate fortress at " + target.toShortString());
-                        return new GetToXZTask(target.getX(), target.getZ(), Dimension.NETHER);
+                    if (!shouldGetRods && !shouldGetPearls) {
+                        if (!needsEnderPearls && locatedFortress.isPresent()) {
+                            BlockPos target = locatedFortress.get();
+                            setDebugState("Locate fortress at " + target.toShortString());
+                            return new GetToXZTask(target.getX(), target.getZ(), Dimension.NETHER);
+                        }
+                        if (locatedWarped.isPresent()) {
+                            BlockPos target = locatedWarped.get();
+                            setDebugState("Locate warped forest at " + target.toShortString());
+                            return new GetToXZTask(target.getX(), target.getZ(), Dimension.NETHER);
+                        }
+                        if (locatedFortress.isPresent()) {
+                            BlockPos target = locatedFortress.get();
+                            setDebugState("Locate fortress at " + target.toShortString());
+                            return new GetToXZTask(target.getX(), target.getZ(), Dimension.NETHER);
+                        }
                     }
 
-                    if (!warpedForestLocator.isUnsupported()) {
+                    if (shouldGetRods && !fortressLocator.isUnsupported()) {
+                        setDebugState("Locating fortress via command...");
+                    } else if (shouldGetPearls && !warpedForestLocator.isUnsupported()) {
                         setDebugState("Locating warped forest biome...");
-                    } else if (!fortressLocator.isUnsupported()) {
+                    } else if (!shouldGetRods && !shouldGetPearls && !warpedForestLocator.isUnsupported()) {
+                        setDebugState("Locating warped forest biome...");
+                    } else if (!shouldGetRods && !shouldGetPearls && !fortressLocator.isUnsupported()) {
                         setDebugState("Locating fortress via command...");
                     } else {
                         setDebugState("Locate commands unsupported, wandering for structures");
@@ -2995,7 +3025,10 @@ public class BeatMinecraftTask extends Task {
                     return searchTask;
                 }
 
-                if ((rodDistance < pearlDistance && !hasRods && !gettingPearls) || !needsEnderPearls) {
+                if (shouldGetRods) {
+                    gettingRods = true;
+                    gettingPearls = false;
+
                     if (!gotToFortress) {
                         if (mod.getBlockScanner().anyFoundWithinDistance(5, Blocks.NETHER_BRICKS)) {
                             gotToFortress = true;
@@ -3032,7 +3065,6 @@ public class BeatMinecraftTask extends Task {
                                 }
                             }
 
-                            // 'isEqual' is fucking me up here, so I have to reset the task
                             if (resetFortressTask) {
                                 resetFortressTask = false;
                                 return null;
@@ -3047,7 +3079,6 @@ public class BeatMinecraftTask extends Task {
                             BlockPos p = mod.getBlockScanner().getNearestBlock(Blocks.NETHER_BRICKS).get();
                             int distance = (int) (mod.getPlayer().getPos().distanceTo(WorldHelper.toVec3d(p)) / 2);
                             if (cachedFortressTask != null) {
-                                // prevents from getting stuck in place
                                 distance = Math.min(cachedFortressTask.range - 1, distance);
                             }
                             if (distance < 0) {
@@ -3062,41 +3093,46 @@ public class BeatMinecraftTask extends Task {
                     return getBlazeRodsTask(mod, blazeRodTarget);
                 }
 
+                if (shouldGetPearls) {
+                    gettingPearls = true;
+                    gettingRods = false;
 
-                if (!mod.getBlockScanner().anyFound(Blocks.TWISTING_VINES, Blocks.TWISTING_VINES_PLANT, Blocks.WARPED_HYPHAE, Blocks.WARPED_NYLIUM)) {
-                    if (locatedWarped.isPresent()) {
-                        BlockPos target = locatedWarped.get();
-                        setDebugState("Moving to located warped forest at " + target.toShortString());
-                        return new GetToXZTask(target.getX(), target.getZ(), Dimension.NETHER);
-                    }
-                    if (!warpedForestLocator.isUnsupported()) {
-                        setDebugState("Searching warped forest (locate pending)");
-                    }
-                    return new TimeoutWanderTask();
-                }
-
-                if (!gotToBiome && (biomePos == null || !WorldHelper.inRangeXZ(mod.getPlayer(), biomePos, 30) || !mod.getClientBaritone().getPathingBehavior().isSafeToCancel())) {
-                    if (biomePos != null) {
-                        setDebugState("Going to biome");
-
-                        return new GetWithinRangeOfBlockTask(biomePos, 20);
-                    } else {
-                        gettingPearls = true;
-                        setDebugState("Getting Ender Pearls");
-                        Optional<BlockPos> closestBlock = mod.getBlockScanner().getNearestBlock(Blocks.TWISTING_VINES, Blocks.TWISTING_VINES_PLANT, Blocks.WARPED_HYPHAE, Blocks.WARPED_NYLIUM);
-
-                        if (closestBlock.isPresent()) {
-                            biomePos = closestBlock.get();
-                        } else {
-                            setDebugState("biome not found, wandering");
+                    if (!mod.getBlockScanner().anyFound(Blocks.TWISTING_VINES, Blocks.TWISTING_VINES_PLANT, Blocks.WARPED_HYPHAE, Blocks.WARPED_NYLIUM)) {
+                        if (locatedWarped.isPresent()) {
+                            BlockPos target = locatedWarped.get();
+                            setDebugState("Moving to located warped forest at " + target.toShortString());
+                            return new GetToXZTask(target.getX(), target.getZ(), Dimension.NETHER);
+                        }
+                        if (!warpedForestLocator.isUnsupported()) {
+                            setDebugState("Searching warped forest (locate pending)");
                         }
                         return new TimeoutWanderTask();
                     }
-                } else {
-                    gotToBiome = true;
+
+                    if (!gotToBiome && (biomePos == null || !WorldHelper.inRangeXZ(mod.getPlayer(), biomePos, 30) || !mod.getClientBaritone().getPathingBehavior().isSafeToCancel())) {
+                        if (biomePos != null) {
+                            setDebugState("Going to biome");
+
+                            return new GetWithinRangeOfBlockTask(biomePos, 20);
+                        } else {
+                            setDebugState("Getting Ender Pearls");
+                            Optional<BlockPos> closestBlock = mod.getBlockScanner().getNearestBlock(Blocks.TWISTING_VINES, Blocks.TWISTING_VINES_PLANT, Blocks.WARPED_HYPHAE, Blocks.WARPED_NYLIUM);
+
+                            if (closestBlock.isPresent()) {
+                                biomePos = closestBlock.get();
+                            } else {
+                                setDebugState("biome not found, wandering");
+                            }
+                            return new TimeoutWanderTask();
+                        }
+                    } else {
+                        gotToBiome = true;
+                    }
+
+                    return getEnderPearlTask(mod, enderPearlTarget);
                 }
 
-                return getEnderPearlTask(mod, enderPearlTarget);
+                return null;
 
             }
             case END -> throw new UnsupportedOperationException("You're in the end. Don't collect eyes here.");

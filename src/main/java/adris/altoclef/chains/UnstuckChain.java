@@ -7,6 +7,7 @@ import adris.altoclef.multiversion.versionedfields.Blocks;
 import adris.altoclef.tasks.construction.DestroyBlockTask;
 import adris.altoclef.tasks.movement.GetOutOfWaterTask;
 import adris.altoclef.tasks.movement.SafeRandomShimmyTask;
+import adris.altoclef.tasks.movement.WaterRecoveryTask;
 import adris.altoclef.tasksystem.TaskRunner;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.WorldHelper;
@@ -49,6 +50,11 @@ public class UnstuckChain extends SingleTaskChain {
     private long priorityHoldStartTick = -1;
     private Vec3d priorityAnchor = null;
     private boolean priorityGiveupLogged = false;
+    private boolean waterRecoveryArmed = false;
+    private long waterRecoveryArmTick = -1;
+    private boolean generalRecoveryArmed = false;
+    private long generalRecoveryArmTick = -1;
+    private String generalRecoverySourceKey = null;
 
     private static final int IDLE_SAMPLE_SIZE = 220;
     private static final double IDLE_DISPLACEMENT_THRESHOLD = 0.6;
@@ -66,6 +72,8 @@ public class UnstuckChain extends SingleTaskChain {
     private static final double UNSTUCK_PRIORITY_DECAY_RATE = 2.0;
     private static final double UNSTUCK_PRIORITY_GIVEUP_SECONDS = 60.0;
     private static final double UNSTUCK_PRIORITY_RESET_DISTANCE_SQ = 2.25;
+    private static final long WATER_RECOVERY_TRIGGER_TICKS = GetOutOfWaterTask.STALL_DETECTION_TICKS * 3;
+    private static final long DEFAULT_STUCK_EVENT_WINDOW_TICKS = 12 * 20;
 
     public UnstuckChain(TaskRunner runner) {
         super(runner);
@@ -147,10 +155,12 @@ public class UnstuckChain extends SingleTaskChain {
         if (!nearbyWater.isEmpty()) {
             payload.put("nearby_water", nearbyWater);
         }
-        logStuckEvent("WaterLimitedMovement", 200, payload);
+    logStuckEvent("WaterLimitedMovement", 200, GetOutOfWaterTask.STALL_DETECTION_TICKS, payload);
         posHistory.clear();
         isProbablyStuck = true;
         setTask(new GetOutOfWaterTask());
+        waterRecoveryArmed = true;
+        waterRecoveryArmTick = WorldHelper.getTicks() + WATER_RECOVERY_TRIGGER_TICKS;
     }
 
     private void checkStuckInPowderedSnow() {
@@ -236,7 +246,7 @@ public class UnstuckChain extends SingleTaskChain {
             payload.put("pos", vectorMap(newest));
             payload.put("dimension", mod.getWorld() != null ? mod.getWorld().getRegistryKey().getValue().toString() : "<unknown>");
             payload.put("sample_count", IDLE_SAMPLE_SIZE);
-            if (logStuckEvent("IdleStall", IDLE_LOG_COOLDOWN_TICKS, payload)) {
+            if (logStuckEvent("IdleStall", IDLE_LOG_COOLDOWN_TICKS, IDLE_SAMPLE_SIZE, payload)) {
                 triggerShimmy();
             }
         }
@@ -311,7 +321,7 @@ public class UnstuckChain extends SingleTaskChain {
                 : "<none>");
         payload.put("runner_status", mod.getTaskRunner().statusReport.trim());
         payload.put("dimension", mod.getWorld() != null ? mod.getWorld().getRegistryKey().getValue().toString() : "<unknown>");
-        if (logStuckEvent("Oscillation", OSC_LOG_COOLDOWN_TICKS, payload)) {
+        if (logStuckEvent("Oscillation", OSC_LOG_COOLDOWN_TICKS, OSC_SAMPLE_SIZE, payload)) {
             triggerShimmy();
         }
     }
@@ -343,7 +353,7 @@ public class UnstuckChain extends SingleTaskChain {
             payload.put("saturation", round(saturation, 2));
             payload.put("pos", posInfo);
             payload.put("dimension", dimensionName);
-            logStuckEvent("EatingStall", 200, payload);
+            logStuckEvent("EatingStall", 200, 7 * 20L, payload);
             foodChain.shouldStop(true);
 
             eatingTicks = 0;
@@ -352,7 +362,7 @@ public class UnstuckChain extends SingleTaskChain {
         }
     }
 
-    private boolean logStuckEvent(String key, long cooldownTicks, Map<String, Object> details) {
+    private boolean logStuckEvent(String key, long cooldownTicks, long escalationBaseTicks, Map<String, Object> details) {
         AltoClef mod = AltoClef.getInstance();
         ClientWorld world = mod.getWorld();
         long now = world != null ? world.getTime() : WorldHelper.getTicks();
@@ -368,11 +378,40 @@ public class UnstuckChain extends SingleTaskChain {
         if (mod.getStuckLogManager() != null) {
             mod.getStuckLogManager().recordEvent(key, details);
         }
+        if (escalationBaseTicks > 0) {
+            armGeneralRecovery(key, escalationBaseTicks);
+        }
         return true;
     }
 
     private boolean logStuckEvent(String key, Map<String, Object> details) {
-        return logStuckEvent(key, 40, details);
+        return logStuckEvent(key, 40, DEFAULT_STUCK_EVENT_WINDOW_TICKS, details);
+    }
+
+    private boolean logStuckEvent(String key, long cooldownTicks, Map<String, Object> details) {
+        return logStuckEvent(key, cooldownTicks, DEFAULT_STUCK_EVENT_WINDOW_TICKS, details);
+    }
+
+    private void armGeneralRecovery(String sourceKey, long baseTicks) {
+        if (baseTicks <= 0) {
+            return;
+        }
+        if (mainTask instanceof WaterRecoveryTask) {
+            return;
+        }
+        long targetTick = WorldHelper.getTicks() + (baseTicks * 3);
+        if (!generalRecoveryArmed || targetTick < generalRecoveryArmTick || (generalRecoverySourceKey != null && !generalRecoverySourceKey.equals(sourceKey))) {
+            generalRecoveryArmed = true;
+            generalRecoveryArmTick = targetTick;
+            generalRecoverySourceKey = sourceKey;
+            Debug.logInternal(String.format(Locale.ROOT, "[Unstuck] Armed WaterRecoveryTask from %s after %.1fs", sourceKey, (baseTicks * 3) / 20.0));
+        }
+    }
+
+    private void clearGeneralRecovery() {
+        generalRecoveryArmed = false;
+        generalRecoveryArmTick = -1;
+        generalRecoverySourceKey = null;
     }
 
     private static Map<String, Object> vectorMap(Vec3d vec) {
@@ -518,7 +557,54 @@ public class UnstuckChain extends SingleTaskChain {
 
     @Override
     public float getPriority() {
+        long currentTick = WorldHelper.getTicks();
+        if (!(mainTask instanceof WaterRecoveryTask) && generalRecoveryArmed && generalRecoveryArmTick >= 0 && currentTick >= generalRecoveryArmTick) {
+            boolean stillStuck = (mainTask != null && mainTask.isActive()) || isProbablyStuck || startedShimmying;
+            if (stillStuck) {
+                Debug.logMessage(String.format(Locale.ROOT,
+                        "[Unstuck] Escalating to WaterRecoveryTask after persistent log %s", generalRecoverySourceKey != null ? generalRecoverySourceKey : "<unknown>"), false);
+                setTask(new WaterRecoveryTask());
+                clearGeneralRecovery();
+                waterRecoveryArmed = false;
+                waterRecoveryArmTick = -1;
+                return 55;
+            }
+            clearGeneralRecovery();
+        }
+
+        if (mainTask instanceof WaterRecoveryTask) {
+            if (mainTask.isFinished() || !mainTask.isActive()) {
+                Debug.logInternal("[Unstuck] Clearing completed WaterRecoveryTask during priority evaluation.");
+                setTask(null);
+                waterTaskLogged = false;
+                startedShimmying = false;
+                isProbablyStuck = false;
+                posHistory.clear();
+                clearGeneralRecovery();
+            } else {
+                if (!waterTaskLogged) {
+                    Debug.logMessage("[Unstuck] Running WaterRecoveryTask", false);
+                    waterTaskLogged = true;
+                }
+                waterRecoveryArmed = false;
+                clearGeneralRecovery();
+                return 55;
+            }
+        }
+
         if (mainTask instanceof GetOutOfWaterTask) {
+            if (waterRecoveryArmed && waterRecoveryArmTick >= 0 && currentTick >= waterRecoveryArmTick) {
+                if (AltoClef.getInstance().getPlayer() != null && AltoClef.getInstance().getPlayer().isTouchingWater()) {
+                    Debug.logMessage("[Unstuck] Escalating to WaterRecoveryTask after prolonged water stall", false);
+                    setTask(new WaterRecoveryTask());
+                }
+                waterRecoveryArmed = false;
+                waterRecoveryArmTick = -1;
+            }
+            if (mainTask instanceof WaterRecoveryTask) {
+                // Escalation replaced the task, re-evaluate priority on next call.
+                return getPriority();
+            }
             if (mainTask.isFinished() || !mainTask.isActive()) {
                 Debug.logInternal("[Unstuck] Clearing completed GetOutOfWaterTask during priority evaluation.");
                 setTask(null);
@@ -526,6 +612,9 @@ public class UnstuckChain extends SingleTaskChain {
                 startedShimmying = false;
                 isProbablyStuck = false;
                 posHistory.clear();
+                waterRecoveryArmed = false;
+                waterRecoveryArmTick = -1;
+                clearGeneralRecovery();
             } else {
                 if (!waterTaskLogged) {
                     Debug.logMessage("[Unstuck] Continuing GetOutOfWaterTask", false);
@@ -576,6 +665,9 @@ public class UnstuckChain extends SingleTaskChain {
         }
         updatePriorityHoldState(false, currentPos);
         startedShimmying = false;
+        waterRecoveryArmed = false;
+        waterRecoveryArmTick = -1;
+        clearGeneralRecovery();
 
         return Float.NEGATIVE_INFINITY;
     }
@@ -595,6 +687,9 @@ public class UnstuckChain extends SingleTaskChain {
         isProbablyStuck = false;
         waterTaskLogged = false;
         posHistory.clear();
+        waterRecoveryArmed = false;
+        waterRecoveryArmTick = -1;
+        clearGeneralRecovery();
     }
 
     @Override
