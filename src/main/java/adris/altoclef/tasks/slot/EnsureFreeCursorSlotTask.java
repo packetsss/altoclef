@@ -12,6 +12,10 @@ import java.util.Optional;
 
 public class EnsureFreeCursorSlotTask extends Task {
 
+    private static final int DROP_RETRY_DELAY_TICKS = 5;
+
+    private int _pendingDropDelay;
+
     @Override
     protected void onStart() {
         // YEET
@@ -26,25 +30,40 @@ public class EnsureFreeCursorSlotTask extends Task {
         if (!cursor.isEmpty()) {
             Optional<Slot> moveTo = mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursor, false);
             if (moveTo.isPresent()) {
+                _pendingDropDelay = 0;
                 setDebugState("Moving cursor stack back");
                 mod.getSlotHandler().clickSlot(moveTo.get(), 0, SlotActionType.PICKUP);
+                return null;
+            }
+            Optional<Slot> garbage = StorageHelper.getGarbageSlot(mod);
+            if (garbage.isPresent() && !ItemHelper.canThrowAwayStack(mod, cursor)) {
+                _pendingDropDelay = 0;
+                setDebugState("Picking up garbage");
+                mod.getSlotHandler().clickSlot(garbage.get(), 0, SlotActionType.PICKUP);
+                return null;
+            }
+            if (_pendingDropDelay > 0) {
+                setDebugState("Waiting before tossing cursor stack");
+                _pendingDropDelay--;
                 return null;
             }
             if (ItemHelper.canThrowAwayStack(mod, cursor)) {
                 setDebugState("Incompatible cursor stack, throwing");
                 mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, SlotActionType.PICKUP);
+                _pendingDropDelay = DROP_RETRY_DELAY_TICKS;
             } else {
-                Optional<Slot> garbage = StorageHelper.getGarbageSlot(mod);
                 if (garbage.isPresent()) {
-                    // Pick up garbage so we throw it out next frame
                     setDebugState("Picking up garbage");
                     mod.getSlotHandler().clickSlot(garbage.get(), 0, SlotActionType.PICKUP);
+                    _pendingDropDelay = DROP_RETRY_DELAY_TICKS;
                 } else {
                     mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, SlotActionType.PICKUP);
+                    _pendingDropDelay = DROP_RETRY_DELAY_TICKS;
                 }
             }
             return null;
         }
+        _pendingDropDelay = 0;
         return null;
     }
 

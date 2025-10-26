@@ -24,6 +24,7 @@ import adris.altoclef.tasks.speedrun.beatgame.prioritytask.prioritycalculators.S
 import adris.altoclef.tasks.speedrun.beatgame.prioritytask.tasks.*;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.trackers.EntityTracker;
+import adris.altoclef.trackers.PlacedContainerTracker;
 import adris.altoclef.trackers.storage.ItemStorageTracker;
 import adris.altoclef.util.*;
 import adris.altoclef.util.helpers.*;
@@ -1548,6 +1549,26 @@ public class BeatMinecraftTask extends Task {
         return currentReason;
     }
 
+    private void syncPlacedContainerQueue(Set<BlockPos> trackedPositions, Block block, String debugLabel) {
+        PlacedContainerTracker tracker = mod.getPlacedContainerTracker();
+        if (tracker == null) {
+            return;
+        }
+        for (BlockPos position : tracker.getPlacements(block)) {
+            BlockPos immutable = position.toImmutable();
+            if (trackedPositions.add(immutable)) {
+                Debug.logMessage(debugLabel, false);
+            }
+        }
+    }
+
+    private void releasePlacedContainer(Block block, BlockPos position) {
+        PlacedContainerTracker tracker = mod.getPlacedContainerTracker();
+        if (tracker != null) {
+            tracker.forgetPlacement(block, position);
+        }
+    }
+
     private void logCraftingPickupBlocked(String reason) {
         lastCraftingPickupBlockReason = updatePickupBlockReason(lastCraftingPickupBlockReason, "[Pickup Debug] Crafting table", reason);
     }
@@ -1571,6 +1592,7 @@ public class BeatMinecraftTask extends Task {
 
             if (dropImmediately) {
                 Debug.logMessage(label + " pickup queue released: inventory missing spare, removing " + pos, false);
+                releasePlacedContainer(targetBlock, pos);
                 iterator.remove();
                 mod.getBlockScanner().allowBlock(pos);
                 continue;
@@ -1582,6 +1604,7 @@ public class BeatMinecraftTask extends Task {
 
             if (!mod.getBlockScanner().isBlockAtPosition(pos, targetBlock)) {
                 Debug.logMessage(label + " pickup queue cleared: block no longer present at " + pos, false);
+                releasePlacedContainer(targetBlock, pos);
                 iterator.remove();
                 mod.getBlockScanner().allowBlock(pos);
             }
@@ -1761,6 +1784,7 @@ public class BeatMinecraftTask extends Task {
             }
             return false;
         };
+        syncPlacedContainerQueue(extraBlacklistedCraftingTables, Blocks.CRAFTING_TABLE, "Queueing placed crafting table for pickup.");
         List<BlockPos> craftingTables = mod.getBlockScanner().getKnownLocations(Blocks.CRAFTING_TABLE);
         for (BlockPos craftingTable : craftingTables) {
             if (mod.getWorld() == null) {
@@ -1773,14 +1797,6 @@ public class BeatMinecraftTask extends Task {
                 continue;
             }
             BlockPos immutableCraftingTable = craftingTable.toImmutable();
-            if (craftingTableCount < 64 && hasCraftingTableInInventory && !thisOrChildSatisfies(isCraftingTableTask) && !extraBlacklistedCraftingTables.contains(immutableCraftingTable) && !mod.getBlockScanner().isUnreachable(craftingTable)) {
-                if (mod.getPlayer() != null && craftingTable.isWithinDistance(mod.getPlayer().getPos(), 4.5)) {
-                    continue;
-                }
-                Debug.logMessage("Queueing extra crafting table for pickup.");
-                extraBlacklistedCraftingTables.add(immutableCraftingTable);
-
-            }
             if (!mod.getBlockScanner().isUnreachable(craftingTable)) {
                 BlockState craftingTablePosUp = mod.getWorld().getBlockState(craftingTable.up(2));
                 if (mod.getEntityTracker().entityFound(WitchEntity.class)) {
@@ -1799,6 +1815,7 @@ public class BeatMinecraftTask extends Task {
         }
         List<BlockPos> smokers = mod.getBlockScanner().getKnownLocations(Blocks.SMOKER);
 
+        syncPlacedContainerQueue(extraBlacklistedSmokers, Blocks.SMOKER, "Queueing placed smoker for pickup.");
         for (BlockPos smoker : smokers) {
             if (mod.getWorld() == null) {
                 continue;
@@ -1810,14 +1827,11 @@ public class BeatMinecraftTask extends Task {
                 continue;
             }
             BlockPos immutableSmoker = smoker.toImmutable();
-            if (smokerCount < 64 && hasSmokerInInventory && !extraBlacklistedSmokers.contains(immutableSmoker) && !mod.getBlockScanner().isUnreachable(smoker)) {
-                Debug.logMessage("Queueing extra smoker for pickup.");
-                extraBlacklistedSmokers.add(immutableSmoker);
-            }
         }
 
         List<BlockPos> furnaces = mod.getBlockScanner().getKnownLocations(Blocks.FURNACE);
 
+        syncPlacedContainerQueue(extraBlacklistedFurnaces, Blocks.FURNACE, "Queueing placed furnace for pickup.");
         for (BlockPos furnace : furnaces) {
             if (mod.getWorld() == null) {
                 continue;
@@ -1829,10 +1843,6 @@ public class BeatMinecraftTask extends Task {
                 continue;
             }
             BlockPos immutableFurnace = furnace.toImmutable();
-            if (furnaceCount < 64 && hasFurnaceInInventory && !extraBlacklistedFurnaces.contains(immutableFurnace) && !goToNetherTask.isActive() && !ranStrongholdLocator && !mod.getBlockScanner().isUnreachable(furnace)) {
-                Debug.logMessage("Queueing extra furnace for pickup.");
-                extraBlacklistedFurnaces.add(immutableFurnace);
-            }
         }
 
         List<BlockPos> logs = mod.getBlockScanner().getKnownLocations(ItemHelper.itemsToBlocks(ItemHelper.LOG));

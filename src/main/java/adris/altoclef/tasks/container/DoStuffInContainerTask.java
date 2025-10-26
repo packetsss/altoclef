@@ -103,6 +103,13 @@ public abstract class DoStuffInContainerTask extends Task {
             costToWalk = BaritoneHelper.calculateGenericHeuristic(currentPos, WorldHelper.toVec3d(nearest.get()));
         }
 
+        BlockPos placedPos = placeTask.getPlaced();
+        if (placedPos != null && mod.getWorld() != null && mod.getPlacedContainerTracker() != null) {
+            if (mod.getBlockScanner().isBlockAtPosition(placedPos, containerBlocks)) {
+                mod.getPlacedContainerTracker().registerPlacement(mod.getWorld().getBlockState(placedPos).getBlock(), placedPos);
+            }
+        }
+
         // Make a new container if going to the container is a pretty bad cost.
         // Also keep on making the container if we're stuck in some
         if (costToWalk > getCostToMakeNew(mod)) {

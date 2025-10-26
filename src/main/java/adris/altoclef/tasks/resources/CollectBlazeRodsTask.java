@@ -246,9 +246,6 @@ public class CollectBlazeRodsTask extends ResourceTask {
         BlockPos center = _foundBlazeSpawner;
         for (int dx = -SPAWNER_FLOOR_CLEAR_RADIUS; dx <= SPAWNER_FLOOR_CLEAR_RADIUS; dx++) {
             for (int dz = -SPAWNER_FLOOR_CLEAR_RADIUS; dz <= SPAWNER_FLOOR_CLEAR_RADIUS; dz++) {
-                if (dx == 0 && dz == 0) {
-                    continue;
-                }
                 BlockPos candidate = center.add(dx, -1, dz);
                 if (!mod.getChunkTracker().isChunkLoaded(candidate)) {
                     continue;

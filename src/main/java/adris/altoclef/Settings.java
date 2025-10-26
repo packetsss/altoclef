@@ -199,7 +199,7 @@ public class Settings implements IFailableConfigFile {
      * 6 works well for singleplayer
      * 4 works better on more restrictive multiplayer servers
      */
-    private float entityReachRange = 4;
+    private float entityReachRange = 6;
 
     /**
      * Before grabbing ANYTHING, get a pickaxe.
@@ -259,7 +259,7 @@ public class Settings implements IFailableConfigFile {
      * Baritone doesn't know how to move underwater so this should cause
      * no problems, but disable it if you want the bot to be able to sink.
      */
-    private boolean avoidDrowning = true;
+    private boolean avoidDrowning = false;
 
     /**
      * If enabled, the bot will close the open screen (furnace/crafting/chest/whatever) when the bot detects

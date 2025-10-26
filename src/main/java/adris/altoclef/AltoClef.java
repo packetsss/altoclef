@@ -90,6 +90,7 @@ public class AltoClef implements ModInitializer {
     private SimpleChunkTracker chunkTracker;
     private MiscBlockTracker miscBlockTracker;
     private CraftingRecipeTracker craftingRecipeTracker;
+    private PlacedContainerTracker placedContainerTracker;
     // Renderers
     private CommandStatusOverlay commandStatusOverlay;
     private AltoClefTickChart altoClefTickChart;
@@ -219,6 +220,7 @@ public class AltoClef implements ModInitializer {
         chunkTracker = new SimpleChunkTracker(this);
         miscBlockTracker = new MiscBlockTracker(this);
         craftingRecipeTracker = new CraftingRecipeTracker(trackerManager);
+    placedContainerTracker = new PlacedContainerTracker(trackerManager);
 
         // Renderers
         commandStatusOverlay = new CommandStatusOverlay();
@@ -524,6 +526,10 @@ public class AltoClef implements ModInitializer {
      */
     public CraftingRecipeTracker getCraftingRecipeTracker() {
         return craftingRecipeTracker;
+    }
+
+    public PlacedContainerTracker getPlacedContainerTracker() {
+        return placedContainerTracker;
     }
 
     /**
