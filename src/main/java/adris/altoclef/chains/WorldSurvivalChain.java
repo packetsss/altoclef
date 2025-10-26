@@ -2,6 +2,7 @@ package adris.altoclef.chains;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
+import adris.altoclef.Settings;
 import adris.altoclef.tasks.DoToClosestBlockTask;
 import adris.altoclef.tasks.InteractWithBlockTask;
 import adris.altoclef.tasks.construction.PutOutFireTask;
@@ -206,6 +207,12 @@ public class WorldSurvivalChain extends SingleTaskChain {
 
     private void updateUndergroundWaterAvoidance(AltoClef mod) {
         if (mod == null || mod.getWorld() == null || mod.getPlayer() == null) {
+            setAvoidUndergroundWater(false);
+            undergroundWaterBlacklist.clear();
+            return;
+        }
+        Settings settings = mod.getModSettings();
+        if (settings == null || !settings.shouldAvoidUndergroundWater()) {
             setAvoidUndergroundWater(false);
             undergroundWaterBlacklist.clear();
             return;

@@ -189,6 +189,12 @@ public class Settings implements IFailableConfigFile {
     private boolean avoidOceanBlocks = true;
 
     /**
+     * When underground with no skylight, avoid stepping on water nodes discovered while pathing.
+     * Disable this if you want Baritone to consider underground water paths as viable routes.
+     */
+    private boolean avoidUndergroundWater = false;
+
+    /**
      * How close we must be to attack/interact with an entity.
      * 6 works well for singleplayer
      * 4 works better on more restrictive multiplayer servers
@@ -434,6 +440,16 @@ public class Settings implements IFailableConfigFile {
      * Careful with this! If true, any item not in "importantItems" is liable to be thrown away.
      */
     private boolean throwAwayUnusedItems = true;
+
+    /**
+     * If true, the bot may discard beds beyond a configured reserve when freeing inventory space.
+     */
+    private boolean dropExcessBeds = true;
+
+    /**
+     * Maximum number of beds to keep before the extras are considered disposable. Set to -1 to keep all beds.
+     */
+    private int maxBedsToKeep = 8;
 
     /**
      * We will NEVER throw away these items.
@@ -702,6 +718,10 @@ public class Settings implements IFailableConfigFile {
         return avoidOceanBlocks;
     }
 
+    public boolean shouldAvoidUndergroundWater() {
+        return avoidUndergroundWater;
+    }
+
     public boolean isThrowaway(Item item) {
         return throwawayItems.contains(item);
     }
@@ -712,6 +732,14 @@ public class Settings implements IFailableConfigFile {
 
     public boolean shouldThrowawayUnusedItems() {
         return this.throwAwayUnusedItems;
+    }
+
+    public boolean shouldDropExcessBeds() {
+        return dropExcessBeds;
+    }
+
+    public int getMaxBedsToKeep() {
+        return maxBedsToKeep;
     }
 
     public int getReservedBuildingBlockCount() {

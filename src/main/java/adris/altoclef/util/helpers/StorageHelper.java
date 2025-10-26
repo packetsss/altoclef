@@ -2,6 +2,7 @@ package adris.altoclef.util.helpers;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
+import adris.altoclef.Settings;
 import adris.altoclef.TaskCatalogue;
 import adris.altoclef.mixins.AbstractFurnaceScreenHandlerAccessor;
 import adris.altoclef.multiversion.item.ItemVer;
@@ -333,6 +334,42 @@ public class StorageHelper {
                 });
             }
         }
+
+        Optional<Slot> excessBedSlot = getExcessBedSlot(mod);
+        if (excessBedSlot.isPresent()) {
+            return excessBedSlot;
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<Slot> getExcessBedSlot(AltoClef mod) {
+        Settings settings = mod.getModSettings();
+        if (settings == null || !settings.shouldDropExcessBeds()) {
+            return Optional.empty();
+        }
+
+        int limit = settings.getMaxBedsToKeep();
+        if (limit < 0) {
+            return Optional.empty();
+        }
+
+        int bedCount = mod.getItemStorage().getItemCount(ItemHelper.BED);
+        if (bedCount <= limit) {
+            return Optional.empty();
+        }
+
+        List<Slot> bedSlots = mod.getItemStorage().getSlotsWithItemPlayerInventory(false, ItemHelper.BED);
+        for (Slot slot : bedSlots) {
+            if (Slot.isCursor(slot)) {
+                continue;
+            }
+            ItemStack stack = StorageHelper.getItemStackInSlot(slot);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            return Optional.of(slot);
+        }
+
         return Optional.empty();
     }
 

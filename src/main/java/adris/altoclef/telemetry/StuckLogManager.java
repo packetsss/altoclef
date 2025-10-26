@@ -11,6 +11,8 @@ import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.EquipmentSlot;
@@ -28,13 +30,17 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.LightType;
 import net.minecraft.world.biome.Biome;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -51,17 +57,23 @@ public final class StuckLogManager {
     private static final int MAX_DROPS = 16;
     private static final int MAX_STATUS_EFFECTS = 24;
     private static final int MAX_TASKS_PER_CHAIN = 16;
+    private static final int LATEST_LOG_TAIL_LINES = 500;
 
     private final AltoClef mod;
     private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectWriter prettyWriter;
     private final AtomicLong sequence = new AtomicLong(0L);
     private final String sessionId;
     private final Path sessionDir;
+    private final Path latestLogPath;
 
     public StuckLogManager(AltoClef mod) {
         this.mod = mod;
         this.sessionId = mod.getTelemetrySessionId();
         this.sessionDir = mod.getTelemetrySessionDir();
+        this.prettyWriter = mapper.writerWithDefaultPrettyPrinter();
+        MinecraftClient client = MinecraftClient.getInstance();
+        this.latestLogPath = client != null ? client.runDirectory.toPath().resolve("logs/latest.log") : null;
     }
 
     public void recordEvent(String category, Map<String, Object> details) {
@@ -89,6 +101,7 @@ public final class StuckLogManager {
         root.put("inventory", collectInventoryContext(player));
         root.put("tasks", collectTaskContext());
         root.put("payload", details == null ? Map.of() : details);
+        root.put("latest_log_tail", collectLatestLogTail());
 
         try {
             Path target = resolveStuckFile(entryIndex, category);
@@ -348,7 +361,7 @@ public final class StuckLogManager {
         Files.createDirectories(sessionDir);
         String json;
         try {
-            json = mapper.writeValueAsString(snapshot);
+            json = prettyWriter.writeValueAsString(snapshot);
         } catch (JsonProcessingException ex) {
             Debug.logWarning("Failed to serialize stuck log snapshot: " + ex.getMessage());
             return;
@@ -451,5 +464,59 @@ public final class StuckLogManager {
         }
         double scale = Math.pow(10, decimals);
         return Math.round(value * scale) / scale;
+    }
+
+    private Map<String, Object> collectLatestLogTail() {
+        Map<String, Object> latestLog = new LinkedHashMap<>();
+        latestLog.put("path", latestLogPath != null ? latestLogPath.toString() : "<unavailable>");
+        latestLog.put("requested_lines", LATEST_LOG_TAIL_LINES);
+
+        if (latestLogPath == null) {
+            latestLog.put("present", false);
+            latestLog.put("line_count", 0);
+            latestLog.put("error", "latest.log path not resolved");
+            return latestLog;
+        }
+
+        if (!Files.exists(latestLogPath) || Files.isDirectory(latestLogPath)) {
+            latestLog.put("present", false);
+            latestLog.put("line_count", 0);
+            return latestLog;
+        }
+
+        try {
+            List<String> lines = readLastLines(latestLogPath, LATEST_LOG_TAIL_LINES);
+            latestLog.put("present", true);
+            latestLog.put("line_count", lines.size());
+            latestLog.put("lines", lines);
+        } catch (IOException ex) {
+            latestLog.put("present", false);
+            latestLog.put("line_count", 0);
+            latestLog.put("error", ex.getMessage());
+            Debug.logInternal(String.format(Locale.ROOT,
+                    "[StuckLog] Failed to read latest.log tail: %s",
+                    ex.getMessage()));
+        }
+
+        return latestLog;
+    }
+
+    private static List<String> readLastLines(Path path, int maxLines) throws IOException {
+        if (maxLines <= 0) {
+            return List.of();
+        }
+
+        Deque<String> deque = new ArrayDeque<>(maxLines);
+        try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (deque.size() == maxLines) {
+                    deque.removeFirst();
+                }
+                deque.addLast(line);
+            }
+        }
+
+        return new ArrayList<>(deque);
     }
 }

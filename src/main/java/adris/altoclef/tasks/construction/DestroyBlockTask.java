@@ -36,6 +36,7 @@ import java.util.Optional;
  * Destroy a block at a position.
  */
 public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
+    private static final double DORMANT_GOAL_TIMEOUT_SECONDS = 2.0;
     private final MovementProgressChecker stuckCheck = new MovementProgressChecker();
     private final MovementProgressChecker _moveChecker = new MovementProgressChecker();
     private final BlockPos pos;
@@ -58,6 +59,8 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
     private Task unstuckTask = null;
     private boolean isMining;
     private final TimerGame reachPauseTimer = new TimerGame(0.65);
+    private final TimerGame dormantGoalTimer = new TimerGame(DORMANT_GOAL_TIMEOUT_SECONDS);
+    private boolean monitoringDormantGoal;
     private Task satisfyRequirementTask;
     private MiningRequirement pendingRequirement;
 
@@ -232,7 +235,9 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
         // Reset move checker and stuck check.
         _moveChecker.reset();
         stuckCheck.reset();
-    reachPauseTimer.reset();
+        reachPauseTimer.reset();
+        dormantGoalTimer.reset();
+        monitoringDormantGoal = false;
 
         // Get the item stack in the cursor slot.
         ItemStack cursorStack = StorageHelper.getItemStackInCursorSlot();
@@ -407,6 +412,10 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
                         mod.getClientBaritone().getPathingBehavior().isSafeToCancel()), false);
             }
             isMining = true;
+            if (monitoringDormantGoal) {
+                dormantGoalTimer.reset();
+                monitoringDormantGoal = false;
+            }
             mod.getInputControls().release(Input.SNEAK);
             mod.getInputControls().release(Input.MOVE_BACK);
             mod.getInputControls().release(Input.MOVE_FORWARD);
@@ -456,6 +465,32 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
                 mod.getClientBaritone().getBuilderProcess().onLostControl();
                 mod.getClientBaritone().getCustomGoalProcess().setGoalAndPath(mod.getWorld().getBlockState(pos.up()).getBlock() ==
                         Blocks.SNOW ? new GoalBlock(pos) : new GoalNear(pos, 1));
+                dormantGoalTimer.reset();
+                monitoringDormantGoal = false;
+            } else if (!isMining) {
+                boolean pathingActive = mod.getClientBaritone().getPathingBehavior().isPathing();
+                if (!pathingActive) {
+                    if (!monitoringDormantGoal) {
+                        dormantGoalTimer.reset();
+                        monitoringDormantGoal = true;
+                    } else if (dormantGoalTimer.elapsed()) {
+                        Debug.logMessage(String.format(Locale.ROOT,
+                                "[DestroyBlock] Goal stalled at %s, forcing block unreachable.",
+                                pos.toShortString()), false);
+                        mod.getBlockScanner().forceBlockUnreachable(pos);
+                        mod.getClientBaritone().getCustomGoalProcess().onLostControl();
+                        mod.getClientBaritone().getExploreProcess().onLostControl();
+                        mod.getClientBaritone().getPathingBehavior().forceCancel();
+                        monitoringDormantGoal = false;
+                        dormantGoalTimer.reset();
+                    }
+                } else if (monitoringDormantGoal) {
+                    dormantGoalTimer.reset();
+                    monitoringDormantGoal = false;
+                }
+            } else if (monitoringDormantGoal) {
+                dormantGoalTimer.reset();
+                monitoringDormantGoal = false;
             }
         }
         return null;
@@ -503,6 +538,8 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
         mod.getInputControls().release(Input.SNEAK);
         mod.getInputControls().release(Input.MOVE_BACK);
         mod.getInputControls().release(Input.MOVE_FORWARD);
+    dormantGoalTimer.reset();
+    monitoringDormantGoal = false;
 
         // Logging statements for debugging
         Debug.logInternal("onStop method called");

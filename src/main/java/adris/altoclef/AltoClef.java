@@ -19,6 +19,7 @@ import adris.altoclef.multiversion.DrawContextWrapper;
 import adris.altoclef.multiversion.RenderLayerVer;
 import adris.altoclef.multiversion.versionedfields.Blocks;
 import adris.altoclef.tasksystem.Task;
+import adris.altoclef.tasksystem.TaskChain;
 import adris.altoclef.tasksystem.TaskRunner;
 import adris.altoclef.tasksystem.persistence.TaskPersistenceManager;
 import adris.altoclef.trackers.*;
@@ -33,6 +34,7 @@ import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.telemetry.BaritoneLogManager;
 import adris.altoclef.telemetry.DeathLogManager;
+import adris.altoclef.telemetry.LogTrimManager;
 import adris.altoclef.telemetry.StuckLogManager;
 import baritone.Baritone;
 import baritone.altoclef.AltoClefSettings;
@@ -104,6 +106,7 @@ public class AltoClef implements ModInitializer {
     private StuckLogManager stuckLogManager;
     private TaskPersistenceManager taskPersistenceManager;
     private BaritoneLogManager baritoneLogManager;
+    private LogTrimManager logTrimManager;
     private boolean componentsInitialized = false;
     private boolean autoStartTriggered = false;
     private boolean forcedInitializationLogged = false;
@@ -180,6 +183,7 @@ public class AltoClef implements ModInitializer {
 
     initializeTelemetrySession();
     baritoneLogManager = new BaritoneLogManager(this);
+    logTrimManager = new LogTrimManager(MinecraftClient.getInstance().runDirectory.toPath());
 
         // Central Managers
     commandExecutor = new CommandExecutor(this);
@@ -320,6 +324,10 @@ public class AltoClef implements ModInitializer {
     // Client tick
     private void onClientTick() {
         runEnqueuedPostInits();
+
+        if (logTrimManager != null) {
+            logTrimManager.tick();
+        }
 
         inputControls.onTickPre();
 
@@ -914,9 +922,7 @@ public class AltoClef implements ModInitializer {
         idleAggressivePathingActive = true;
         idleAggressiveAnchorPos = anchorPos;
         idleAggressiveExpiryTick = currentTick + IDLE_STALL_HEURISTIC_DURATION_TICKS;
-        if (getClientBaritone().getPathingBehavior().isPathing()) {
-            getClientBaritone().getPathingBehavior().cancelEverything();
-        }
+        refreshActiveBaritoneGoal();
     }
 
     private void deactivateIdleStallRecovery(String reason) {
@@ -995,6 +1001,27 @@ public class AltoClef implements ModInitializer {
         map.put("y", Math.round(vec.y * 1000.0) / 1000.0);
         map.put("z", Math.round(vec.z * 1000.0) / 1000.0);
         return map;
+    }
+
+    private void refreshActiveBaritoneGoal() {
+        Baritone baritone = getClientBaritone();
+        var pathingBehavior = baritone.getPathingBehavior();
+        pathingBehavior.cancelEverything();
+        pathingBehavior.forceCancel();
+        baritone.getExploreProcess().onLostControl();
+        baritone.getCustomGoalProcess().onLostControl();
+        requestCurrentTaskGoalReissue();
+    }
+
+    private void requestCurrentTaskGoalReissue() {
+        if (taskRunner == null || !taskRunner.isActive()) {
+            return;
+        }
+        TaskChain currentChain = taskRunner.getCurrentTaskChain();
+        if (currentChain == null || !currentChain.isActive()) {
+            return;
+        }
+        currentChain.onInterrupt(currentChain);
     }
 
 }
