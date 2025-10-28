@@ -199,7 +199,7 @@ public class Settings implements IFailableConfigFile {
      * 6 works well for singleplayer
      * 4 works better on more restrictive multiplayer servers
      */
-    private float entityReachRange = 6;
+    private float entityReachRange = 4;
 
     /**
      * Before grabbing ANYTHING, get a pickaxe.

@@ -37,7 +37,7 @@ public class KillEntityTask extends AbstractKillEntityTask {
             AltoClef mod = AltoClef.getInstance();
             // Prevent risky bridging while pursuing blazes over fortress gaps.
             mod.getBehaviour().push();
-            mod.getBehaviour().setBlockPlacePenalty(Double.POSITIVE_INFINITY);
+            mod.getBehaviour().setBlockPlacePenalty(20);
             behaviourAdjusted = true;
         }
     }

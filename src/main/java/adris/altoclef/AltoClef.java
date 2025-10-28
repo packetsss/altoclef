@@ -184,7 +184,7 @@ public class AltoClef implements ModInitializer {
 
     initializeTelemetrySession();
     baritoneLogManager = new BaritoneLogManager(this);
-    logTrimManager = new LogTrimManager(MinecraftClient.getInstance().runDirectory.toPath());
+    logTrimManager = null; // Temporarily disable log trimming while sanitizing latest.log issues.
 
         // Central Managers
     commandExecutor = new CommandExecutor(this);
@@ -407,6 +407,10 @@ public class AltoClef implements ModInitializer {
         getClientBaritoneSettings().allowParkourPlace.value = false;
         getClientBaritoneSettings().allowDiagonalDescend.value = false;
         getClientBaritoneSettings().allowDiagonalAscend.value = false;
+        // Added
+        getClientBaritoneSettings().backtrackCostFavoringCoefficient.value = 1.0;
+        getClientBaritoneSettings().walkOnWaterOnePenalty.value = 20.0;
+        //
         getClientBaritoneSettings().blocksToAvoid.value = new LinkedList<>(List.of(Blocks.FLOWERING_AZALEA, Blocks.AZALEA,
                 Blocks.POWDER_SNOW, Blocks.BIG_DRIPLEAF, Blocks.BIG_DRIPLEAF_STEM, Blocks.CAVE_VINES,
                 Blocks.CAVE_VINES_PLANT, Blocks.TWISTING_VINES, Blocks.TWISTING_VINES_PLANT, Blocks.SWEET_BERRY_BUSH,
