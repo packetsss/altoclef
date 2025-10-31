@@ -131,7 +131,7 @@ public class AltoClef implements ModInitializer {
     private static final int IDLE_STALL_COOLDOWN_TICKS = 30 * 20;
     private static final int SMELTING_SUPPRESSION_GRACE_TICKS = 8 * 20;
     private static final double IDLE_STALL_DISTANCE_SQ = 1.25 * 1.25;
-    private static final double IDLE_STALL_HEURISTIC_BOOST = 11.0;
+    private static final double IDLE_STALL_HEURISTIC_BOOST = 25.0;
     private static final int IDLE_STALL_HEURISTIC_DURATION_TICKS = 12 * 20;
     private static final double IDLE_STALL_RECOVERY_DISTANCE_SQ = 4.0;
     private static final Set<String> SMELTING_TASK_CLASSES = Set.of(

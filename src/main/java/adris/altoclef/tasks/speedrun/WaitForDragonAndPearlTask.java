@@ -83,12 +83,10 @@ public class WaitForDragonAndPearlTask extends Task {
     protected Task onTick() {
         AltoClef mod = AltoClef.getInstance();
 
-        Optional<Entity> enderMen = mod.getEntityTracker().getClosestEntity(EndermanEntity.class);
-        if (enderMen.isPresent() && (enderMen.get() instanceof EndermanEntity endermanEntity) &&
-                endermanEntity.getTarget()==mod.getPlayer()) {
+        Predicate<Entity> angryEnderman = entity -> entity instanceof EndermanEntity enderman && enderman.getTarget() == mod.getPlayer();
+        if (mod.getEntityTracker().entityFound(angryEnderman, EndermanEntity.class)) {
             setDebugState("Killing angry endermen");
-            Predicate<Entity> angry = entity -> endermanEntity.getTarget()==mod.getPlayer();
-            return new KillEntitiesTask(angry, enderMen.get().getClass());
+            return new KillEntitiesTask(angryEnderman, EndermanEntity.class);
         }
         if (throwPearlTask != null && throwPearlTask.isActive() && !throwPearlTask.isFinished()) {
             setDebugState("Throwing pearl!");
