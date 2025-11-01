@@ -6,9 +6,11 @@ import adris.altoclef.multiversion.entity.PlayerVer;
 import adris.altoclef.multiversion.versionedfields.Blocks;
 import adris.altoclef.tasks.construction.DestroyBlockTask;
 import adris.altoclef.tasks.movement.GetOutOfWaterTask;
+import adris.altoclef.tasks.movement.OppositeAxisDiversionTask;
 import adris.altoclef.tasks.movement.SafeRandomShimmyTask;
 import adris.altoclef.tasks.movement.WaterRecoveryTask;
 import adris.altoclef.tasksystem.TaskRunner;
+import adris.altoclef.util.Dimension;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.time.TimerGame;
@@ -23,6 +25,7 @@ import net.minecraft.fluid.FluidState;
 import net.minecraft.registry.Registries;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.registry.tag.FluidTags;
 
@@ -35,6 +38,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 public class UnstuckChain extends SingleTaskChain {
@@ -74,6 +78,14 @@ public class UnstuckChain extends SingleTaskChain {
     private static final double UNSTUCK_PRIORITY_RESET_DISTANCE_SQ = 2.25;
     private static final long WATER_RECOVERY_TRIGGER_TICKS = GetOutOfWaterTask.STALL_DETECTION_TICKS * 3;
     private static final long DEFAULT_STUCK_EVENT_WINDOW_TICKS = 12 * 20;
+    private static final long FORCE_DIVERSION_COOLDOWN_TICKS = 20 * 45;
+    private static final int FORCE_DIVERSION_MIN_OFFSET = 30;
+    private static final int FORCE_DIVERSION_MAX_OFFSET = 50;
+
+    private long lastStuckEventTick = Long.MIN_VALUE;
+    private int consecutiveStuckEvents = 0;
+    private long lastDiversionTick = Long.MIN_VALUE;
+    private BlockPos lastDiversionDestination = null;
 
     public UnstuckChain(TaskRunner runner) {
         super(runner);
@@ -367,9 +379,14 @@ public class UnstuckChain extends SingleTaskChain {
         ClientWorld world = mod.getWorld();
         long now = world != null ? world.getTime() : WorldHelper.getTicks();
         long last = stuckLogCooldowns.getOrDefault(key, Long.MIN_VALUE);
-        if (now - last < cooldownTicks) {
+        boolean shouldLog = cooldownTicks <= 0 || now - last >= cooldownTicks;
+
+        if (!shouldLog) {
             return false;
         }
+
+        handleOppositeDiversionOnRepeatedStuck(cooldownTicks, now);
+        
         stuckLogCooldowns.put(key, now);
         String detailLine = details.entrySet().stream()
                 .map(entry -> entry.getKey() + "=" + entry.getValue())
@@ -412,6 +429,156 @@ public class UnstuckChain extends SingleTaskChain {
         generalRecoveryArmed = false;
         generalRecoveryArmTick = -1;
         generalRecoverySourceKey = null;
+    }
+
+    private void handleOppositeDiversionOnRepeatedStuck(long cooldownTicks, long nowTick) {
+        if (!isInOverworld()) {
+            consecutiveStuckEvents = 0;
+            lastStuckEventTick = Long.MIN_VALUE;
+            return;
+        }
+
+        if (lastStuckEventTick == Long.MIN_VALUE || nowTick <= lastStuckEventTick) {
+            consecutiveStuckEvents = 1;
+        } else {
+            consecutiveStuckEvents++;
+        }
+
+        long deltaTicks = lastStuckEventTick == Long.MIN_VALUE ? -1 : nowTick - lastStuckEventTick;
+        lastStuckEventTick = nowTick;
+
+        String diversionBlocker = getOppositeDiversionBlocker(nowTick);
+
+        if (consecutiveStuckEvents > 1) {
+            double deltaSeconds = deltaTicks >= 0 ? deltaTicks / 20.0 : -1;
+            String mainTaskName = mainTask != null ? mainTask.getClass().getSimpleName() : "<none>";
+            Debug.logMessage(String.format(Locale.ROOT,
+                    "[Unstuck] Consecutive stuck logs detected (%d) (gap=%.1fs, cooldown=%dt, blocker=%s, mainTask=%s)",
+                    consecutiveStuckEvents,
+                    deltaSeconds,
+                    cooldownTicks,
+                    diversionBlocker == null ? "<none>" : diversionBlocker,
+                    mainTaskName), false);
+        }
+
+        if (consecutiveStuckEvents >= 2 && diversionBlocker == null) {
+            if (issueOppositeDiversion()) {
+                consecutiveStuckEvents = 0;
+            } else {
+                Debug.logMessage("[Unstuck] Opposite-axis diversion aborted: no viable diversion target computed.", false);
+            }
+        }
+    }
+
+    private boolean isInOverworld() {
+        return WorldHelper.getCurrentDimension() == Dimension.OVERWORLD;
+    }
+
+    private String getOppositeDiversionBlocker(long nowTick) {
+        if (lastDiversionTick == Long.MIN_VALUE) {
+            return null;
+        }
+
+        long ticksSinceLastDiversion = nowTick - lastDiversionTick;
+        if (ticksSinceLastDiversion < 0) {
+            Debug.logInternal(String.format(Locale.ROOT,
+                    "[Unstuck] Resetting diversion cooldown after negative delta (now=%d, last=%d)",
+                    nowTick,
+                    lastDiversionTick));
+            lastDiversionTick = Long.MIN_VALUE;
+            lastDiversionDestination = null;
+            return null;
+        }
+        if (ticksSinceLastDiversion < FORCE_DIVERSION_COOLDOWN_TICKS) {
+            if (!(mainTask instanceof OppositeAxisDiversionTask)) {
+                long remaining = FORCE_DIVERSION_COOLDOWN_TICKS - ticksSinceLastDiversion;
+                return String.format(Locale.ROOT, "cooldown active (%.1fs remaining)", remaining / 20.0);
+            }
+        }
+        if (mainTask instanceof WaterRecoveryTask || mainTask instanceof GetOutOfWaterTask) {
+            return String.format(Locale.ROOT, "blocked by active %s", mainTask.getClass().getSimpleName());
+        }
+        return null;
+    }
+
+    private boolean issueOppositeDiversion() {
+        AltoClef mod = AltoClef.getInstance();
+        if (mod.getPlayer() == null) {
+            return false;
+        }
+
+        BlockPos playerPos = mod.getPlayer().getBlockPos();
+    Optional<BlockPos> diversionTargetOpt = computeOppositeDiversionDestination(playerPos);
+
+        if (diversionTargetOpt.isEmpty()) {
+            Debug.logMessage("[Unstuck] Unable to compute diversion destination (no goal/facing data).", false);
+            return false;
+        }
+
+    BlockPos diversionTarget = diversionTargetOpt.get();
+        Debug.logMessage(String.format(Locale.ROOT,
+                "[Unstuck] Triggering opposite-axis diversion from %s to %s",
+                playerPos.toShortString(),
+                diversionTarget.toShortString()), false);
+        lastDiversionDestination = diversionTarget;
+        setTask(new OppositeAxisDiversionTask(diversionTarget));
+        startedShimmying = false;
+        isProbablyStuck = true;
+    posHistory.clear();
+        clearGeneralRecovery();
+        waterRecoveryArmed = false;
+        waterRecoveryArmTick = -1;
+        lastDiversionTick = WorldHelper.getTicks();
+        return true;
+    }
+
+    private Optional<BlockPos> computeOppositeDiversionDestination(BlockPos playerPos) {
+        AltoClef mod = AltoClef.getInstance();
+        Vec3d playerVec = new Vec3d(playerPos.getX() + 0.5, playerPos.getY(), playerPos.getZ() + 0.5);
+        double mirroredX = -playerVec.x;
+        double mirroredZ = -playerVec.z;
+        double targetYExact = 128.0 - playerVec.y;
+
+        Vec3d horizontalDelta = new Vec3d(mirroredX - playerVec.x, 0.0, mirroredZ - playerVec.z);
+        double horizontalLength = horizontalDelta.length();
+        Vec3d horizontalDir;
+        if (horizontalLength < 1.0e-4) {
+            double angle = ThreadLocalRandom.current().nextDouble(0, Math.PI * 2.0);
+            horizontalDir = new Vec3d(Math.cos(angle), 0.0, Math.sin(angle));
+        } else {
+            horizontalDir = horizontalDelta.normalize();
+        }
+
+        int distance = ThreadLocalRandom.current().nextInt(FORCE_DIVERSION_MIN_OFFSET, FORCE_DIVERSION_MAX_OFFSET + 1);
+        Vec3d offset = horizontalDir.multiply(distance);
+        Vec3d horizontalTarget = playerVec.add(offset);
+
+        int destX = MathHelper.floor(horizontalTarget.x);
+        int destZ = MathHelper.floor(horizontalTarget.z);
+
+        int bottomY = mod.getWorld() != null ? mod.getWorld().getBottomY() : -64;
+        int topY = mod.getWorld() != null ? mod.getWorld().getTopY() - 1 : 319;
+        int destY = MathHelper.clamp(MathHelper.floor(targetYExact), bottomY, topY);
+
+        BlockPos candidate = new BlockPos(destX, destY, destZ);
+        if (lastDiversionDestination == null || !lastDiversionDestination.equals(candidate)) {
+            return Optional.of(candidate);
+        }
+
+        // Try perturbing direction if we matched the previous destination.
+        for (int attempt = 0; attempt < 4; attempt++) {
+            double angle = ThreadLocalRandom.current().nextDouble(0, Math.PI * 2.0);
+            Vec3d tryDir = new Vec3d(Math.cos(angle), 0.0, Math.sin(angle));
+            Vec3d tryTarget = playerVec.add(tryDir.multiply(distance));
+            int tryX = MathHelper.floor(tryTarget.x);
+            int tryZ = MathHelper.floor(tryTarget.z);
+            BlockPos alternate = new BlockPos(tryX, destY, tryZ);
+            if (!alternate.equals(lastDiversionDestination)) {
+                return Optional.of(alternate);
+            }
+        }
+
+        return Optional.of(candidate);
     }
 
     private static Map<String, Object> vectorMap(Vec3d vec) {
@@ -690,6 +857,7 @@ public class UnstuckChain extends SingleTaskChain {
         waterRecoveryArmed = false;
         waterRecoveryArmTick = -1;
         clearGeneralRecovery();
+        lastDiversionDestination = null;
     }
 
     @Override

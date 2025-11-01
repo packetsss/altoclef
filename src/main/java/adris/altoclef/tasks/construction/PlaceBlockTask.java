@@ -130,6 +130,10 @@ public class PlaceBlockTask extends Task implements ITaskRequiresGrounded {
         } else {
             setDebugState("Letting baritone place a block.");
             // Perform baritone placement
+            if (isFinished()) {
+                setDebugState("Placement already satisfied.");
+                return null;
+            }
             if (!mod.getClientBaritone().getBuilderProcess().isActive()) {
                 Debug.logInternal("Run Structure Build");
                 ISchematic schematic = new PlaceStructureSchematic(mod);
