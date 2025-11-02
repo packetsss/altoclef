@@ -68,6 +68,7 @@ public class CollectFoodTask extends Task {
     private final TimerGame checkNewOptionsTimer = new TimerGame(10);
     private final SmeltInSmokerTask smeltTask = null;
     private Task currentResourceTask = null;
+    private boolean behaviourPushed;
 
     public CollectFoodTask(double unitsNeeded) {
         this.unitsNeeded = unitsNeeded;
@@ -124,9 +125,11 @@ public class CollectFoodTask extends Task {
     protected void onStart() {
         AltoClef mod = AltoClef.getInstance();
 
-        mod.getBehaviour().push();
-        // Protect ALL food
-        mod.getBehaviour().addProtectedItems(ITEMS_TO_PICK_UP);
+        if (mod.getBehaviour() != null) {
+            behaviourPushed = true;
+            mod.getBehaviour().push();
+            // Protect ALL food while we gather supplies.
+            mod.getBehaviour().addProtectedItems(ITEMS_TO_PICK_UP);
 
         // Allow us to consume food.
         /*
@@ -135,7 +138,11 @@ public class CollectFoodTask extends Task {
             mod.getBehaviour().addProtectedItems(crop.cropItem);
         }
          */
-        mod.getBehaviour().addProtectedItems(Items.HAY_BLOCK, Items.SWEET_BERRIES);
+            mod.getBehaviour().addProtectedItems(Items.HAY_BLOCK, Items.SWEET_BERRIES);
+        } else {
+            behaviourPushed = false;
+            Debug.logInternal("CollectFoodTask started without behaviour; skipping push.");
+        }
     }
 
     @Override
@@ -322,7 +329,11 @@ public class CollectFoodTask extends Task {
 
     @Override
     protected void onStop(Task interruptTask) {
-        AltoClef.getInstance().getBehaviour().pop();
+        AltoClef mod = AltoClef.getInstance();
+        if (behaviourPushed && mod != null && mod.getBehaviour() != null) {
+            mod.getBehaviour().pop();
+            behaviourPushed = false;
+        }
     }
 
     @Override

@@ -131,6 +131,9 @@ public class PlaceBlockTask extends Task implements ITaskRequiresGrounded {
             setDebugState("Letting baritone place a block.");
             // Perform baritone placement
             if (isFinished()) {
+                if (mod.getClientBaritone().getBuilderProcess().isActive()) {
+                    mod.getClientBaritone().getBuilderProcess().onLostControl();
+                }
                 setDebugState("Placement already satisfied.");
                 return null;
             }

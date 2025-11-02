@@ -436,6 +436,13 @@ public class BeatMinecraftTask extends Task {
         return taskActive && !taskFinished;
     }
 
+    private void cancelSearchTask() {
+        if (searchTask != null) {
+            searchTask.stop();
+            searchTask = null;
+        }
+    }
+
     private boolean needsResourceRecovery(AltoClef mod) {
         ItemStorageTracker storage = mod.getItemStorage();
         boolean hasWeapon = storage.hasItem(Items.DIAMOND_SWORD, Items.IRON_SWORD, Items.STONE_SWORD);
@@ -2916,6 +2923,9 @@ public class BeatMinecraftTask extends Task {
                 double pearlDistance = mod.getBlockScanner().distanceToClosest(Blocks.TWISTING_VINES, Blocks.TWISTING_VINES_PLANT, Blocks.WARPED_HYPHAE, Blocks.WARPED_NYLIUM);
                 Optional<BlockPos> locatedFortress = fortressLocator.getLocatedPosition();
                 Optional<BlockPos> locatedWarped = warpedForestLocator.getLocatedPosition();
+                boolean hasLocatedFortress = locatedFortress.isPresent();
+                boolean hasLocatedWarped = locatedWarped.isPresent();
+                boolean hasLocateTarget = hasLocatedFortress || hasLocatedWarped;
                 locatedWarped.ifPresent(located -> {
                     if (!mod.getBlockScanner().anyFound(Blocks.TWISTING_VINES, Blocks.TWISTING_VINES_PLANT, Blocks.WARPED_HYPHAE, Blocks.WARPED_NYLIUM)) {
                         ClientPlayerEntity player = mod.getPlayer();
@@ -2928,6 +2938,10 @@ public class BeatMinecraftTask extends Task {
 
                 boolean shouldGetRods = needsBlazeRods && (gettingRods || (!gettingPearls && ((rodDistance < pearlDistance && !hasRods) || !needsEnderPearls)));
                 boolean shouldGetPearls = needsEnderPearls && (gettingPearls || (!shouldGetRods && !gettingRods));
+
+                if (hasLocateTarget) {
+                    cancelSearchTask();
+                }
 
                 if (pearlDistance == Double.POSITIVE_INFINITY && rodDistance == Double.POSITIVE_INFINITY) {
                     if (shouldGetRods && locatedFortress.isPresent()) {
@@ -2969,12 +2983,17 @@ public class BeatMinecraftTask extends Task {
                     } else {
                         setDebugState("Locate commands unsupported, wandering for structures");
                     }
-                    if (isTaskRunning(mod, searchTask)) {
+                    if (!hasLocateTarget) {
+                        if (isTaskRunning(mod, searchTask)) {
+                            return searchTask;
+                        }
+                        if (searchTask == null) {
+                            searchTask = new SearchChunkForBlockTask(Blocks.TWISTING_VINES, Blocks.TWISTING_VINES_PLANT, Blocks.WARPED_HYPHAE, Blocks.WARPED_NYLIUM, Blocks.NETHER_BRICKS);
+                        }
                         return searchTask;
                     }
-
-                    searchTask = new SearchChunkForBlockTask(Blocks.TWISTING_VINES, Blocks.TWISTING_VINES_PLANT, Blocks.WARPED_HYPHAE, Blocks.WARPED_NYLIUM, Blocks.NETHER_BRICKS);
-                    return searchTask;
+                } else {
+                    cancelSearchTask();
                 }
 
                 if (shouldGetRods) {

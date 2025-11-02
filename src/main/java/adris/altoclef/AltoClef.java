@@ -77,6 +77,7 @@ public class AltoClef implements ModInitializer {
     private PlayerExtraController extraController;
     // Task chains
     private UserTaskChain userTaskChain;
+    private UnstuckChain unstuckChain;
     private DeathMenuChain deathMenuChain;
     private FoodChain foodChain;
     private MobDefenseChain mobDefenseChain;
@@ -206,7 +207,7 @@ public class AltoClef implements ModInitializer {
     deathMenuChain = new DeathMenuChain(taskRunner);
         new PlayerInteractionFixChain(taskRunner);
         mlgBucketChain = new MLGBucketFallChain(taskRunner);
-        new UnstuckChain(taskRunner);
+    unstuckChain = new UnstuckChain(taskRunner);
         new PreEquipItemChain(taskRunner);
         new WorldSurvivalChain(taskRunner);
         foodChain = new FoodChain(taskRunner);
@@ -714,6 +715,10 @@ public class AltoClef implements ModInitializer {
         return mobDefenseChain;
     }
 
+    public UnstuckChain getUnstuckChain() {
+        return unstuckChain;
+    }
+
     /**
      * Takes control away to perform bucket saves
      */
@@ -881,6 +886,9 @@ public class AltoClef implements ModInitializer {
             payload.put("current_pos", vectorMap(currentPos));
             payload.put("runner_status", taskRunner != null ? taskRunner.statusReport : "<none>");
             stuckLogManager.recordEvent("PlayerIdleStall", payload);
+            if (unstuckChain != null) {
+                unstuckChain.noteExternalStuckLog("PlayerIdleStall", IDLE_STALL_COOLDOWN_TICKS, currentTick);
+            }
             triggerIdleStallRecovery(currentPos, currentTick);
             lastIdleLogTick = currentTick;
             idleMonitorAnchorPos = currentPos;

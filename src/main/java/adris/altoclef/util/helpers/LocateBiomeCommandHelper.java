@@ -153,39 +153,57 @@ public class LocateBiomeCommandHelper implements AutoCloseable {
     }
 
     private void handleChatMessage(ChatMessageEvent event) {
-        if (!awaitingResponse) {
-            return;
-        }
         String message = event.messageContent();
         lastMessage = message;
         if (message == null) {
             return;
         }
+
         String sanitized = FORMAT_CODE_PATTERN.matcher(message).replaceAll("");
         String normalized = sanitized.toLowerCase(Locale.ROOT);
 
-        for (String deny : PERMISSION_STRINGS) {
-            if (normalized.contains(deny)) {
-                unsupported = true;
-                awaitingResponse = false;
-                Debug.logWarning("[LocateBiome] Locate command unsupported: " + message);
-                return;
-            }
-        }
-
-        if (normalized.contains("no ") && normalized.contains("could") && normalized.contains("found")) {
-            awaitingResponse = false;
-            retryTimer.reset();
-            Debug.logMessage("[LocateBiome] No biome found for " + biomeId + ".");
-            return;
-        }
+        boolean isAwaiting = awaitingResponse;
+        boolean mentionsBiomeId = biomeIdLower != null && normalized.contains(biomeIdLower);
+        boolean mentionsToken = responseTokenLower != null && normalized.contains(responseTokenLower);
 
         Matcher primaryMatcher = COORD_PATTERN.matcher(sanitized);
         boolean hasPrimaryCoords = primaryMatcher.find();
         Matcher altMatcher = ALT_COORD_PATTERN.matcher(sanitized);
         boolean hasAltCoords = altMatcher.find();
 
-        boolean relevant = responseTokenLower == null || normalized.contains(responseTokenLower) || (biomeIdLower != null && normalized.contains(biomeIdLower));
+        if (!isAwaiting && !mentionsBiomeId && !mentionsToken) {
+            // Ignore unrelated messages unless we're actively awaiting a locate response.
+            return;
+        }
+
+        if (isAwaiting) {
+            for (String deny : PERMISSION_STRINGS) {
+                if (normalized.contains(deny)) {
+                    unsupported = true;
+                    awaitingResponse = false;
+                    Debug.logWarning("[LocateBiome] Locate command unsupported: " + message);
+                    return;
+                }
+            }
+
+            if (normalized.contains("no ") && normalized.contains("could") && normalized.contains("found")) {
+                awaitingResponse = false;
+                retryTimer.reset();
+                Debug.logMessage("[LocateBiome] No biome found for " + biomeId + ".");
+                return;
+            }
+        }
+
+        boolean relevant = mentionsToken || mentionsBiomeId;
+        if (!relevant && biomeIdLower != null) {
+            // Some servers omit the namespace or replace separators, so fall back to more tolerant matching.
+            String simplifiedId = biomeIdLower.replace(':', ' ').replace('_', ' ');
+            relevant = normalized.contains(simplifiedId);
+        }
+        if (!relevant && (hasPrimaryCoords || hasAltCoords) && isAwaiting) {
+            // When we're already waiting for a locate response, any coordinate-bearing message is likely ours.
+            relevant = true;
+        }
         if (!relevant) {
             return;
         }
@@ -198,7 +216,7 @@ public class LocateBiomeCommandHelper implements AutoCloseable {
             locatedPos = new BlockPos(x, y, z);
             CACHE.put(cacheKey, new CachedLocate(locatedPos, System.currentTimeMillis()));
             awaitingResponse = false;
-            Debug.logMessage("[LocateBiome] Located " + biomeId + " at " + locatedPos.toShortString());
+            Debug.logMessage("[LocateBiome] Located " + biomeId + " at " + locatedPos.toShortString() + (isAwaiting ? "" : " (passive capture)"));
             return;
         }
 
@@ -209,7 +227,7 @@ public class LocateBiomeCommandHelper implements AutoCloseable {
             locatedPos = new BlockPos(x, y, z);
             CACHE.put(cacheKey, new CachedLocate(locatedPos, System.currentTimeMillis()));
             awaitingResponse = false;
-            Debug.logMessage("[LocateBiome] Located (alt format) " + biomeId + " at " + locatedPos.toShortString());
+            Debug.logMessage("[LocateBiome] Located (alt format) " + biomeId + " at " + locatedPos.toShortString() + (isAwaiting ? "" : " (passive capture)"));
         }
     }
 

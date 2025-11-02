@@ -78,11 +78,14 @@ public class UnstuckChain extends SingleTaskChain {
     private static final double UNSTUCK_PRIORITY_RESET_DISTANCE_SQ = 2.25;
     private static final long WATER_RECOVERY_TRIGGER_TICKS = GetOutOfWaterTask.STALL_DETECTION_TICKS * 3;
     private static final long DEFAULT_STUCK_EVENT_WINDOW_TICKS = 12 * 20;
+    private static final double OPPOSITE_DIVERSION_WINDOW_MULTIPLIER = 2.5;
     private static final long FORCE_DIVERSION_COOLDOWN_TICKS = 20 * 45;
     private static final int FORCE_DIVERSION_MIN_OFFSET = 30;
     private static final int FORCE_DIVERSION_MAX_OFFSET = 50;
 
     private long lastStuckEventTick = Long.MIN_VALUE;
+    private long lastStuckEventWindowTicks = 0;
+    private String lastStuckEventKey = null;
     private int consecutiveStuckEvents = 0;
     private long lastDiversionTick = Long.MIN_VALUE;
     private BlockPos lastDiversionDestination = null;
@@ -385,7 +388,7 @@ public class UnstuckChain extends SingleTaskChain {
             return false;
         }
 
-        handleOppositeDiversionOnRepeatedStuck(cooldownTicks, now);
+    handleOppositeDiversionOnRepeatedStuck(key, cooldownTicks, now);
         
         stuckLogCooldowns.put(key, now);
         String detailLine = details.entrySet().stream()
@@ -431,32 +434,47 @@ public class UnstuckChain extends SingleTaskChain {
         generalRecoverySourceKey = null;
     }
 
-    private void handleOppositeDiversionOnRepeatedStuck(long cooldownTicks, long nowTick) {
+    private void handleOppositeDiversionOnRepeatedStuck(String key, long cooldownTicks, long nowTick) {
         if (!isInOverworld()) {
             consecutiveStuckEvents = 0;
             lastStuckEventTick = Long.MIN_VALUE;
+            lastStuckEventWindowTicks = 0;
+            lastStuckEventKey = null;
             return;
         }
 
-        if (lastStuckEventTick == Long.MIN_VALUE || nowTick <= lastStuckEventTick) {
+        long windowTicks = computeDiversionWindow(cooldownTicks);
+        long deltaTicks = lastStuckEventTick == Long.MIN_VALUE ? Long.MIN_VALUE : nowTick - lastStuckEventTick;
+        long previousWindow = lastStuckEventWindowTicks;
+        String previousKey = lastStuckEventKey;
+        long effectiveWindow = Math.max(previousWindow, windowTicks);
+
+        boolean withinWindow = deltaTicks != Long.MIN_VALUE && deltaTicks >= 0 && deltaTicks <= effectiveWindow;
+
+        if (lastStuckEventTick == Long.MIN_VALUE || deltaTicks < 0) {
             consecutiveStuckEvents = 1;
-        } else {
+        } else if (withinWindow) {
             consecutiveStuckEvents++;
+        } else {
+            consecutiveStuckEvents = 1;
         }
 
-        long deltaTicks = lastStuckEventTick == Long.MIN_VALUE ? -1 : nowTick - lastStuckEventTick;
         lastStuckEventTick = nowTick;
+        lastStuckEventWindowTicks = windowTicks;
+        lastStuckEventKey = key;
 
         String diversionBlocker = getOppositeDiversionBlocker(nowTick);
 
         if (consecutiveStuckEvents > 1) {
             double deltaSeconds = deltaTicks >= 0 ? deltaTicks / 20.0 : -1;
             String mainTaskName = mainTask != null ? mainTask.getClass().getSimpleName() : "<none>";
-            Debug.logMessage(String.format(Locale.ROOT,
-                    "[Unstuck] Consecutive stuck logs detected (%d) (gap=%.1fs, cooldown=%dt, blocker=%s, mainTask=%s)",
+        Debug.logMessage(String.format(Locale.ROOT,
+            "[Unstuck] Consecutive stuck logs detected (%d) (gap=%.1fs, window=%dt, keys=%s->%s, blocker=%s, mainTask=%s)",
                     consecutiveStuckEvents,
                     deltaSeconds,
-                    cooldownTicks,
+                    effectiveWindow,
+                    previousKey == null ? "<none>" : previousKey,
+                    key == null ? "<none>" : key,
                     diversionBlocker == null ? "<none>" : diversionBlocker,
                     mainTaskName), false);
         }
@@ -472,6 +490,16 @@ public class UnstuckChain extends SingleTaskChain {
 
     private boolean isInOverworld() {
         return WorldHelper.getCurrentDimension() == Dimension.OVERWORLD;
+    }
+
+    private long computeDiversionWindow(long cooldownTicks) {
+        long base = cooldownTicks > 0 ? cooldownTicks : DEFAULT_STUCK_EVENT_WINDOW_TICKS;
+        double scaled = base * OPPOSITE_DIVERSION_WINDOW_MULTIPLIER;
+        return Math.max(1L, (long) Math.ceil(scaled));
+    }
+
+    public void noteExternalStuckLog(String key, long cooldownTicks, long nowTick) {
+        handleOppositeDiversionOnRepeatedStuck(key, cooldownTicks, nowTick);
     }
 
     private String getOppositeDiversionBlocker(long nowTick) {
