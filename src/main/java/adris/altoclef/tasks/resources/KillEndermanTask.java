@@ -9,6 +9,7 @@ import adris.altoclef.tasks.movement.TimeoutWanderTask;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.Dimension;
 import adris.altoclef.util.ItemTarget;
+import adris.altoclef.util.helpers.EntityHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.time.TimerGame;
 import net.minecraft.block.Blocks;
@@ -73,7 +74,7 @@ public class KillEndermanTask extends ResourceTask {
         // Kill the angry one
         for (EndermanEntity entity : mod.getEntityTracker().getTrackedEntities(EndermanEntity.class)) {
 
-            if (belowNetherRoof.test(entity) && entity.isAngry() && entity.getPos().isInRange(mod.getPlayer().getPos(), TOO_FAR_AWAY)) {
+            if (belowNetherRoof.test(entity) && EntityHelper.isAngryAtPlayer(mod, entity) && entity.getPos().isInRange(mod.getPlayer().getPos(), TOO_FAR_AWAY)) {
                 return new KillEntityTask(entity);
             }
         }

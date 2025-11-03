@@ -11,6 +11,7 @@ import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.time.TimerGame;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.client.world.ClientWorld;
 import net.minecraft.util.math.BlockPos;
 
 import java.util.Locale;
@@ -39,6 +40,7 @@ public class LocateBiomeCommandHelper implements AutoCloseable {
     };
 
     private static final Map<CacheKey, CachedLocate> CACHE = new ConcurrentHashMap<>();
+    private static int lastCacheWorldIdentity = Integer.MIN_VALUE;
 
     private final AltoClef mod;
     private final String biomeId;
@@ -71,6 +73,8 @@ public class LocateBiomeCommandHelper implements AutoCloseable {
         this.subscription = EventBus.subscribe(ChatMessageEvent.class, this::handleChatMessage);
         this.cacheKey = new CacheKey(this.biomeIdLower, this.requiredDimension);
 
+        synchronizeCacheWithCurrentWorld();
+
         CachedLocate cached = CACHE.get(cacheKey);
         if (cached != null) {
             locatedPos = cached.pos();
@@ -87,6 +91,17 @@ public class LocateBiomeCommandHelper implements AutoCloseable {
      * It will trigger a new locate command when appropriate and handle timeouts.
      */
     public void tick() {
+        boolean worldChanged = synchronizeCacheWithCurrentWorld();
+
+        if (worldChanged) {
+            if (locatedPos != null) {
+                Debug.logInternal("[LocateBiome] Discarding cached " + biomeId + " location due to world/session change.");
+            }
+            locatedPos = null;
+            awaitingResponse = false;
+            retryTimer.forceElapse();
+        }
+
         if (unsupported || !AltoClef.inGame()) {
             return;
         }
@@ -153,6 +168,13 @@ public class LocateBiomeCommandHelper implements AutoCloseable {
     }
 
     private void handleChatMessage(ChatMessageEvent event) {
+        boolean worldChanged = synchronizeCacheWithCurrentWorld();
+        if (worldChanged) {
+            locatedPos = null;
+            awaitingResponse = false;
+            retryTimer.forceElapse();
+        }
+
         String message = event.messageContent();
         lastMessage = message;
         if (message == null) {
@@ -229,6 +251,20 @@ public class LocateBiomeCommandHelper implements AutoCloseable {
             awaitingResponse = false;
             Debug.logMessage("[LocateBiome] Located (alt format) " + biomeId + " at " + locatedPos.toShortString() + (isAwaiting ? "" : " (passive capture)"));
         }
+    }
+
+    private static boolean synchronizeCacheWithCurrentWorld() {
+        ClientWorld world = MinecraftClient.getInstance().world;
+        int identity = world == null ? 0 : System.identityHashCode(world);
+        if (identity != lastCacheWorldIdentity) {
+            lastCacheWorldIdentity = identity;
+            if (!CACHE.isEmpty()) {
+                CACHE.clear();
+                Debug.logInternal("[LocateBiome] Cleared cached biome locations due to world/session change.");
+            }
+            return true;
+        }
+        return false;
     }
 
     private int determineY(String capturedY) {

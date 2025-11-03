@@ -16,6 +16,8 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 
+import java.util.UUID;
+
 /**
  * Helper functions to interpret entity state
  */
@@ -23,6 +25,10 @@ public class EntityHelper {
     public static final double ENTITY_GRAVITY = 0.08; // per second
 
     public static boolean isAngryAtPlayer(AltoClef mod, Entity mob) {
+        if (mob instanceof EndermanEntity enderman) {
+            return isEndermanTargetingPlayer(mod, enderman);
+        }
+
         boolean hostile = isProbablyHostileToPlayer(mod, mob);
         if (mob instanceof LivingEntity entity) {
             return hostile && entity.canSee(mod.getPlayer());
@@ -39,8 +45,7 @@ public class EntityHelper {
                 return piglin.isAttacking() && !isTradingPiglin(mob) && piglin.isAdult();
             }
             if (mob instanceof EndermanEntity enderman) {
-                LivingEntity target = enderman.getTarget();
-                return enderman.isAngry() && target != null && target.equals(mod.getPlayer());
+                return isEndermanTargetingPlayer(mod, enderman);
             }
             if (mob instanceof ZombifiedPiglinEntity zombifiedPiglin) {
                 return zombifiedPiglin.isAttacking();
@@ -50,6 +55,26 @@ public class EntityHelper {
         }
 
         return false;
+    }
+
+    private static boolean isEndermanTargetingPlayer(AltoClef mod, EndermanEntity enderman) {
+        if (!enderman.isAlive() || !enderman.isAngry()) {
+            return false;
+        }
+
+        LivingEntity target = enderman.getTarget();
+        if (target != null && target == mod.getPlayer()) {
+            return true;
+        }
+
+        if (enderman instanceof Angerable angerable) {
+            UUID angryAt = angerable.getAngryAt();
+            if (angryAt != null && angryAt.equals(mod.getPlayer().getUuid())) {
+                return true;
+            }
+        }
+
+        return mod.getEntityTracker().isCollidingWithPlayer(enderman);
     }
 
     public static boolean isTradingPiglin(Entity entity) {
